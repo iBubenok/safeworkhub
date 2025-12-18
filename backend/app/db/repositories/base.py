@@ -1,6 +1,6 @@
 """Базовый репозиторий с CRUD-операциями."""
 
-from typing import Any, Generic, TypeVar
+from typing import Any, Generic, Protocol, TypeVar, cast
 from uuid import UUID
 
 from sqlalchemy import func, select
@@ -9,6 +9,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.base import Base
 
 ModelType = TypeVar("ModelType", bound=Base)
+
+
+class HasId(Protocol):
+    """Протокол для моделей с первичным ключом id."""
+
+    id: Any
 
 
 class BaseRepository(Generic[ModelType]):
@@ -139,7 +145,7 @@ class BaseRepository(Generic[ModelType]):
         Returns:
             True если запись существует.
         """
-        model_id_column: Any = getattr(self.model, "id")
-        query = select(func.count()).select_from(self.model).where(model_id_column == id)
+        model_with_id = cast("type[HasId]", self.model)
+        query = select(func.count()).select_from(self.model).where(model_with_id.id == id)
         result = await self.session.execute(query)
         return result.scalar_one() > 0

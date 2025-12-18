@@ -55,7 +55,7 @@ services:
       - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-safeworkhub}:${POSTGRES_PASSWORD:-safeworkhub_dev}@postgres:5432/${POSTGRES_DB:-safeworkhub}
       - REDIS_URL=redis://redis:6379/0
       - SECRET_KEY=${SECRET_KEY:-dev-secret-key-change-in-production}
-      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3000,http://localhost:5173}
+      - CORS_ORIGINS=${CORS_ORIGINS:-["http://localhost:3000","http://localhost:5173"]}
     volumes:
       - ./backend:/app
     ports:
@@ -104,3 +104,7 @@ networks:
   safeworkhub-network:
     name: safeworkhub-network
     driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.30.0.0/24

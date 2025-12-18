@@ -84,7 +84,7 @@ class Settings(BaseSettings):
         normalized = value.lower()
         if normalized not in {"lax", "strict", "none"}:
             raise ValueError("refresh_token_samesite должен быть lax, strict или none")
-        return cast(Literal["lax", "strict", "none"], normalized)
+        return cast("Literal['lax', 'strict', 'none']", normalized)
 
     @property
     def is_development(self) -> bool:

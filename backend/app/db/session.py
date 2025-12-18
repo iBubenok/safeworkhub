@@ -15,17 +15,23 @@ import app.models  # noqa: F401
 from app.core.config import get_settings
 from app.db.base import Base
 
-_engine: AsyncEngine | None = None
-_session_factory: async_sessionmaker[AsyncSession] | None = None
+
+class _SessionState:
+    """Хранение состояния движка и фабрики сессий без использования global."""
+
+    def __init__(self) -> None:
+        self.engine: AsyncEngine | None = None
+        self.session_factory: async_sessionmaker[AsyncSession] | None = None
+
+
+_state = _SessionState()
 
 
 def _get_session_factory() -> async_sessionmaker[AsyncSession]:
     """Ленивая инициализация движка и фабрики сессий."""
-    global _engine, _session_factory
-
-    if _engine is None or _session_factory is None:
+    if _state.engine is None or _state.session_factory is None:
         settings = get_settings()
-        _engine = create_async_engine(
+        engine = create_async_engine(
             str(settings.database_url),
             echo=settings.database_echo,
             pool_size=settings.database_pool_size,
@@ -33,14 +39,16 @@ def _get_session_factory() -> async_sessionmaker[AsyncSession]:
             pool_pre_ping=True,
             pool_recycle=3600,
         )
-        _session_factory = async_sessionmaker(
-            _engine,
+        _state.engine = engine
+        _state.session_factory = async_sessionmaker(
+            engine,
             class_=AsyncSession,
             expire_on_commit=False,
             autoflush=False,
         )
 
-    return _session_factory
+    assert _state.session_factory is not None, "Фабрика сессий не инициализирована"
+    return _state.session_factory
 
 
 async def get_session() -> AsyncGenerator[AsyncSession, None]:
@@ -72,17 +80,15 @@ async def init_db() -> None:
     Используется только для разработки, в production применяются миграции.
     """
     _get_session_factory()
-    assert _engine is not None, "Движок БД не инициализирован"
+    assert _state.engine is not None, "Движок БД не инициализирован"
 
-    async with _engine.begin() as conn:
+    async with _state.engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
 
 async def close_db() -> None:
     """Закрытие соединений с базой данных."""
-    global _engine, _session_factory
-
-    if _engine is not None:
-        await _engine.dispose()
-    _engine = None
-    _session_factory = None
+    if _state.engine is not None:
+        await _state.engine.dispose()
+    _state.engine = None
+    _state.session_factory = None

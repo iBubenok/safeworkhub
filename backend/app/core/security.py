@@ -6,7 +6,7 @@ import hashlib
 import secrets
 from datetime import UTC, datetime, timedelta
 from enum import StrEnum
-from typing import Any, cast
+from typing import Any
 from uuid import UUID, uuid4
 
 from jose import JWTError, jwt
@@ -75,8 +75,8 @@ def create_access_token(
         "jti": str(uuid4()),
     }
 
-    token = jwt.encode(payload, settings.secret_key, algorithm=settings.jwt_algorithm)
-    return cast(str, token)
+    token: str = jwt.encode(payload, settings.secret_key, algorithm=settings.jwt_algorithm)
+    return token
 
 
 def create_refresh_token(
@@ -97,8 +97,8 @@ def create_refresh_token(
         "sid": str(session_id),
         "fam": str(family_id),
     }
-    token = jwt.encode(payload, settings.secret_key, algorithm=settings.jwt_algorithm)
-    return cast(str, token)
+    token: str = jwt.encode(payload, settings.secret_key, algorithm=settings.jwt_algorithm)
+    return token
 
 
 def decode_token(raw_token: str) -> TokenPayload | None:

@@ -11,9 +11,9 @@ import asyncpg
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy import text
 from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
-from sqlalchemy import text
 from sqlalchemy.pool import NullPool
 
 # Настройки окружения для тестов должны быть заданы до импорта приложения

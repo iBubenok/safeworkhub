@@ -81,7 +81,7 @@ async def refresh_tokens(
     request: Request,
     response: Response,
     session: DbSession,
-    body: RefreshTokenRequest | None = Body(default=None),
+    body: Annotated[RefreshTokenRequest | None, Body()] = None,
 ) -> TokenResponse:
     refresh_token = (
         body.refresh_token if body else None

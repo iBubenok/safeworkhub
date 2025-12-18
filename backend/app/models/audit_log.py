@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from uuid import UUID
 from typing import Any
+from uuid import UUID
 
 from sqlalchemy import JSON, ForeignKey, Index, String
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID

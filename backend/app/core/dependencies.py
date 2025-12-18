@@ -6,11 +6,11 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Annotated
 
-from fastapi import Depends, Request
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import AuthorizationError, AuthenticationError
+from app.core.exceptions import AuthenticationError, AuthorizationError
 from app.core.security import TokenType, verify_token
 from app.db.repositories import SubscriptionRepository, UserRepository
 from app.db.session import get_session
