@@ -81,9 +81,7 @@ class CourseModule(Base, IntegerPKMixin, TimestampMixin):
     # Связи
     course: Mapped["Course"] = relationship(back_populates="modules")
 
-    __table_args__ = (
-        Index("ix_course_modules_course_id", "course_id"),
-    )
+    __table_args__ = (Index("ix_course_modules_course_id", "course_id"),)
 
     def __repr__(self) -> str:
         return f"<CourseModule {self.title}>"

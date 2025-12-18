@@ -45,14 +45,10 @@ class Settings(BaseSettings):
         default_factory=lambda: ["*"],
         description="Список хостов, откуда разрешены запросы",
     )
-    cors_origins: list[str] = Field(
-        default_factory=lambda: ["http://localhost:3000", "http://localhost:5173"]
-    )
+    cors_origins: list[str] = Field(default_factory=lambda: ["http://localhost:3000", "http://localhost:5173"])
 
     # База данных
-    database_url: str = (
-        "postgresql+asyncpg://postgres:postgres@localhost:5432/safeworkhub"
-    )
+    database_url: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/safeworkhub"
     database_pool_size: int = 20
     database_pool_overflow: int = 10
     database_echo: bool = False

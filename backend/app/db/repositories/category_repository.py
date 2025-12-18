@@ -16,8 +16,10 @@ class CategoryRepository(BaseRepository[Category]):
         super().__init__(Category, session)
 
     async def list_by_organization(self, organization_id: int) -> list[Category]:
-        query = select(Category).where(Category.organization_id == organization_id).order_by(
-            Category.sort_order, Category.name
+        query = (
+            select(Category)
+            .where(Category.organization_id == organization_id)
+            .order_by(Category.sort_order, Category.name)
         )
         result = await self.session.execute(query)
         return list(result.scalars().all())

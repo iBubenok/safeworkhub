@@ -149,6 +149,7 @@ async def client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
 
     app.dependency_overrides.clear()
 
+
 @pytest.fixture
 def unique_email() -> str:
     """Генерирует уникальный email для тестов."""

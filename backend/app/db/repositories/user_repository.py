@@ -30,11 +30,7 @@ class UserRepository(BaseRepository[User]):
         query = (
             select(User)
             .where(User.id == user_id)
-            .options(
-                selectinload(User.organization_memberships).selectinload(
-                    OrganizationUser.organization
-                )
-            )
+            .options(selectinload(User.organization_memberships).selectinload(OrganizationUser.organization))
         )
         result = await self.session.execute(query)
         return result.scalar_one_or_none()

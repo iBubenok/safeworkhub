@@ -51,11 +51,7 @@ class NotFoundError(AppError):
         message: str | None = None,
     ) -> None:
         if message is None:
-            message = (
-                f"{resource} с ID {resource_id} не найден"
-                if resource_id
-                else f"{resource} не найден"
-            )
+            message = f"{resource} с ID {resource_id} не найден" if resource_id else f"{resource} не найден"
 
         super().__init__(
             message=message,
@@ -152,6 +148,7 @@ class ExternalServiceError(AppError):
 
 
 # Специфичные исключения домена
+
 
 class UserNotFoundError(NotFoundError):
     """Пользователь не найден."""

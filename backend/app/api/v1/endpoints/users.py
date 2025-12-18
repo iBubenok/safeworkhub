@@ -47,8 +47,7 @@ async def update_current_user(
     response_model=UserWithMemberships,
     summary="Получить пользователя",
     description=(
-        "Получение информации о пользователе по ID. "
-        "Требуются права владельца организации или администратора платформы."
+        "Получение информации о пользователе по ID. Требуются права владельца организации или администратора платформы."
     ),
     dependencies=[Depends(require_roles(OrgRole.ORG_OWNER))],
 )
@@ -65,10 +64,7 @@ async def get_user(
     response_model=UserWithMemberships,
     status_code=status.HTTP_201_CREATED,
     summary="Создать пользователя",
-    description=(
-        "Создание нового пользователя в организации. "
-        "Требуются права владельца организации."
-    ),
+    description=("Создание нового пользователя в организации. Требуются права владельца организации."),
     dependencies=[Depends(require_roles(OrgRole.ORG_OWNER))],
 )
 async def create_user(
@@ -107,10 +103,7 @@ async def update_user(
     "/{user_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Деактивировать пользователя",
-    description=(
-        "Деактивация пользователя (мягкое удаление). "
-        "Требуются права владельца организации."
-    ),
+    description=("Деактивация пользователя (мягкое удаление). Требуются права владельца организации."),
     dependencies=[Depends(require_roles(OrgRole.ORG_OWNER))],
 )
 async def deactivate_user(

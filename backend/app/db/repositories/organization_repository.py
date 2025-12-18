@@ -41,9 +41,7 @@ class OrganizationRepository(BaseRepository[Organization]):
         query = (
             select(Organization)
             .where(Organization.id == organization_id)
-            .options(
-                selectinload(Organization.subscription).selectinload(Subscription.tariff)
-            )
+            .options(selectinload(Organization.subscription).selectinload(Subscription.tariff))
         )
         result = await self.session.execute(query)
         return result.scalar_one_or_none()
@@ -111,10 +109,7 @@ class OrganizationRepository(BaseRepository[Organization]):
         search_pattern = f"%{query_str}%"
         query = (
             select(Organization)
-            .where(
-                Organization.name.ilike(search_pattern)
-                | Organization.inn.ilike(search_pattern)
-            )
+            .where(Organization.name.ilike(search_pattern) | Organization.inn.ilike(search_pattern))
             .limit(limit)
             .offset(offset)
         )

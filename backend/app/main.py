@@ -106,6 +106,7 @@ def create_application() -> FastAPI:
     application.include_router(api_router, prefix=settings.api_v1_prefix)
 
     if settings.prometheus_enabled:
+
         @application.get("/metrics", include_in_schema=False)
         async def metrics() -> Response:
             return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)

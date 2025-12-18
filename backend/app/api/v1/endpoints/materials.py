@@ -144,9 +144,7 @@ async def publish_material(
 async def get_materials(
     ctx: ActiveSubscriptionContext,
     session: DbSession,
-    material_type: Annotated[
-        MaterialType | None, Query(description="Фильтр по типу материала", alias="type")
-    ] = None,
+    material_type: Annotated[MaterialType | None, Query(description="Фильтр по типу материала", alias="type")] = None,
     category_id: Annotated[int | None, Query(description="Фильтр по категории")] = None,
     page: Annotated[int, Query(ge=1, description="Номер страницы")] = 1,
     page_size: Annotated[int, Query(ge=1, le=100, description="Размер страницы")] = 20,
@@ -171,9 +169,7 @@ async def search_materials(
     ctx: ActiveSubscriptionContext,
     session: DbSession,
     q: Annotated[str, Query(min_length=2, max_length=200, description="Поисковый запрос")],
-    material_type: Annotated[
-        MaterialType | None, Query(description="Фильтр по типу", alias="type")
-    ] = None,
+    material_type: Annotated[MaterialType | None, Query(description="Фильтр по типу", alias="type")] = None,
     category_id: Annotated[int | None, Query(description="Фильтр по категории")] = None,
     page: Annotated[int, Query(ge=1, description="Номер страницы")] = 1,
     page_size: Annotated[int, Query(ge=1, le=100, description="Размер страницы")] = 20,
@@ -198,9 +194,7 @@ async def search_materials(
 async def get_popular_materials(
     ctx: ActiveSubscriptionContext,
     session: DbSession,
-    material_type: Annotated[
-        MaterialType | None, Query(description="Фильтр по типу", alias="type")
-    ] = None,
+    material_type: Annotated[MaterialType | None, Query(description="Фильтр по типу", alias="type")] = None,
     limit: Annotated[int, Query(ge=1, le=50, description="Количество материалов")] = 10,
 ) -> list[MaterialListItem]:
     service = MaterialService(session)

@@ -83,9 +83,7 @@ async def refresh_tokens(
     session: DbSession,
     body: Annotated[RefreshTokenRequest | None, Body()] = None,
 ) -> TokenResponse:
-    refresh_token = (
-        body.refresh_token if body else None
-    ) or request.cookies.get(settings.refresh_token_cookie_name)
+    refresh_token = (body.refresh_token if body else None) or request.cookies.get(settings.refresh_token_cookie_name)
     service = AuthService(session)
     tokens = await service.refresh_tokens(
         refresh_token=refresh_token or "",

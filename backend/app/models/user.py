@@ -55,12 +55,8 @@ class User(Base, UUIDMixin, TimestampMixin):
         back_populates="author",
         foreign_keys="[Material.author_id]",
     )
-    course_assignments: Mapped[list["CourseAssignment"]] = relationship(
-        back_populates="user"
-    )
-    primary_organization: Mapped["Organization | None"] = relationship(
-        foreign_keys="[User.primary_organization_id]"
-    )
+    course_assignments: Mapped[list["CourseAssignment"]] = relationship(back_populates="user")
+    primary_organization: Mapped["Organization | None"] = relationship(foreign_keys="[User.primary_organization_id]")
 
     __table_args__ = (
         Index("ix_users_email_lower", "email"),

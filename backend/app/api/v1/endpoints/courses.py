@@ -114,9 +114,7 @@ async def assign_course(
     request: Request,
     ctx: CurrentContext,
     session: DbSession,
-    user_ids: Annotated[
-        list[UUID], Body(embed=True, description="Список пользователей для назначения")
-    ],
+    user_ids: Annotated[list[UUID], Body(embed=True, description="Список пользователей для назначения")],
 ) -> list[CourseAssignmentResponse]:
     service = CourseService(session)
     return await service.assign_course(
