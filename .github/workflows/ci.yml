@@ -104,7 +104,9 @@ jobs:
       - name: Run tests with coverage
         env:
           DATABASE_URL: postgresql+asyncpg://test:test@localhost:5432/test
+          TEST_DATABASE_URL: postgresql+asyncpg://test:test@localhost:5432/test
           REDIS_URL: redis://localhost:6379/0
+          TEST_REDIS_URL: redis://localhost:6379/0
           SECRET_KEY: test-secret-key
           APP_ENV: testing
         run: |
