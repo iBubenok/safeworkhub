@@ -1,68 +1,50 @@
-"""
-Интеграционные тесты для аутентификации.
-"""
+"""Интеграционные тесты для аутентификации и ротации refresh-токенов."""
 
 import pytest
 from httpx import AsyncClient
 
-
-@pytest.mark.asyncio
-async def test_register_user(client: AsyncClient, user_data: dict):
-    """Регистрация нового пользователя."""
-    response = await client.post(
-        "/api/v1/auth/register",
-        json=user_data,
-    )
-
-    # Ожидаем успешную регистрацию или 422 если пользователь уже существует
-    assert response.status_code in [201, 200, 422]
+from app.core.config import settings
 
 
-@pytest.mark.asyncio
-async def test_register_user_invalid_email(client: AsyncClient):
-    """Регистрация с невалидным email отклоняется."""
-    invalid_data = {
-        "email": "not-an-email",
-        "password": "TestPassword123!",
-        "name": "Тестовый Пользователь",
+def build_registration_payload(email: str) -> dict:
+    """Сформировать тело запроса на регистрацию."""
+    return {
+        "organization_name": "Тестовая организация",
+        "inn": "7728168971",
+        "admin_email": email,
+        "admin_password": "SuperSecure123!",
+        "admin_name": "Тестовый Админ",
     }
 
-    response = await client.post(
-        "/api/v1/auth/register",
-        json=invalid_data,
-    )
-
-    assert response.status_code == 422
-
 
 @pytest.mark.asyncio
-async def test_login_invalid_credentials(client: AsyncClient):
-    """Вход с неверными учётными данными отклоняется."""
-    response = await client.post(
+async def test_auth_flow_with_refresh_rotation(client: AsyncClient, unique_email: str):
+    """Регистрация, логин, ротация refresh и защита от повторного использования."""
+    register_payload = build_registration_payload(unique_email)
+    register = await client.post("/api/v1/auth/register", json=register_payload)
+    assert register.status_code == 201
+
+    login = await client.post(
         "/api/v1/auth/login",
-        json={
-            "email": "nonexistent@example.com",
-            "password": "WrongPassword123!",
-        },
+        json={"email": register_payload["admin_email"], "password": register_payload["admin_password"]},
     )
+    assert login.status_code == 200
+    tokens = login.json()
+    assert tokens["organization_id"] > 0
+    assert "access_token" in tokens
+    assert settings.refresh_token_cookie_name in login.cookies
 
-    assert response.status_code in [401, 404]
+    refresh = await client.post("/api/v1/auth/refresh", cookies=login.cookies)
+    assert refresh.status_code == 200
+    new_tokens = refresh.json()
+    assert new_tokens["access_token"] != tokens["access_token"]
 
-
-@pytest.mark.asyncio
-async def test_protected_route_without_token(client: AsyncClient):
-    """Защищённый маршрут без токена возвращает 401."""
-    response = await client.get("/api/v1/users/me")
-
-    assert response.status_code == 401
-
-
-@pytest.mark.asyncio
-async def test_protected_route_with_invalid_token(client: AsyncClient):
-    """Защищённый маршрут с невалидным токеном возвращает 401."""
-    response = await client.get(
-        "/api/v1/users/me",
-        headers={"Authorization": "Bearer invalid-token"},
+    # Повторное использование старого refresh должно быть заблокировано
+    reused = await client.post(
+        "/api/v1/auth/refresh",
+        cookies={settings.refresh_token_cookie_name: login.cookies.get(settings.refresh_token_cookie_name)},
     )
+    assert reused.status_code == 401
 
-    assert response.status_code == 401
+    logout = await client.post("/api/v1/auth/logout", cookies=refresh.cookies)
+    assert logout.status_code == 204

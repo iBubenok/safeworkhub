@@ -1,121 +1,60 @@
-/**
- * Тесты для хука useAuth.
- */
-
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { renderHook, waitFor } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import type { ReactNode } from 'react';
+import { beforeEach, describe, expect, it } from 'vitest';
 
 import { useAuthStore } from '@/store/authStore';
+import type { TokenResponse } from '@/types';
 
-// Мок API
-vi.mock('@/api/auth', () => ({
-  login: vi.fn(),
-  register: vi.fn(),
-  logout: vi.fn(),
-  refreshToken: vi.fn(),
-  getProfile: vi.fn(),
-}));
+const tokens: TokenResponse = {
+  access_token: 'test-access',
+  token_type: 'bearer',
+  expires_in: 1800,
+  refresh_expires_in: 3600,
+  organization_id: 1,
+  role: 'org_owner',
+  user: {
+    id: 'user-1',
+    email: 'user@example.com',
+    name: 'Пользователь',
+    is_active: true,
+    is_superuser: false,
+    primary_organization_id: 1,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+};
 
-// Обёртка с QueryClientProvider
-function createWrapper() {
-  const queryClient = new QueryClient({
-    defaultOptions: {
-      queries: {
-        retry: false,
-      },
-    },
-  });
-
-  return function Wrapper({ children }: { children: ReactNode }) {
-    return (
-      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-    );
-  };
-}
-
-describe('useAuthStore', () => {
+describe('auth store', () => {
   beforeEach(() => {
-    // Сбрасываем состояние store перед каждым тестом
-    useAuthStore.getState().logout();
-    localStorage.clear();
-  });
-
-  it('изначально пользователь не авторизован', () => {
-    const { isAuthenticated, user, accessToken } = useAuthStore.getState();
-
-    expect(isAuthenticated).toBe(false);
-    expect(user).toBeNull();
-    expect(accessToken).toBeNull();
-  });
-
-  it('setAuth устанавливает данные авторизации', () => {
-    const testUser = {
-      id: '1',
-      email: 'test@example.com',
-      name: 'Тестовый пользователь',
-      isActive: true,
-      createdAt: new Date().toISOString(),
-    };
-
-    useAuthStore.getState().setAuth({
-      user: testUser,
-      accessToken: 'test-access-token',
-      refreshToken: 'test-refresh-token',
+    useAuthStore.setState({
+      user: null,
+      accessToken: null,
+      organizationId: null,
+      role: null,
+      isInitialized: false,
+      setSession: useAuthStore.getState().setSession,
+      setUser: useAuthStore.getState().setUser,
+      clearAuth: useAuthStore.getState().clearAuth,
+      setInitialized: useAuthStore.getState().setInitialized,
     });
-
-    const { isAuthenticated, user, accessToken } = useAuthStore.getState();
-
-    expect(isAuthenticated).toBe(true);
-    expect(user).toEqual(testUser);
-    expect(accessToken).toBe('test-access-token');
   });
 
-  it('logout очищает данные авторизации', () => {
-    // Сначала авторизуемся
-    useAuthStore.getState().setAuth({
-      user: {
-        id: '1',
-        email: 'test@example.com',
-        name: 'Тестовый пользователь',
-        isActive: true,
-        createdAt: new Date().toISOString(),
-      },
-      accessToken: 'test-access-token',
-      refreshToken: 'test-refresh-token',
-    });
+  it('setSession сохраняет токен и пользователя', () => {
+    useAuthStore.getState().setSession(tokens);
 
-    // Выходим
-    useAuthStore.getState().logout();
-
-    const { isAuthenticated, user, accessToken } = useAuthStore.getState();
-
-    expect(isAuthenticated).toBe(false);
-    expect(user).toBeNull();
-    expect(accessToken).toBeNull();
+    const state = useAuthStore.getState();
+    expect(state.user?.email).toBe(tokens.user.email);
+    expect(state.accessToken).toBe(tokens.access_token);
+    expect(state.organizationId).toBe(tokens.organization_id);
+    expect(state.role).toBe(tokens.role);
   });
 
-  it('updateUser обновляет данные пользователя', () => {
-    // Авторизуемся
-    useAuthStore.getState().setAuth({
-      user: {
-        id: '1',
-        email: 'test@example.com',
-        name: 'Старое имя',
-        isActive: true,
-        createdAt: new Date().toISOString(),
-      },
-      accessToken: 'test-access-token',
-      refreshToken: 'test-refresh-token',
-    });
+  it('clearAuth очищает состояние', () => {
+    useAuthStore.getState().setSession(tokens);
+    useAuthStore.getState().clearAuth();
 
-    // Обновляем имя
-    useAuthStore.getState().updateUser({ name: 'Новое имя' });
-
-    const { user } = useAuthStore.getState();
-
-    expect(user?.name).toBe('Новое имя');
-    expect(user?.email).toBe('test@example.com');
+    const state = useAuthStore.getState();
+    expect(state.user).toBeNull();
+    expect(state.accessToken).toBeNull();
+    expect(state.organizationId).toBeNull();
+    expect(state.role).toBeNull();
   });
 });

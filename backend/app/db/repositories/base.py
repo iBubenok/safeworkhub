@@ -139,6 +139,7 @@ class BaseRepository(Generic[ModelType]):
         Returns:
             True если запись существует.
         """
-        query = select(func.count()).select_from(self.model).where(self.model.id == id)
+        model_id_column: Any = getattr(self.model, "id")
+        query = select(func.count()).select_from(self.model).where(model_id_column == id)
         result = await self.session.execute(query)
         return result.scalar_one() > 0

@@ -1,66 +1,30 @@
-/**
- * HTTP-клиент для работы с API.
- */
+import axios, { AxiosError, AxiosRequestHeaders, InternalAxiosRequestConfig } from 'axios';
 
-import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
-
+import { useAuthStore } from '@/store/authStore';
 import type { ErrorResponse, TokenResponse } from '@/types';
 
-// Создание axios-инстанса
+type RetriableRequest = InternalAxiosRequestConfig & { _retry?: boolean };
+
+const apiBaseUrl = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, '');
+
 export const apiClient = axios.create({
-  baseURL: '/api/v1',
+  baseURL: apiBaseUrl || '/api/v1',
   headers: {
     'Content-Type': 'application/json',
   },
+  withCredentials: true,
+  timeout: 15000,
 });
 
-// Ключи для localStorage
-const ACCESS_TOKEN_KEY = 'accessToken';
-const REFRESH_TOKEN_KEY = 'refreshToken';
-
-/**
- * Получить access token из localStorage.
- */
-export function getAccessToken(): string | null {
-  return localStorage.getItem(ACCESS_TOKEN_KEY);
-}
-
-/**
- * Получить refresh token из localStorage.
- */
-export function getRefreshToken(): string | null {
-  return localStorage.getItem(REFRESH_TOKEN_KEY);
-}
-
-/**
- * Сохранить токены в localStorage.
- */
-export function setTokens(tokens: TokenResponse): void {
-  localStorage.setItem(ACCESS_TOKEN_KEY, tokens.accessToken);
-  localStorage.setItem(REFRESH_TOKEN_KEY, tokens.refreshToken);
-}
-
-/**
- * Удалить токены из localStorage.
- */
-export function clearTokens(): void {
-  localStorage.removeItem(ACCESS_TOKEN_KEY);
-  localStorage.removeItem(REFRESH_TOKEN_KEY);
-}
-
-// Request interceptor — добавление токена
-apiClient.interceptors.request.use(
-  (config: InternalAxiosRequestConfig) => {
-    const token = getAccessToken();
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
+const refreshClient = axios.create({
+  baseURL: apiBaseUrl || '/api/v1',
+  headers: {
+    'Content-Type': 'application/json',
   },
-  (error) => Promise.reject(error),
-);
+  withCredentials: true,
+  timeout: 15000,
+});
 
-// Response interceptor — обработка ошибок и обновление токена
 let isRefreshing = false;
 let failedQueue: Array<{
   resolve: (token: string) => void;
@@ -78,20 +42,42 @@ const processQueue = (error: unknown, token: string | null = null) => {
   failedQueue = [];
 };
 
+async function refreshSession(): Promise<TokenResponse> {
+  const response = await refreshClient.post<TokenResponse>('/auth/refresh');
+  return response.data;
+}
+
+apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
+  const token = useAuthStore.getState().accessToken;
+  const headers = (config.headers ?? {}) as AxiosRequestHeaders;
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+  config.headers = headers;
+  return config;
+});
+
 apiClient.interceptors.response.use(
   (response) => response,
   async (error: AxiosError<ErrorResponse>) => {
-    const originalRequest = error.config as InternalAxiosRequestConfig & {
-      _retry?: boolean;
-    };
+    const originalRequest = error.config as RetriableRequest | undefined;
 
-    // Если 401 и есть refresh token — пробуем обновить
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    if (
+      error.response?.status === 401 &&
+      originalRequest &&
+      !originalRequest._retry &&
+      originalRequest.url &&
+      !originalRequest.url.includes('/auth/login') &&
+      !originalRequest.url.includes('/auth/register') &&
+      !originalRequest.url.includes('/auth/refresh')
+    ) {
       if (isRefreshing) {
         return new Promise((resolve, reject) => {
           failedQueue.push({
             resolve: (token: string) => {
-              originalRequest.headers.Authorization = `Bearer ${token}`;
+              const headers = (originalRequest.headers ?? {}) as AxiosRequestHeaders;
+              headers.Authorization = `Bearer ${token}`;
+              originalRequest.headers = headers;
               resolve(apiClient(originalRequest));
             },
             reject,
@@ -102,28 +88,18 @@ apiClient.interceptors.response.use(
       originalRequest._retry = true;
       isRefreshing = true;
 
-      const refreshToken = getRefreshToken();
-      if (!refreshToken) {
-        clearTokens();
-        window.location.href = '/login';
-        return Promise.reject(error);
-      }
-
       try {
-        const response = await axios.post<TokenResponse>('/api/v1/auth/refresh', {
-          refreshToken,
-        });
+        const tokens = await refreshSession();
+        useAuthStore.getState().setSession(tokens);
+        processQueue(null, tokens.access_token);
 
-        const tokens = response.data;
-        setTokens(tokens);
-        processQueue(null, tokens.accessToken);
-
-        originalRequest.headers.Authorization = `Bearer ${tokens.accessToken}`;
+        const headers = (originalRequest.headers ?? {}) as AxiosRequestHeaders;
+        headers.Authorization = `Bearer ${tokens.access_token}`;
+        originalRequest.headers = headers;
         return apiClient(originalRequest);
       } catch (refreshError) {
         processQueue(refreshError, null);
-        clearTokens();
-        window.location.href = '/login';
+        useAuthStore.getState().clearAuth();
         return Promise.reject(refreshError);
       } finally {
         isRefreshing = false;
@@ -134,9 +110,6 @@ apiClient.interceptors.response.use(
   },
 );
 
-/**
- * Извлечь сообщение об ошибке из ответа API.
- */
 export function getErrorMessage(error: unknown): string {
   if (axios.isAxiosError(error)) {
     const data = error.response?.data as ErrorResponse | undefined;

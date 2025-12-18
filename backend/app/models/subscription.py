@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from decimal import Decimal
 from enum import StrEnum
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import (
+    Boolean,
     DateTime,
     Enum,
     ForeignKey,
@@ -28,66 +29,36 @@ if TYPE_CHECKING:
 class SubscriptionStatus(StrEnum):
     """Статусы подписки."""
 
-    TRIAL = "trial"           # Пробный период
-    ACTIVE = "active"         # Активная подписка
-    PAST_DUE = "past_due"     # Просрочена оплата (grace period)
-    CANCELLED = "cancelled"   # Отменена
-    EXPIRED = "expired"       # Истекла
+    TRIAL = "trial"
+    ACTIVE = "active"
+    PAST_DUE = "past_due"
+    BLOCKED = "blocked"
+    EXPIRED = "expired"
 
 
 class Tariff(Base, IntegerPKMixin, TimestampMixin):
-    """Тариф (план подписки).
-
-    Определяет стоимость и лимиты для подписки организации.
-
-    Attributes:
-        id: Целочисленный ID.
-        name: Название тарифа.
-        description: Описание тарифа.
-        max_users: Максимальное количество пользователей.
-        price_monthly: Месячная стоимость.
-        price_yearly: Годовая стоимость.
-        features: JSON с дополнительными возможностями тарифа.
-        is_active: Доступен ли тариф для новых подписок.
-    """
+    """Тариф (план подписки)."""
 
     __tablename__ = "tariffs"
 
-    name: Mapped[str] = mapped_column(String(100), nullable=False, unique=True)
+    code: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
+    name: Mapped[str] = mapped_column(String(120), nullable=False)
     description: Mapped[str | None] = mapped_column(Text)
     max_users: Mapped[int] = mapped_column(nullable=False, default=10)
-    price_monthly: Mapped[Decimal] = mapped_column(
-        Numeric(10, 2),
-        nullable=False,
-    )
-    price_yearly: Mapped[Decimal] = mapped_column(
-        Numeric(10, 2),
-        nullable=False,
-    )
-    features: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
-    is_active: Mapped[bool] = mapped_column(nullable=False, default=True)
+    price_monthly: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
+    price_yearly: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
+    features: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
 
     # Связи
     subscriptions: Mapped[list["Subscription"]] = relationship(back_populates="tariff")
 
     def __repr__(self) -> str:
-        return f"<Tariff {self.name}>"
+        return f"<Tariff {self.code}>"
 
 
 class Subscription(Base, IntegerPKMixin, TimestampMixin):
-    """Подписка организации.
-
-    Связывает организацию с тарифом и отслеживает статус оплаты.
-
-    Attributes:
-        id: Целочисленный ID.
-        organization_id: ID организации.
-        tariff_id: ID тарифа.
-        status: Текущий статус подписки.
-        started_at: Дата начала подписки.
-        expires_at: Дата окончания подписки.
-        trial_ends_at: Дата окончания пробного периода.
-    """
+    """Подписка организации."""
 
     __tablename__ = "subscriptions"
 
@@ -108,18 +79,18 @@ class Subscription(Base, IntegerPKMixin, TimestampMixin):
     started_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
-        default=datetime.utcnow,
+        default=lambda: datetime.now(UTC),
     )
-    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    valid_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     trial_ends_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-
+    cancelled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     # Связи
     organization: Mapped["Organization"] = relationship(back_populates="subscription")
     tariff: Mapped["Tariff"] = relationship(back_populates="subscriptions")
 
     __table_args__ = (
         Index("ix_subscriptions_status", "status"),
-        Index("ix_subscriptions_expires_at", "expires_at"),
+        Index("ix_subscriptions_valid_until", "valid_until"),
     )
 
     @property

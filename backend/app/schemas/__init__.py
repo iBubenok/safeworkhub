@@ -1,44 +1,25 @@
 """Pydantic схемы для валидации и сериализации данных."""
 
+from app.schemas.auth import LoginRequest, RefreshTokenRequest, RegisterRequest, TokenResponse
 from app.schemas.common import PaginatedResponse, PaginationParams
-from app.schemas.user import (
-    UserCreate,
-    UserUpdate,
-    UserResponse,
-    UserInDB,
-)
-from app.schemas.auth import (
-    LoginRequest,
-    TokenResponse,
-    RefreshTokenRequest,
-    RegisterRequest,
-)
-from app.schemas.organization import (
-    OrganizationCreate,
-    OrganizationUpdate,
-    OrganizationResponse,
-)
-from app.schemas.material import (
-    MaterialResponse,
-    MaterialListResponse,
-    SearchRequest,
-)
+from app.schemas.material import MaterialListResponse, MaterialResponse, SearchRequest
+from app.schemas.organization import OrganizationCreate, OrganizationResponse, OrganizationUpdate
+from app.schemas.user import UserCreate, UserResponse, UserUpdate
 
 __all__ = [
+    "LoginRequest",
+    "MaterialListResponse",
+    "MaterialResponse",
+    "OrganizationCreate",
+    "OrganizationResponse",
+    "OrganizationUpdate",
     "PaginatedResponse",
     "PaginationParams",
-    "UserCreate",
-    "UserUpdate",
-    "UserResponse",
-    "UserInDB",
-    "LoginRequest",
-    "TokenResponse",
     "RefreshTokenRequest",
     "RegisterRequest",
-    "OrganizationCreate",
-    "OrganizationUpdate",
-    "OrganizationResponse",
-    "MaterialResponse",
-    "MaterialListResponse",
     "SearchRequest",
+    "TokenResponse",
+    "UserCreate",
+    "UserResponse",
+    "UserUpdate",
 ]

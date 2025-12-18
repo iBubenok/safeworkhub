@@ -1,9 +1,9 @@
 """Конфигурация приложения через переменные окружения."""
 
 from functools import lru_cache
-from typing import Literal
+from typing import Literal, cast
 
-from pydantic import Field, PostgresDsn, RedisDsn, field_validator
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -22,62 +22,69 @@ class Settings(BaseSettings):
 
     # Общие настройки
     app_name: str = "SafeWorkHub"
-    app_env: Literal["development", "staging", "production"] = "development"
+    app_env: Literal["development", "testing", "staging", "production"] = "development"
     debug: bool = False
+    log_level: str = "INFO"
+    request_id_header: str = "X-Request-ID"
+
+    # Безопасность
     secret_key: str = Field(..., min_length=32)
+    jwt_algorithm: str = "HS256"
+    access_token_expire_minutes: int = 30
+    refresh_token_expire_days: int = 7
+    refresh_token_cookie_name: str = "swh_refresh_token"
+    refresh_token_secure: bool = False
+    refresh_token_domain: str | None = None
+    refresh_token_samesite: Literal["lax", "strict", "none"] = "lax"
+    max_login_attempts: int = 5
+    login_lockout_minutes: int = 30
 
     # API
     api_v1_prefix: str = "/api/v1"
-    allowed_hosts: list[str] = ["*"]
-    cors_origins: list[str] = ["http://localhost:3000"]
+    allowed_hosts: list[str] = Field(
+        default_factory=lambda: ["*"],
+        description="Список хостов, откуда разрешены запросы",
+    )
+    cors_origins: list[str] = Field(
+        default_factory=lambda: ["http://localhost:3000", "http://localhost:5173"]
+    )
 
     # База данных
-    database_url: PostgresDsn = Field(
-        default="postgresql+asyncpg://postgres:postgres@localhost:5432/safeworkhub"
+    database_url: str = (
+        "postgresql+asyncpg://postgres:postgres@localhost:5432/safeworkhub"
     )
     database_pool_size: int = 20
     database_pool_overflow: int = 10
     database_echo: bool = False
 
     # Redis
-    redis_url: RedisDsn = Field(default="redis://localhost:6379/0")
+    redis_url: str = "redis://localhost:6379/0"
 
-    # Celery
-    celery_broker_url: str = "redis://localhost:6379/1"
-    celery_result_backend: str = "redis://localhost:6379/2"
+    # Подписки
+    subscription_trial_days: int = 14
+    default_tariff_code: str = "base"
 
-    # JWT
-    jwt_algorithm: str = "HS256"
-    jwt_access_token_expire_minutes: int = 15
-    jwt_refresh_token_expire_days: int = 7
+    # Наблюдаемость
+    prometheus_enabled: bool = True
+    metrics_namespace: str = "safeworkhub"
+    request_timeout_seconds: int = 30
 
-    # Email
-    smtp_host: str = "localhost"
-    smtp_port: int = 587
-    smtp_user: str = ""
-    smtp_password: str = ""
-    smtp_tls: bool = True
-    email_from: str = "noreply@safeworkhub.ru"
-    email_from_name: str = "SafeWorkHub"
-
-    # S3/MinIO
-    s3_endpoint_url: str = "http://localhost:9000"
-    s3_access_key: str = "minioadmin"
-    s3_secret_key: str = "minioadmin"
-    s3_bucket_name: str = "safeworkhub"
-
-    # Ограничения
-    max_login_attempts: int = 5
-    login_lockout_minutes: int = 30
-    max_upload_size_mb: int = 50
-
-    @field_validator("cors_origins", mode="before")
+    @field_validator("cors_origins", "allowed_hosts", mode="before")
     @classmethod
-    def parse_cors_origins(cls, v: str | list[str]) -> list[str]:
-        """Парсинг CORS origins из строки или списка."""
-        if isinstance(v, str):
-            return [origin.strip() for origin in v.split(",")]
-        return v
+    def parse_list(cls, value: str | list[str]) -> list[str]:
+        """Парсинг списков из строки с разделителем запятая."""
+        if isinstance(value, str):
+            return [item.strip() for item in value.split(",") if item.strip()]
+        return value
+
+    @field_validator("refresh_token_samesite", mode="before")
+    @classmethod
+    def normalize_samesite(cls, value: str) -> Literal["lax", "strict", "none"]:
+        """Нормализует значение SameSite для cookie refresh-токена."""
+        normalized = value.lower()
+        if normalized not in {"lax", "strict", "none"}:
+            raise ValueError("refresh_token_samesite должен быть lax, strict или none")
+        return cast(Literal["lax", "strict", "none"], normalized)
 
     @property
     def is_development(self) -> bool:
@@ -85,9 +92,24 @@ class Settings(BaseSettings):
         return self.app_env == "development"
 
     @property
+    def is_testing(self) -> bool:
+        """Проверка режима тестирования."""
+        return self.app_env == "testing"
+
+    @property
     def is_production(self) -> bool:
         """Проверка production-режима."""
         return self.app_env == "production"
+
+    @property
+    def refresh_cookie_path(self) -> str:
+        """Путь cookie для refresh-токена."""
+        return f"{self.api_v1_prefix}/auth"
+
+    @property
+    def refresh_cookie_secure(self) -> bool:
+        """Secure для refresh-cookie: принудительно включается в production."""
+        return self.refresh_token_secure or self.is_production
 
 
 @lru_cache

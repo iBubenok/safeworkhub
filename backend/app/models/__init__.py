@@ -4,23 +4,30 @@
 и обеспечения корректной работы Alembic.
 """
 
+from app.models.audit_log import AuditLog
+from app.models.course import AssignmentStatus, Course, CourseAssignment, CourseModule
+from app.models.material import Category, Material, MaterialStatus, MaterialType
+from app.models.organization import Organization, OrganizationUser, OrgRole
+from app.models.refresh_session import RefreshSession
+from app.models.subscription import Subscription, SubscriptionStatus, Tariff
 from app.models.user import User
-from app.models.organization import Organization, OrganizationUser
-from app.models.subscription import Subscription, Tariff
-from app.models.material import Material, Category, Document
-from app.models.course import Course, Module, Test, TestAttempt
 
 __all__ = [
-    "User",
+    "AssignmentStatus",
+    "AuditLog",
+    "Category",
+    "Course",
+    "CourseAssignment",
+    "CourseModule",
+    "Material",
+    "MaterialStatus",
+    "MaterialType",
+    "OrgRole",
     "Organization",
     "OrganizationUser",
+    "RefreshSession",
     "Subscription",
+    "SubscriptionStatus",
     "Tariff",
-    "Material",
-    "Category",
-    "Document",
-    "Course",
-    "Module",
-    "Test",
-    "TestAttempt",
+    "User",
 ]

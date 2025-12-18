@@ -1,6 +1,7 @@
 """Схемы для работы с организациями."""
 
 from datetime import datetime
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -39,6 +40,7 @@ class OrganizationResponse(OrganizationBase):
 
     id: int
     logo_url: str | None
+    owner_id: UUID | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -57,5 +59,6 @@ class SubscriptionInfo(BaseModel):
 
     status: str
     tariff_name: str
-    expires_at: datetime | None
+    valid_until: datetime | None
+    trial_ends_at: datetime | None
     max_users: int

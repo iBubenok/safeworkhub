@@ -1,7 +1,10 @@
 """Эндпоинты мониторинга здоровья сервиса."""
 
+from typing import Annotated
+
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
+from redis.asyncio import Redis
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -43,7 +46,7 @@ async def health_check() -> HealthResponse:
 
 @router.get("/ready", response_model=ReadinessResponse)
 async def readiness_check(
-    session: AsyncSession = Depends(get_session),
+    session: Annotated[AsyncSession, Depends(get_session)],
 ) -> ReadinessResponse:
     """Проверка готовности сервиса (readiness probe).
 
@@ -57,8 +60,14 @@ async def readiness_check(
     except Exception:
         db_status = "disconnected"
 
-    # Проверка Redis (упрощённо — можно расширить)
-    cache_status = "connected"  # TODO: реальная проверка Redis
+    cache_status = "connected"
+    redis = Redis.from_url(settings.redis_url, encoding="utf-8", decode_responses=True)
+    try:
+        await redis.ping()
+    except Exception:
+        cache_status = "disconnected"
+    finally:
+        await redis.aclose()
 
     overall_status = "ready" if db_status == "connected" else "not_ready"
 

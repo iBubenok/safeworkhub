@@ -1,61 +1,36 @@
-/**
- * API-методы для аутентификации.
- */
+import { apiClient } from './client';
+import type {
+  LoginRequest,
+  RegisterRequest,
+  RegisterResponse,
+  TokenResponse,
+  User,
+} from '@/types';
 
-import { apiClient, setTokens, clearTokens } from './client';
-import type { LoginRequest, RegisterRequest, TokenResponse, User } from '@/types';
-
-/**
- * Вход в систему.
- */
 export async function login(data: LoginRequest): Promise<TokenResponse> {
-  const response = await apiClient.post<TokenResponse>('/auth/login', data);
-  setTokens(response.data);
-  return response.data;
-}
-
-/**
- * Регистрация организации.
- */
-export async function register(
-  data: RegisterRequest,
-): Promise<{ organizationId: number; userId: string; message: string }> {
-  const response = await apiClient.post('/auth/register', {
-    organization_name: data.organizationName,
-    inn: data.inn,
-    admin_email: data.adminEmail,
-    admin_password: data.adminPassword,
-    admin_name: data.adminName,
+  const response = await apiClient.post<TokenResponse>('/auth/login', {
+    email: data.email,
+    password: data.password,
+    organization_id: data.organization_id,
   });
   return response.data;
 }
 
-/**
- * Выход из системы.
- */
-export async function logout(): Promise<void> {
-  try {
-    await apiClient.post('/auth/logout');
-  } finally {
-    clearTokens();
-  }
+export async function register(data: RegisterRequest): Promise<RegisterResponse> {
+  const response = await apiClient.post<RegisterResponse>('/auth/register', data);
+  return response.data;
 }
 
-/**
- * Получить текущего пользователя.
- */
+export async function logout(): Promise<void> {
+  await apiClient.post('/auth/logout');
+}
+
 export async function getCurrentUser(): Promise<User> {
   const response = await apiClient.get<User>('/users/me');
   return response.data;
 }
 
-/**
- * Обновить токены.
- */
-export async function refreshTokens(refreshToken: string): Promise<TokenResponse> {
-  const response = await apiClient.post<TokenResponse>('/auth/refresh', {
-    refresh_token: refreshToken,
-  });
-  setTokens(response.data);
+export async function refreshSession(): Promise<TokenResponse> {
+  const response = await apiClient.post<TokenResponse>('/auth/refresh');
   return response.data;
 }

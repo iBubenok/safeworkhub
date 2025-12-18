@@ -21,6 +21,7 @@ class UserCreate(UserBase):
         max_length=100,
         description="Пароль (минимум 8 символов)",
     )
+    role: str = Field(default="member", description="Роль в организации")
 
 
 class UserUpdate(BaseModel):
@@ -29,6 +30,7 @@ class UserUpdate(BaseModel):
     name: str | None = Field(None, min_length=1, max_length=255)
     email: EmailStr | None = None
     is_active: bool | None = None
+    role: str | None = Field(default=None, description="Роль в организации")
 
 
 class UserResponse(UserBase):
@@ -38,29 +40,24 @@ class UserResponse(UserBase):
 
     id: UUID
     is_active: bool
+    is_superuser: bool = False
+    primary_organization_id: int | None = None
     created_at: datetime
     updated_at: datetime
 
 
-class UserInDB(UserResponse):
-    """Схема пользователя в БД (с хэшем пароля)."""
-
-    password_hash: str
-    is_superuser: bool
-
-
-class UserWithOrganizations(UserResponse):
-    """Схема пользователя с организациями."""
-
-    organizations: list["OrganizationMembership"] = []
-
-
-class OrganizationMembership(BaseModel):
-    """Членство в организации."""
+class MembershipResponse(BaseModel):
+    """Членство пользователя в организации."""
 
     model_config = ConfigDict(from_attributes=True)
 
     organization_id: int
-    organization_name: str
     role: str
+    is_active: bool
     joined_at: datetime
+
+
+class UserWithMemberships(UserResponse):
+    """Пользователь с привязками к организациям."""
+
+    memberships: list[MembershipResponse] = []

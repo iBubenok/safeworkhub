@@ -51,10 +51,11 @@ class NotFoundError(AppError):
         message: str | None = None,
     ) -> None:
         if message is None:
-            if resource_id:
-                message = f"{resource} с ID {resource_id} не найден"
-            else:
-                message = f"{resource} не найден"
+            message = (
+                f"{resource} с ID {resource_id} не найден"
+                if resource_id
+                else f"{resource} не найден"
+            )
 
         super().__init__(
             message=message,
@@ -170,10 +171,9 @@ class EmailAlreadyExistsError(ConflictError):
     """Email уже зарегистрирован."""
 
     def __init__(self, email: str | None = None) -> None:
-        super().__init__(
-            message="Пользователь с таким email уже существует",
-            field="email",
-        )
+        super().__init__(message="Пользователь с таким email уже существует", field="email")
+        if email:
+            self.details["email"] = email
 
 
 class InvalidCredentialsError(AuthenticationError):

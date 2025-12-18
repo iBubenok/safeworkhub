@@ -1,120 +1,33 @@
 # Dockerfile для backend-сервиса SafeWorkHub
-# Multi-stage сборка для оптимизации размера образа
 
-# =============================================================================
-# Базовый образ с Python
-# =============================================================================
-FROM python:3.12-slim as python-base
+FROM python:3.12-slim AS base
 
-# Переменные окружения Python
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1 \
-    POETRY_VERSION=1.7.1 \
-    POETRY_HOME="/opt/poetry" \
-    POETRY_VIRTUALENVS_IN_PROJECT=true \
-    POETRY_NO_INTERACTION=1 \
-    PYSETUP_PATH="/opt/pysetup" \
-    VENV_PATH="/opt/pysetup/.venv"
+    PIP_DISABLE_PIP_VERSION_CHECK=1
 
-# Добавляем Poetry и venv в PATH
-ENV PATH="$POETRY_HOME/bin:$VENV_PATH/bin:$PATH"
+WORKDIR /app
 
-# =============================================================================
-# Сборочный образ с зависимостями
-# =============================================================================
-FROM python-base as builder-base
-
-# Устанавливаем системные зависимости для сборки
+# Системные зависимости
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl \
     build-essential \
     libpq-dev \
-    && rm -rf /var/lib/apt/lists/*
-
-# Устанавливаем Poetry
-RUN curl -sSL https://install.python-poetry.org | python3 -
-
-# Копируем файлы зависимостей
-WORKDIR $PYSETUP_PATH
-COPY backend/pyproject.toml backend/poetry.lock* ./
-
-# Устанавливаем только production-зависимости
-RUN poetry install --only=main --no-root
-
-# =============================================================================
-# Образ для разработки
-# =============================================================================
-FROM python-base as development
-
-# Устанавливаем системные зависимости
-RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
-    libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Копируем Poetry
-COPY --from=builder-base $POETRY_HOME $POETRY_HOME
+FROM base AS production
 
-# Копируем виртуальное окружение
-COPY --from=builder-base $PYSETUP_PATH $PYSETUP_PATH
+COPY backend/requirements.txt ./requirements.txt
 
-# Устанавливаем dev-зависимости
-WORKDIR $PYSETUP_PATH
-RUN poetry install --no-root
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
 
-# Создаём рабочую директорию
-WORKDIR /app
-
-# Копируем код приложения
 COPY backend/ .
 
-# Открываем порт
 EXPOSE 8000
 
-# Команда запуска для разработки с hot-reload
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
-
-# =============================================================================
-# Образ для production
-# =============================================================================
-FROM python-base as production
-
-# Метаданные образа
-LABEL maintainer="Yan Bubenok <yan@bubenok.com>"
-LABEL description="SafeWorkHub Backend API"
-LABEL version="1.0.0"
-
-# Устанавливаем минимальные системные зависимости
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    libpq5 \
-    curl \
-    && rm -rf /var/lib/apt/lists/* \
-    && apt-get clean
-
-# Создаём непривилегированного пользователя
-RUN groupadd --gid 1000 appgroup \
-    && useradd --uid 1000 --gid appgroup --shell /bin/bash --create-home appuser
-
-# Копируем виртуальное окружение
-COPY --from=builder-base $VENV_PATH $VENV_PATH
-
-# Создаём рабочую директорию
-WORKDIR /app
-
-# Копируем код приложения
-COPY --chown=appuser:appgroup backend/ .
-
-# Переключаемся на непривилегированного пользователя
-USER appuser
-
-# Открываем порт
-EXPOSE 8000
-
-# Healthcheck
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8000/api/v1/health || exit 1
 
-# Команда запуска для production
-CMD ["gunicorn", "app.main:app", "-w", "4", "-k", "uvicorn.workers.UvicornWorker", "-b", "0.0.0.0:8000"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

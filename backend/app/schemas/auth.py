@@ -1,6 +1,11 @@
-"""Схемы для аутентификации."""
+"""Схемы для аутентификации и управления сессиями."""
 
-from pydantic import BaseModel, EmailStr, Field
+from datetime import datetime
+from uuid import UUID
+
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
+
+from app.schemas.user import UserResponse
 
 
 class LoginRequest(BaseModel):
@@ -8,27 +13,45 @@ class LoginRequest(BaseModel):
 
     email: EmailStr = Field(description="Email пользователя")
     password: str = Field(description="Пароль")
+    organization_id: int | None = Field(
+        default=None,
+        description="Организация, в которую выполняется вход (если несколько)",
+    )
 
 
 class TokenResponse(BaseModel):
     """Ответ с токенами доступа."""
 
     access_token: str = Field(description="JWT access token")
-    refresh_token: str = Field(description="JWT refresh token")
     token_type: str = Field(default="bearer", description="Тип токена")
     expires_in: int = Field(description="Время жизни access token в секундах")
+    refresh_expires_in: int = Field(description="Время жизни refresh token в секундах")
+    organization_id: int = Field(description="Текущая организация пользователя")
+    role: str = Field(description="Роль пользователя в организации")
+    user: UserResponse
+    refresh_token: str | None = Field(
+        default=None,
+        exclude=True,
+        description="Refresh token (используется только для установки cookie)",
+    )
 
 
 class RefreshTokenRequest(BaseModel):
-    """Запрос на обновление токена."""
+    """Запрос на обновление токена.
 
-    refresh_token: str = Field(description="Refresh token")
+    По умолчанию backend ожидает refresh-токен в httpOnly cookie,
+    но поле оставлено для совместимости с тестовыми сценариями.
+    """
+
+    refresh_token: str | None = Field(
+        default=None,
+        description="Refresh token (если не используется cookie)",
+    )
 
 
 class RegisterRequest(BaseModel):
-    """Запрос на регистрацию организации."""
+    """Запрос на регистрацию организации и владельца."""
 
-    # Данные организации
     organization_name: str = Field(
         min_length=1,
         max_length=500,
@@ -40,8 +63,6 @@ class RegisterRequest(BaseModel):
         pattern=r"^\d{10,12}$",
         description="ИНН организации (10 или 12 цифр)",
     )
-
-    # Данные администратора
     admin_email: EmailStr = Field(description="Email администратора")
     admin_password: str = Field(
         min_length=8,
@@ -59,25 +80,16 @@ class RegisterResponse(BaseModel):
     """Ответ на регистрацию."""
 
     organization_id: int = Field(description="ID созданной организации")
-    user_id: str = Field(description="ID созданного пользователя")
-    message: str = Field(
-        default="Регистрация успешна. Проверьте email для подтверждения.",
-        description="Сообщение",
-    )
+    user_id: UUID = Field(description="ID созданного пользователя")
+    subscription_status: str = Field(description="Статус подписки")
+    trial_ends_at: datetime | None = Field(description="Окончание пробного периода")
 
 
-class PasswordResetRequest(BaseModel):
-    """Запрос на сброс пароля."""
+class ActiveSession(BaseModel):
+    """Данные активной сессии для фронтенда."""
 
-    email: EmailStr = Field(description="Email пользователя")
+    model_config = ConfigDict(from_attributes=True)
 
-
-class PasswordResetConfirm(BaseModel):
-    """Подтверждение сброса пароля."""
-
-    token: str = Field(description="Токен сброса пароля")
-    new_password: str = Field(
-        min_length=8,
-        max_length=100,
-        description="Новый пароль",
-    )
+    user: UserResponse
+    organization_id: int
+    role: str

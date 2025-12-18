@@ -5,7 +5,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.models.material import MaterialType
+from app.models.material import MaterialStatus, MaterialType
 
 
 class MaterialBase(BaseModel):
@@ -15,6 +15,7 @@ class MaterialBase(BaseModel):
     summary: str | None = Field(None, max_length=1000, description="Краткое описание")
     type: MaterialType = Field(description="Тип материала")
     category_id: int | None = Field(None, description="ID категории")
+    status: MaterialStatus = Field(default=MaterialStatus.DRAFT, description="Статус материала")
 
 
 class MaterialCreate(MaterialBase):
@@ -31,6 +32,7 @@ class MaterialUpdate(BaseModel):
     content: str | None = None
     type: MaterialType | None = None
     category_id: int | None = None
+    status: MaterialStatus | None = None
 
 
 class MaterialResponse(MaterialBase):
@@ -39,9 +41,13 @@ class MaterialResponse(MaterialBase):
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
+    organization_id: int
+    author_id: UUID
     content: str
     views_count: int
+    status: MaterialStatus
     published_at: datetime | None
+    updated_by_id: UUID | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -52,9 +58,11 @@ class MaterialListItem(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
+    organization_id: int
     title: str
     summary: str | None
     type: MaterialType
+    status: MaterialStatus
     views_count: int
     published_at: datetime | None
 
@@ -105,20 +113,22 @@ class CategoryResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
+    organization_id: int
     name: str
     slug: str
     parent_id: int | None
     description: str | None
+    sort_order: int
 
 
-class DocumentResponse(BaseModel):
-    """Схема прикреплённого документа."""
+class CategoryCreate(BaseModel):
+    """Создание/обновление категории."""
 
-    model_config = ConfigDict(from_attributes=True)
-
-    id: UUID
-    title: str
-    file_name: str
-    file_size: int
-    mime_type: str
-    downloads_count: int
+    name: str = Field(min_length=1, max_length=255)
+    slug: str | None = Field(
+        default=None,
+        description="Slug категории, если не указан — генерируется автоматически",
+    )
+    parent_id: int | None = None
+    description: str | None = None
+    sort_order: int = Field(default=0, ge=0)

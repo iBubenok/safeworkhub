@@ -1,32 +1,46 @@
 """Управление сессиями базы данных."""
 
+from __future__ import annotations
+
 from collections.abc import AsyncGenerator
 
 from sqlalchemy.ext.asyncio import (
+    AsyncEngine,
     AsyncSession,
     async_sessionmaker,
     create_async_engine,
 )
 
-from app.core.config import settings
+import app.models  # noqa: F401
+from app.core.config import get_settings
+from app.db.base import Base
 
-# Создание асинхронного движка SQLAlchemy
-engine = create_async_engine(
-    str(settings.database_url),
-    echo=settings.database_echo,
-    pool_size=settings.database_pool_size,
-    max_overflow=settings.database_pool_overflow,
-    pool_pre_ping=True,  # Проверка соединения перед использованием
-    pool_recycle=3600,   # Переподключение каждый час
-)
+_engine: AsyncEngine | None = None
+_session_factory: async_sessionmaker[AsyncSession] | None = None
 
-# Фабрика асинхронных сессий
-async_session_factory = async_sessionmaker(
-    engine,
-    class_=AsyncSession,
-    expire_on_commit=False,
-    autoflush=False,
-)
+
+def _get_session_factory() -> async_sessionmaker[AsyncSession]:
+    """Ленивая инициализация движка и фабрики сессий."""
+    global _engine, _session_factory
+
+    if _engine is None or _session_factory is None:
+        settings = get_settings()
+        _engine = create_async_engine(
+            str(settings.database_url),
+            echo=settings.database_echo,
+            pool_size=settings.database_pool_size,
+            max_overflow=settings.database_pool_overflow,
+            pool_pre_ping=True,
+            pool_recycle=3600,
+        )
+        _session_factory = async_sessionmaker(
+            _engine,
+            class_=AsyncSession,
+            expire_on_commit=False,
+            autoflush=False,
+        )
+
+    return _session_factory
 
 
 async def get_session() -> AsyncGenerator[AsyncSession, None]:
@@ -38,7 +52,9 @@ async def get_session() -> AsyncGenerator[AsyncSession, None]:
     Yields:
         AsyncSession: Асинхронная сессия SQLAlchemy.
     """
-    async with async_session_factory() as session:
+    session_factory = _get_session_factory()
+
+    async with session_factory() as session:
         try:
             yield session
             await session.commit()
@@ -55,13 +71,18 @@ async def init_db() -> None:
     Создаёт все таблицы, если они не существуют.
     Используется только для разработки, в production применяются миграции.
     """
-    from app.db.base import Base
-    from app.models import *  # noqa: F401,F403 — импорт всех моделей
+    _get_session_factory()
+    assert _engine is not None, "Движок БД не инициализирован"
 
-    async with engine.begin() as conn:
+    async with _engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
 
 async def close_db() -> None:
     """Закрытие соединений с базой данных."""
-    await engine.dispose()
+    global _engine, _session_factory
+
+    if _engine is not None:
+        await _engine.dispose()
+    _engine = None
+    _session_factory = None

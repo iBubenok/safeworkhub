@@ -1,32 +1,24 @@
-"""
-Интеграционные тесты для endpoint здоровья системы.
-"""
+"""Интеграционные тесты для endpoint здоровья системы."""
 
 import pytest
 from httpx import AsyncClient
 
 
 @pytest.mark.asyncio
-async def test_health_check(client: AsyncClient):
-    """Проверка endpoint /api/v1/health."""
-    response = await client.get("/api/v1/health")
+async def test_health_and_readiness(client: AsyncClient):
+    """Проверка liveness и readiness."""
+    health = await client.get("/api/v1/health")
+    assert health.status_code == 200
 
-    assert response.status_code == 200
+    health_data = health.json()
+    assert health_data["status"] == "healthy"
+    assert "version" in health_data
+    assert health_data["environment"] == "testing"
 
-    data = response.json()
-    assert data["status"] == "healthy"
-    assert "version" in data
-    assert "timestamp" in data
+    readiness = await client.get("/api/v1/ready")
+    assert readiness.status_code == 200
 
-
-@pytest.mark.asyncio
-async def test_health_check_details(client: AsyncClient):
-    """Проверка деталей в ответе health check."""
-    response = await client.get("/api/v1/health")
-
-    assert response.status_code == 200
-
-    data = response.json()
-    # Проверяем структуру ответа
-    assert isinstance(data["status"], str)
-    assert isinstance(data["version"], str)
+    ready_data = readiness.json()
+    assert ready_data["database"] in {"connected", "disconnected"}
+    assert ready_data["cache"] in {"connected", "disconnected"}
+    assert ready_data["status"] in {"ready", "not_ready"}

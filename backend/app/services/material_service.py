@@ -1,77 +1,158 @@
 """Сервис для работы с материалами базы знаний."""
 
+from __future__ import annotations
+
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import NotFoundError
-from app.db.repositories import MaterialRepository
-from app.models.material import MaterialType
+from app.core.exceptions import AuthorizationError, ConflictError, NotFoundError
+from app.db.repositories import CategoryRepository, MaterialRepository
+from app.models import Category
+from app.models.material import MaterialStatus, MaterialType
 from app.schemas.material import (
+    CategoryCreate,
+    MaterialCreate,
     MaterialListItem,
     MaterialListResponse,
     MaterialResponse,
+    MaterialUpdate,
     SearchRequest,
     SearchResponse,
     SearchResult,
 )
+from app.services.utils import log_audit, utcnow
 
 
 class MaterialService:
-    """Сервис для работы с материалами базы знаний.
-
-    Предоставляет методы для поиска, просмотра и управления материалами.
-    """
+    """Сервис для работы с материалами базы знаний."""
 
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
         self.repository = MaterialRepository(session)
+        self.category_repo = CategoryRepository(session)
 
-    async def get_material(self, material_id: UUID) -> MaterialResponse:
-        """Получить материал по ID.
+    def _make_slug(self, name: str, slug: str | None) -> str:
+        """Упрощённая нормализация slug."""
+        base = slug or name
+        return base.strip().lower().replace(" ", "-")
 
-        При каждом просмотре увеличивается счётчик просмотров.
+    async def create_material(
+        self,
+        *,
+        organization_id: int,
+        author_id: UUID,
+        data: MaterialCreate,
+        request_id: str | None = None,
+    ) -> MaterialResponse:
+        material = await self.repository.create(
+            organization_id=organization_id,
+            author_id=author_id,
+            title=data.title,
+            content=data.content,
+            summary=data.summary,
+            type=data.type,
+            status=data.status,
+            category_id=data.category_id,
+            published_at=utcnow() if data.status == MaterialStatus.PUBLISHED else None,
+        )
+        await log_audit(
+            self.session,
+            action="material_created",
+            entity_type="material",
+            entity_id=str(material.id),
+            organization_id=organization_id,
+            user_id=str(author_id),
+            request_id=request_id,
+            details={"status": material.status},
+        )
+        return MaterialResponse.model_validate(material)
 
-        Args:
-            material_id: ID материала.
-
-        Returns:
-            Данные материала.
-
-        Raises:
-            NotFoundError: Материал не найден.
-        """
+    async def update_material(
+        self,
+        material_id: UUID,
+        *,
+        organization_id: int,
+        editor_id: UUID,
+        data: MaterialUpdate,
+        request_id: str | None = None,
+    ) -> MaterialResponse:
         material = await self.repository.get_by_id(material_id)
-        if material is None or not material.is_published:
+        if material is None or material.organization_id != organization_id:
             raise NotFoundError("Материал", str(material_id))
 
-        # Увеличиваем счётчик просмотров
-        await self.repository.increment_views(material_id)
+        update_data = data.model_dump(exclude_unset=True)
+        if "status" in update_data and update_data["status"] == MaterialStatus.PUBLISHED:
+            update_data["published_at"] = update_data.get("published_at") or utcnow()
+        update_data["updated_by_id"] = editor_id
 
+        updated = await self.repository.update(material_id, **update_data)
+        await log_audit(
+            self.session,
+            action="material_updated",
+            entity_type="material",
+            entity_id=str(material_id),
+            organization_id=organization_id,
+            user_id=str(editor_id),
+            request_id=request_id,
+            details={"status": update_data.get("status", material.status)},
+        )
+        return MaterialResponse.model_validate(updated)
+
+    async def publish(
+        self,
+        material_id: UUID,
+        *,
+        organization_id: int,
+        editor_id: UUID,
+        request_id: str | None = None,
+    ) -> MaterialResponse:
+        material = await self.repository.get_by_id(material_id)
+        if material is None or material.organization_id != organization_id:
+            raise NotFoundError("Материал", str(material_id))
+
+        updated = await self.repository.update(
+            material_id,
+            status=MaterialStatus.PUBLISHED,
+            published_at=utcnow(),
+            updated_by_id=editor_id,
+        )
+        await log_audit(
+            self.session,
+            action="material_published",
+            entity_type="material",
+            entity_id=str(material_id),
+            organization_id=organization_id,
+            user_id=str(editor_id),
+            request_id=request_id,
+            details={"status": MaterialStatus.PUBLISHED},
+        )
+        return MaterialResponse.model_validate(updated)
+
+    async def get_material(self, material_id: UUID, *, organization_id: int) -> MaterialResponse:
+        material = await self.repository.get_by_id(material_id)
+        if material is None or material.organization_id != organization_id:
+            raise NotFoundError("Материал", str(material_id))
+
+        if material.status != MaterialStatus.PUBLISHED:
+            raise AuthorizationError("Материал недоступен")
+
+        await self.repository.increment_views(material_id)
         return MaterialResponse.model_validate(material)
 
     async def get_materials(
         self,
         *,
+        organization_id: int,
         material_type: MaterialType | None = None,
         category_id: int | None = None,
         page: int = 1,
         page_size: int = 20,
     ) -> MaterialListResponse:
-        """Получить список материалов с пагинацией.
-
-        Args:
-            material_type: Фильтр по типу материала.
-            category_id: Фильтр по категории.
-            page: Номер страницы.
-            page_size: Размер страницы.
-
-        Returns:
-            Список материалов с информацией о пагинации.
-        """
         offset = (page - 1) * page_size
 
         materials, total = await self.repository.get_published(
+            organization_id=organization_id,
             material_type=material_type,
             category_id=category_id,
             limit=page_size,
@@ -89,19 +170,44 @@ class MaterialService:
             pages=pages,
         )
 
-    async def search(self, request: SearchRequest) -> SearchResponse:
-        """Полнотекстовый поиск материалов.
+    async def list_categories(self, organization_id: int) -> list[Category]:
+        """Список категорий организации."""
+        return await self.category_repo.list_by_organization(organization_id)
 
-        Args:
-            request: Параметры поиска.
+    async def create_category(
+        self, organization_id: int, data: CategoryCreate, request_id: str | None = None
+    ) -> Category:
+        """Создать категорию материалов."""
+        slug = self._make_slug(data.name, data.slug)
+        existing = await self.category_repo.get_by_slug(organization_id, slug)
+        if existing:
+            raise ConflictError("Категория с таким slug уже существует", field="slug")
 
-        Returns:
-            Результаты поиска с пагинацией.
-        """
+        category = await self.category_repo.create(
+            organization_id=organization_id,
+            name=data.name,
+            slug=slug,
+            parent_id=data.parent_id,
+            description=data.description,
+            sort_order=data.sort_order,
+        )
+        await log_audit(
+            self.session,
+            action="category_created",
+            entity_type="category",
+            entity_id=str(category.id),
+            organization_id=organization_id,
+            user_id=None,
+            request_id=request_id,
+        )
+        return category
+
+    async def search(self, request: SearchRequest, *, organization_id: int) -> SearchResponse:
         offset = (request.page - 1) * request.page_size
 
         materials, total = await self.repository.search(
             request.query,
+            organization_id=organization_id,
             material_type=request.type,
             category_id=request.category_id,
             limit=request.page_size,
@@ -111,12 +217,14 @@ class MaterialService:
         items = [
             SearchResult(
                 id=m.id,
+                organization_id=m.organization_id,
                 title=m.title,
                 summary=m.summary,
                 type=m.type,
+                status=m.status,
                 views_count=m.views_count,
                 published_at=m.published_at,
-                highlights=None,  # Можно добавить подсветку позже
+                highlights=None,
             )
             for m in materials
         ]
@@ -134,19 +242,13 @@ class MaterialService:
 
     async def get_popular(
         self,
+        *,
+        organization_id: int,
         material_type: MaterialType | None = None,
         limit: int = 10,
     ) -> list[MaterialListItem]:
-        """Получить популярные материалы.
-
-        Args:
-            material_type: Фильтр по типу.
-            limit: Максимальное количество.
-
-        Returns:
-            Список популярных материалов.
-        """
         materials = await self.repository.get_popular(
+            organization_id=organization_id,
             material_type=material_type,
             limit=limit,
         )

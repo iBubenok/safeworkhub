@@ -1,88 +1,96 @@
 """FastAPI зависимости для внедрения в эндпоинты."""
 
-from typing import Annotated
-from uuid import UUID
+from __future__ import annotations
 
-from fastapi import Depends, HTTPException, status
+from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
+from typing import Annotated
+
+from fastapi import Depends, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import AuthenticationError, AuthorizationError
-from app.core.security import verify_token
+from app.core.exceptions import AuthorizationError, AuthenticationError
+from app.core.security import TokenType, verify_token
+from app.db.repositories import SubscriptionRepository, UserRepository
 from app.db.session import get_session
-from app.db.repositories.user_repository import UserRepository
-from app.models import User
+from app.models import OrgRole, SubscriptionStatus, User
 
-# Схема аутентификации Bearer
 security = HTTPBearer(auto_error=False)
 
 
-async def get_current_user_optional(
+@dataclass
+class RequestContext:
+    """Контекст запроса с данными пользователя и организации."""
+
+    user: User
+    organization_id: int
+    role: OrgRole
+
+
+async def _extract_token(credentials: HTTPAuthorizationCredentials | None) -> str:
+    if credentials is None:
+        raise AuthenticationError("Требуется аутентификация")
+    return credentials.credentials
+
+
+async def get_current_context(
+    request: Request,
     credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(security)],
     session: Annotated[AsyncSession, Depends(get_session)],
-) -> User | None:
-    """Получение текущего пользователя (опционально).
+) -> RequestContext:
+    """Получить контекст аутентифицированного пользователя."""
+    token = await _extract_token(credentials)
+    payload = verify_token(token, TokenType.ACCESS)
+    if payload is None or payload.org is None:
+        raise AuthenticationError("Невалидный токен")
 
-    Возвращает None если токен не предоставлен.
-    Выбрасывает исключение если токен невалиден.
-    """
-    if credentials is None:
-        return None
-
-    user_id = verify_token(credentials.credentials, token_type="access")
-    if user_id is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Невалидный токен доступа",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    repository = UserRepository(session)
-    user = await repository.get_by_id(UUID(user_id))
-
+    user_repo = UserRepository(session)
+    user = await user_repo.get_by_id(payload.sub)
     if user is None or not user.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Пользователь не найден или деактивирован",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+        raise AuthenticationError("Пользователь не найден")
 
-    return user
+    membership = await user_repo.get_membership(user.id, payload.org)
+    if membership is None or not membership.is_active:
+        raise AuthorizationError("Нет доступа к организации")
 
+    request.state.organization_id = payload.org
+    request.state.user_id = str(user.id)
 
-async def get_current_user(
-    user: Annotated[User | None, Depends(get_current_user_optional)],
-) -> User:
-    """Получение текущего пользователя (обязательно).
-
-    Выбрасывает исключение если пользователь не аутентифицирован.
-    """
-    if user is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Требуется аутентификация",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    return user
+    return RequestContext(
+        user=user,
+        organization_id=payload.org,
+        role=membership.role if isinstance(membership.role, OrgRole) else OrgRole(membership.role),
+    )
 
 
-async def get_current_active_superuser(
-    user: Annotated[User, Depends(get_current_user)],
-) -> User:
-    """Получение текущего суперпользователя.
+def require_roles(*allowed_roles: OrgRole) -> Callable[[RequestContext], Awaitable[RequestContext]]:
+    """Создать dependency для проверки ролей."""
 
-    Выбрасывает исключение если пользователь не суперпользователь.
-    """
-    if not user.is_superuser:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Требуются права администратора",
-        )
-    return user
+    async def checker(
+        ctx: Annotated[RequestContext, Depends(get_current_context)],
+    ) -> RequestContext:
+        if ctx.user.is_superuser:
+            return ctx
+        if ctx.role not in allowed_roles:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Недостаточно прав")
+        return ctx
+
+    return checker
 
 
-# Типизированные зависимости для удобства использования
-CurrentUser = Annotated[User, Depends(get_current_user)]
-CurrentUserOptional = Annotated[User | None, Depends(get_current_user_optional)]
-CurrentSuperuser = Annotated[User, Depends(get_current_active_superuser)]
+async def enforce_active_subscription(
+    ctx: Annotated[RequestContext, Depends(get_current_context)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> RequestContext:
+    """Проверить активность подписки организации."""
+    subscription_repo = SubscriptionRepository(session)
+    subscription = await subscription_repo.get_with_tariff(ctx.organization_id)
+    if subscription is None or subscription.status not in {SubscriptionStatus.TRIAL, SubscriptionStatus.ACTIVE}:
+        raise AuthorizationError("Подписка неактивна")
+    return ctx
+
+
+CurrentContext = Annotated[RequestContext, Depends(get_current_context)]
+ActiveSubscriptionContext = Annotated[RequestContext, Depends(enforce_active_subscription)]
 DbSession = Annotated[AsyncSession, Depends(get_session)]

@@ -1,15 +1,26 @@
 """Эндпоинты базы знаний."""
 
+from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request, status
 
-from app.core.dependencies import CurrentUser, DbSession
+from app.core.dependencies import (
+    ActiveSubscriptionContext,
+    CurrentContext,
+    DbSession,
+    require_roles,
+)
 from app.models.material import MaterialType
+from app.models.organization import OrgRole
 from app.schemas.material import (
+    CategoryCreate,
+    CategoryResponse,
+    MaterialCreate,
     MaterialListItem,
     MaterialListResponse,
     MaterialResponse,
+    MaterialUpdate,
     SearchRequest,
     SearchResponse,
 )
@@ -19,29 +30,131 @@ router = APIRouter()
 
 
 @router.get(
+    "/categories",
+    response_model=list[CategoryResponse],
+    summary="Список категорий",
+    description="Получение списка категорий организации.",
+)
+async def list_categories(
+    ctx: ActiveSubscriptionContext,
+    session: DbSession,
+) -> list[CategoryResponse]:
+    service = MaterialService(session)
+    categories = await service.list_categories(ctx.organization_id)
+    return [CategoryResponse.model_validate(cat) for cat in categories]
+
+
+@router.post(
+    "/categories",
+    response_model=CategoryResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Создать категорию",
+    dependencies=[Depends(require_roles(OrgRole.ORG_OWNER))],
+)
+async def create_category(
+    request: Request,
+    data: CategoryCreate,
+    ctx: CurrentContext,
+    session: DbSession,
+) -> CategoryResponse:
+    service = MaterialService(session)
+    category = await service.create_category(
+        ctx.organization_id,
+        data,
+        request_id=getattr(request.state, "request_id", None),
+    )
+    return CategoryResponse.model_validate(category)
+
+
+@router.post(
+    "",
+    response_model=MaterialResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Создать материал",
+    description="Создание материала базы знаний. Требуются права владельца организации.",
+    dependencies=[Depends(require_roles(OrgRole.ORG_OWNER))],
+)
+async def create_material(
+    request: Request,
+    data: MaterialCreate,
+    ctx: CurrentContext,
+    session: DbSession,
+) -> MaterialResponse:
+    service = MaterialService(session)
+    return await service.create_material(
+        organization_id=ctx.organization_id,
+        author_id=ctx.user.id,
+        data=data,
+        request_id=getattr(request.state, "request_id", None),
+    )
+
+
+@router.patch(
+    "/{material_id}",
+    response_model=MaterialResponse,
+    summary="Обновить материал",
+    description="Обновление материала. Требуются права владельца организации.",
+    dependencies=[Depends(require_roles(OrgRole.ORG_OWNER))],
+)
+async def update_material(
+    material_id: UUID,
+    request: Request,
+    data: MaterialUpdate,
+    ctx: CurrentContext,
+    session: DbSession,
+) -> MaterialResponse:
+    service = MaterialService(session)
+    return await service.update_material(
+        material_id,
+        organization_id=ctx.organization_id,
+        editor_id=ctx.user.id,
+        data=data,
+        request_id=getattr(request.state, "request_id", None),
+    )
+
+
+@router.post(
+    "/{material_id}/publish",
+    response_model=MaterialResponse,
+    summary="Публикация материала",
+    description="Перевод материала в статус опубликованного.",
+    dependencies=[Depends(require_roles(OrgRole.ORG_OWNER))],
+)
+async def publish_material(
+    material_id: UUID,
+    request: Request,
+    ctx: CurrentContext,
+    session: DbSession,
+) -> MaterialResponse:
+    service = MaterialService(session)
+    return await service.publish(
+        material_id,
+        organization_id=ctx.organization_id,
+        editor_id=ctx.user.id,
+        request_id=getattr(request.state, "request_id", None),
+    )
+
+
+@router.get(
     "",
     response_model=MaterialListResponse,
     summary="Список материалов",
     description="Получение списка опубликованных материалов с пагинацией и фильтрацией.",
 )
 async def get_materials(
+    ctx: ActiveSubscriptionContext,
     session: DbSession,
-    current_user: CurrentUser,
-    type: MaterialType | None = Query(None, description="Фильтр по типу материала"),
-    category_id: int | None = Query(None, description="Фильтр по категории"),
-    page: int = Query(default=1, ge=1, description="Номер страницы"),
-    page_size: int = Query(default=20, ge=1, le=100, description="Размер страницы"),
+    material_type: Annotated[
+        MaterialType | None, Query(description="Фильтр по типу материала", alias="type")
+    ] = None,
+    category_id: Annotated[int | None, Query(description="Фильтр по категории")] = None,
+    page: Annotated[int, Query(ge=1, description="Номер страницы")] = 1,
+    page_size: Annotated[int, Query(ge=1, le=100, description="Размер страницы")] = 20,
 ) -> MaterialListResponse:
-    """Получить список материалов.
-
-    - **type**: Тип материала (article, npa, template, reference, news)
-    - **category_id**: ID категории
-    - **page**: Номер страницы (начиная с 1)
-    - **page_size**: Количество элементов на странице
-    """
     service = MaterialService(session)
     return await service.get_materials(
-        material_type=type,
+        organization_id=ctx.organization_id,
+        material_type=material_type,
         category_id=category_id,
         page=page,
         page_size=page_size,
@@ -55,34 +168,25 @@ async def get_materials(
     description="Полнотекстовый поиск по базе знаний с ранжированием результатов.",
 )
 async def search_materials(
+    ctx: ActiveSubscriptionContext,
     session: DbSession,
-    current_user: CurrentUser,
-    q: str = Query(..., min_length=2, max_length=200, description="Поисковый запрос"),
-    type: MaterialType | None = Query(None, description="Фильтр по типу"),
-    category_id: int | None = Query(None, description="Фильтр по категории"),
-    page: int = Query(default=1, ge=1, description="Номер страницы"),
-    page_size: int = Query(default=20, ge=1, le=100, description="Размер страницы"),
+    q: Annotated[str, Query(min_length=2, max_length=200, description="Поисковый запрос")],
+    material_type: Annotated[
+        MaterialType | None, Query(description="Фильтр по типу", alias="type")
+    ] = None,
+    category_id: Annotated[int | None, Query(description="Фильтр по категории")] = None,
+    page: Annotated[int, Query(ge=1, description="Номер страницы")] = 1,
+    page_size: Annotated[int, Query(ge=1, le=100, description="Размер страницы")] = 20,
 ) -> SearchResponse:
-    """Поиск материалов по тексту.
-
-    Использует полнотекстовый поиск PostgreSQL с поддержкой
-    русской морфологии. Результаты ранжируются по релевантности.
-
-    - **q**: Поисковый запрос (минимум 2 символа)
-    - **type**: Фильтр по типу материала
-    - **category_id**: Фильтр по категории
-    - **page**: Номер страницы
-    - **page_size**: Размер страницы
-    """
     request = SearchRequest(
         query=q,
-        type=type,
+        type=material_type,
         category_id=category_id,
         page=page,
         page_size=page_size,
     )
     service = MaterialService(session)
-    return await service.search(request)
+    return await service.search(request, organization_id=ctx.organization_id)
 
 
 @router.get(
@@ -92,35 +196,34 @@ async def search_materials(
     description="Получение списка наиболее популярных материалов по количеству просмотров.",
 )
 async def get_popular_materials(
+    ctx: ActiveSubscriptionContext,
     session: DbSession,
-    current_user: CurrentUser,
-    type: MaterialType | None = Query(None, description="Фильтр по типу"),
-    limit: int = Query(default=10, ge=1, le=50, description="Количество материалов"),
+    material_type: Annotated[
+        MaterialType | None, Query(description="Фильтр по типу", alias="type")
+    ] = None,
+    limit: Annotated[int, Query(ge=1, le=50, description="Количество материалов")] = 10,
 ) -> list[MaterialListItem]:
-    """Получить популярные материалы.
-
-    - **type**: Тип материала для фильтрации
-    - **limit**: Максимальное количество результатов
-    """
     service = MaterialService(session)
-    return await service.get_popular(material_type=type, limit=limit)
+    return await service.get_popular(
+        organization_id=ctx.organization_id,
+        material_type=material_type,
+        limit=limit,
+    )
 
 
 @router.get(
     "/{material_id}",
     response_model=MaterialResponse,
     summary="Получить материал",
-    description="Получение полного содержимого материала по ID. "
-    "Автоматически увеличивает счётчик просмотров.",
+    description="Получение полного содержимого материала по ID. Автоматически увеличивает счётчик просмотров.",
 )
 async def get_material(
     material_id: UUID,
+    ctx: ActiveSubscriptionContext,
     session: DbSession,
-    current_user: CurrentUser,
 ) -> MaterialResponse:
-    """Получить материал по ID.
-
-    При каждом запросе увеличивается счётчик просмотров материала.
-    """
     service = MaterialService(session)
-    return await service.get_material(material_id)
+    return await service.get_material(
+        material_id,
+        organization_id=ctx.organization_id,
+    )

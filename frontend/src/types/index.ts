@@ -1,86 +1,101 @@
-/**
- * Общие типы приложения.
- */
+/** Общие типы приложения под новый backend-контракт. */
 
-// Пользователь
 export interface User {
   id: string;
   email: string;
   name: string;
-  isActive: boolean;
-  createdAt: string;
-  updatedAt: string;
+  is_active: boolean;
+  is_superuser: boolean;
+  primary_organization_id: number | null;
+  created_at: string;
+  updated_at: string;
 }
 
-// Организация
-export interface Organization {
-  id: number;
-  name: string;
-  inn: string;
-  description: string | null;
-  logoUrl: string | null;
-  createdAt: string;
-  updatedAt: string;
+export interface Membership {
+  organization_id: number;
+  role: string;
+  is_active: boolean;
+  joined_at: string;
 }
 
-// Токены аутентификации
 export interface TokenResponse {
-  accessToken: string;
-  refreshToken: string;
-  tokenType: string;
-  expiresIn: number;
+  access_token: string;
+  token_type: string;
+  expires_in: number;
+  refresh_expires_in: number;
+  organization_id: number;
+  role: string;
+  user: User;
 }
 
-// Запрос на вход
 export interface LoginRequest {
   email: string;
   password: string;
+  organization_id?: number;
 }
 
-// Запрос на регистрацию
 export interface RegisterRequest {
-  organizationName: string;
+  organization_name: string;
   inn: string;
-  adminEmail: string;
-  adminPassword: string;
-  adminName: string;
+  admin_email: string;
+  admin_password: string;
+  admin_name: string;
 }
 
-// Материал базы знаний
+export interface RegisterResponse {
+  organization_id: number;
+  user_id: string;
+  subscription_status: string;
+  trial_ends_at: string | null;
+}
+
+export type MaterialType = 'article' | 'npa' | 'template' | 'reference' | 'news';
+export type MaterialStatus = 'draft' | 'published' | 'archived';
+
 export interface Material {
   id: string;
+  organization_id: number;
   title: string;
   summary: string | null;
   content: string;
   type: MaterialType;
-  viewsCount: number;
-  publishedAt: string | null;
-  createdAt: string;
-  updatedAt: string;
+  status: MaterialStatus;
+  views_count: number;
+  published_at: string | null;
+  updated_by_id?: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
-export type MaterialType = 'article' | 'npa' | 'template' | 'reference' | 'news';
+export interface Category {
+  id: number;
+  organization_id: number;
+  name: string;
+  slug: string;
+  parent_id: number | null;
+  description: string | null;
+  sort_order: number;
+}
 
-// Элемент списка материалов
 export interface MaterialListItem {
   id: string;
+  organization_id: number;
   title: string;
   summary: string | null;
   type: MaterialType;
-  viewsCount: number;
-  publishedAt: string | null;
+  status: MaterialStatus;
+  views_count: number;
+  published_at: string | null;
 }
 
-// Пагинированный ответ
 export interface PaginatedResponse<T> {
   items: T[];
   total: number;
   page: number;
-  pageSize: number;
+  page_size: number;
   pages: number;
 }
 
-// Ответ с ошибкой
 export interface ErrorResponse {
   error: {
     code: string;
@@ -89,15 +104,50 @@ export interface ErrorResponse {
   };
 }
 
-// Параметры пагинации
 export interface PaginationParams {
   page?: number;
-  pageSize?: number;
+  page_size?: number;
 }
 
-// Параметры поиска материалов
 export interface MaterialSearchParams extends PaginationParams {
   query?: string;
   type?: MaterialType;
-  categoryId?: number;
+  category_id?: number;
+}
+
+export interface CourseModule {
+  id?: number;
+  title: string;
+  content: string;
+  sort_order: number;
+  duration_minutes: number;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface Course {
+  id: number;
+  organization_id: number;
+  title: string;
+  description: string | null;
+  duration_minutes: number;
+  is_published: boolean;
+  thumbnail_url: string | null;
+  created_at: string;
+  updated_at: string;
+  modules: CourseModule[];
+}
+
+export interface CourseAssignment {
+  id: string;
+  course_id: number;
+  organization_id: number;
+  user_id: string;
+  status: 'assigned' | 'in_progress' | 'completed' | 'overdue';
+  progress_percent: number;
+  due_at: string | null;
+  completed_at: string | null;
+  last_activity_at: string | null;
+  created_at: string;
+  updated_at: string;
 }

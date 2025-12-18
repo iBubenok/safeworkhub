@@ -2,36 +2,33 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
+from enum import StrEnum
 from typing import TYPE_CHECKING
 from uuid import UUID
 
-from sqlalchemy import DateTime, ForeignKey, Index, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, DateTime, ForeignKey, Index, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, IntegerPKMixin, TimestampMixin
 
 if TYPE_CHECKING:
-    from app.models.user import User
+    from app.models.course import Course
+    from app.models.material import Category, Material
     from app.models.subscription import Subscription
+    from app.models.user import User
+
+
+class OrgRole(StrEnum):
+    """Роли пользователей внутри организации."""
+
+    ORG_OWNER = "org_owner"
+    MEMBER = "member"
 
 
 class Organization(Base, IntegerPKMixin, TimestampMixin):
-    """Организация (компания-клиент).
-
-    Организация является основной единицей для биллинга и управления доступом.
-    Пользователи связаны с организацией через OrganizationUser.
-
-    Attributes:
-        id: Целочисленный автоинкрементный ID.
-        name: Название организации.
-        inn: ИНН организации (уникальный).
-        description: Описание организации.
-        logo_url: URL логотипа.
-        created_at: Дата создания.
-        updated_at: Дата последнего обновления.
-    """
+    """Организация (компания-клиент)."""
 
     __tablename__ = "organizations"
 
@@ -39,16 +36,27 @@ class Organization(Base, IntegerPKMixin, TimestampMixin):
     inn: Mapped[str] = mapped_column(String(12), unique=True, nullable=False)
     description: Mapped[str | None] = mapped_column(Text)
     logo_url: Mapped[str | None] = mapped_column(String(500))
+    owner_id: Mapped[UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+    )
 
     # Связи
     members: Mapped[list["OrganizationUser"]] = relationship(
         back_populates="organization",
-        lazy="selectin",
         cascade="all, delete-orphan",
     )
+    categories: Mapped[list["Category"]] = relationship(back_populates="organization")
     subscription: Mapped["Subscription | None"] = relationship(
         back_populates="organization",
         uselist=False,
+        cascade="all, delete-orphan",
+    )
+    materials: Mapped[list["Material"]] = relationship(back_populates="organization")
+    courses: Mapped[list["Course"]] = relationship(back_populates="organization")
+    owner: Mapped["User | None"] = relationship(
+        back_populates="owned_organizations",
+        foreign_keys=[owner_id],
         lazy="selectin",
     )
 
@@ -62,17 +70,7 @@ class Organization(Base, IntegerPKMixin, TimestampMixin):
 
 
 class OrganizationUser(Base, TimestampMixin):
-    """Членство пользователя в организации.
-
-    Промежуточная таблица для связи many-to-many между User и Organization
-    с дополнительными атрибутами (роль, дата присоединения).
-
-    Attributes:
-        organization_id: ID организации.
-        user_id: ID пользователя.
-        role: Роль пользователя в организации.
-        joined_at: Дата присоединения к организации.
-    """
+    """Членство пользователя в организации."""
 
     __tablename__ = "organization_users"
 
@@ -85,15 +83,16 @@ class OrganizationUser(Base, TimestampMixin):
         ForeignKey("users.id", ondelete="CASCADE"),
         primary_key=True,
     )
-    role: Mapped[str] = mapped_column(
+    role: Mapped[OrgRole] = mapped_column(
         String(50),
         nullable=False,
-        default="employee",
+        default=OrgRole.MEMBER,
     )
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     joined_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
-        default=datetime.utcnow,
+        default=lambda: datetime.now(UTC),
     )
 
     # Связи
@@ -103,6 +102,7 @@ class OrganizationUser(Base, TimestampMixin):
     __table_args__ = (
         UniqueConstraint("organization_id", "user_id", name="uq_org_user"),
         Index("ix_organization_users_user_id", "user_id"),
+        Index("ix_organization_users_role", "role"),
     )
 
     def __repr__(self) -> str:

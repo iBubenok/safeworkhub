@@ -1,8 +1,6 @@
 # Docker Compose конфигурация для SafeWorkHub
 # Используется для локальной разработки и тестирования
 
-version: '3.9'
-
 services:
   # PostgreSQL база данных
   postgres:
@@ -85,7 +83,7 @@ services:
     container_name: safeworkhub-frontend
     restart: unless-stopped
     environment:
-      - VITE_API_URL=http://localhost:${BACKEND_PORT:-8000}
+      - VITE_API_URL=http://backend:8000/api/v1
     volumes:
       - ./frontend:/app
       - /app/node_modules
@@ -93,49 +91,6 @@ services:
       - "${FRONTEND_PORT:-3000}:3000"
     depends_on:
       - backend
-    networks:
-      - safeworkhub-network
-
-  # Celery Worker для фоновых задач
-  celery-worker:
-    build:
-      context: .
-      dockerfile: infra/docker/Dockerfile.backend
-    container_name: safeworkhub-celery-worker
-    restart: unless-stopped
-    command: celery -A app.core.celery worker --loglevel=info --concurrency=2
-    environment:
-      - APP_ENV=${APP_ENV:-development}
-      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-safeworkhub}:${POSTGRES_PASSWORD:-safeworkhub_dev}@postgres:5432/${POSTGRES_DB:-safeworkhub}
-      - REDIS_URL=redis://redis:6379/0
-      - SECRET_KEY=${SECRET_KEY:-dev-secret-key-change-in-production}
-    volumes:
-      - ./backend:/app
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    networks:
-      - safeworkhub-network
-
-  # Celery Beat для периодических задач
-  celery-beat:
-    build:
-      context: .
-      dockerfile: infra/docker/Dockerfile.backend
-    container_name: safeworkhub-celery-beat
-    restart: unless-stopped
-    command: celery -A app.core.celery beat --loglevel=info
-    environment:
-      - APP_ENV=${APP_ENV:-development}
-      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-safeworkhub}:${POSTGRES_PASSWORD:-safeworkhub_dev}@postgres:5432/${POSTGRES_DB:-safeworkhub}
-      - REDIS_URL=redis://redis:6379/0
-      - SECRET_KEY=${SECRET_KEY:-dev-secret-key-change-in-production}
-    volumes:
-      - ./backend:/app
-    depends_on:
-      - celery-worker
     networks:
       - safeworkhub-network
 

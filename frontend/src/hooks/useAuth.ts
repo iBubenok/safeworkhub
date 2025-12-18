@@ -1,62 +1,46 @@
-/**
- * Хук для работы с аутентификацией.
- */
-
 import { useCallback, useEffect } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 
-import { useAuthStore } from '@/store/authStore';
 import * as authApi from '@/api/auth';
-import { getAccessToken, clearTokens } from '@/api/client';
-import type { LoginRequest, RegisterRequest, User } from '@/types';
+import { useAuthStore } from '@/store/authStore';
+import type { LoginRequest, RegisterRequest } from '@/types';
 
 export function useAuth() {
   const queryClient = useQueryClient();
-  const { user, setUser, clearAuth, isInitialized, setInitialized } = useAuthStore();
+  const { user, accessToken, role, isInitialized } = useAuthStore();
+  const setSession = useAuthStore((state) => state.setSession);
+  const clearAuth = useAuthStore((state) => state.clearAuth);
+  const setInitialized = useAuthStore((state) => state.setInitialized);
 
-  // Запрос текущего пользователя
-  const {
-    data: currentUser,
-    isLoading: isLoadingUser,
-    error: userError,
-  } = useQuery({
-    queryKey: ['currentUser'],
-    queryFn: authApi.getCurrentUser,
-    enabled: !!getAccessToken() && !user,
-    retry: false,
-    staleTime: 5 * 60 * 1000, // 5 минут
-  });
-
-  // Синхронизация с store
-  useEffect(() => {
-    if (currentUser) {
-      setUser(currentUser);
-    }
-    if (userError) {
+  const bootstrapSession = useCallback(async () => {
+    try {
+      const tokens = await authApi.refreshSession();
+      setSession(tokens);
+    } catch {
       clearAuth();
-      clearTokens();
-    }
-    if (!isInitialized) {
+    } finally {
       setInitialized(true);
     }
-  }, [currentUser, userError, isInitialized, setUser, clearAuth, setInitialized]);
+  }, [clearAuth, setInitialized, setSession]);
 
-  // Мутация входа
+  useEffect(() => {
+    if (!isInitialized) {
+      void bootstrapSession();
+    }
+  }, [bootstrapSession, isInitialized]);
+
   const loginMutation = useMutation({
     mutationFn: authApi.login,
-    onSuccess: async () => {
-      const userData = await authApi.getCurrentUser();
-      setUser(userData);
-      queryClient.invalidateQueries({ queryKey: ['currentUser'] });
+    onSuccess: (tokens) => {
+      setSession(tokens);
+      setInitialized(true);
     },
   });
 
-  // Мутация регистрации
   const registerMutation = useMutation({
     mutationFn: authApi.register,
   });
 
-  // Функция входа
   const login = useCallback(
     async (data: LoginRequest) => {
       await loginMutation.mutateAsync(data);
@@ -64,15 +48,11 @@ export function useAuth() {
     [loginMutation],
   );
 
-  // Функция регистрации
   const register = useCallback(
-    async (data: RegisterRequest) => {
-      return registerMutation.mutateAsync(data);
-    },
+    async (data: RegisterRequest) => registerMutation.mutateAsync(data),
     [registerMutation],
   );
 
-  // Функция выхода
   const logout = useCallback(async () => {
     try {
       await authApi.logout();
@@ -83,9 +63,11 @@ export function useAuth() {
   }, [clearAuth, queryClient]);
 
   return {
-    user: user || currentUser,
-    isAuthenticated: !!(user || currentUser),
-    isLoading: isLoadingUser && !isInitialized,
+    user,
+    accessToken,
+    role,
+    isAuthenticated: Boolean(user && accessToken),
+    isLoading: !isInitialized,
     login,
     logout,
     register,

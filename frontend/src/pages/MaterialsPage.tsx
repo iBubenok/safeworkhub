@@ -1,13 +1,11 @@
-/**
- * Страница базы знаний.
- */
-
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { Search, Filter, FileText, Book, Newspaper, File } from 'lucide-react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Search, FileText, Book, Newspaper, File } from 'lucide-react';
 
 import * as materialsApi from '@/api/materials';
-import type { MaterialType, MaterialListItem } from '@/types';
+import { getErrorMessage } from '@/api/client';
+import { useAuth } from '@/hooks/useAuth';
+import type { MaterialListItem, MaterialType } from '@/types';
 
 const materialTypes: { value: MaterialType | ''; label: string; icon: typeof FileText }[] = [
   { value: '', label: 'Все материалы', icon: File },
@@ -32,12 +30,19 @@ function MaterialTypeIcon({ type }: { type: MaterialType }) {
   }
 }
 
-function MaterialCard({ material }: { material: MaterialListItem }) {
+function MaterialCard({
+  material,
+  onPublish,
+  isOwner,
+  isPublishing,
+}: {
+  material: MaterialListItem;
+  onPublish?: (id: string) => void;
+  isOwner: boolean;
+  isPublishing: boolean;
+}) {
   return (
-    <a
-      href={`/materials/${material.id}`}
-      className="card block transition-shadow hover:shadow-md"
-    >
+    <div className="card block transition-shadow hover:shadow-md">
       <div className="flex items-start gap-3">
         <MaterialTypeIcon type={material.type} />
         <div className="flex-1">
@@ -45,17 +50,29 @@ function MaterialCard({ material }: { material: MaterialListItem }) {
           {material.summary && (
             <p className="mt-1 text-sm text-gray-500 line-clamp-2">{material.summary}</p>
           )}
-          <div className="mt-2 flex items-center gap-4 text-xs text-gray-400">
-            <span>{material.viewsCount} просмотров</span>
-            {material.publishedAt && (
+          <div className="mt-2 flex items-center gap-3 text-xs text-gray-500">
+            <span className="rounded-full bg-gray-100 px-2 py-1 text-xs uppercase tracking-wide">
+              {material.status === 'published' ? 'Опубликован' : 'Черновик'}
+            </span>
+            <span>{material.views_count} просмотров</span>
+            {material.published_at && (
               <span>
-                {new Date(material.publishedAt).toLocaleDateString('ru-RU')}
+                {new Date(material.published_at).toLocaleDateString('ru-RU')}
               </span>
             )}
           </div>
+          {isOwner && material.status !== 'published' && onPublish && (
+            <button
+              onClick={() => onPublish(material.id)}
+              className="btn-secondary mt-3"
+              disabled={isPublishing}
+            >
+              Опубликовать
+            </button>
+          )}
         </div>
       </div>
-    </a>
+    </div>
   );
 }
 
@@ -63,9 +80,21 @@ export function MaterialsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedType, setSelectedType] = useState<MaterialType | ''>('');
   const [page, setPage] = useState(1);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [newMaterial, setNewMaterial] = useState({
+    title: '',
+    summary: '',
+    content: '',
+    type: 'article' as MaterialType,
+    category_id: undefined as number | undefined,
+  });
+  const pageSize = 12;
 
-  // Запрос материалов или поиск
-  const { data, isLoading } = useQuery({
+  const queryClient = useQueryClient();
+  const { role } = useAuth();
+  const isOwner = role === 'org_owner';
+
+  const materialsQuery = useQuery({
     queryKey: ['materials', searchQuery, selectedType, page],
     queryFn: () =>
       searchQuery
@@ -73,13 +102,40 @@ export function MaterialsPage() {
             query: searchQuery,
             type: selectedType || undefined,
             page,
-            pageSize: 20,
+            page_size: pageSize,
           })
         : materialsApi.getMaterials({
             type: selectedType || undefined,
             page,
-            pageSize: 20,
+            page_size: pageSize,
           }),
+  });
+
+  const categoriesQuery = useQuery({
+    queryKey: ['categories'],
+    queryFn: materialsApi.getCategories,
+    enabled: isOwner,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const createMaterial = useMutation({
+    mutationFn: materialsApi.createMaterial,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['materials'] });
+      setNewMaterial({
+        title: '',
+        summary: '',
+        content: '',
+        type: 'article',
+        category_id: undefined,
+      });
+    },
+    onError: (error) => setFormError(getErrorMessage(error)),
+  });
+
+  const publishMaterial = useMutation({
+    mutationFn: materialsApi.publishMaterial,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['materials'] }),
   });
 
   const handleSearch = (e: React.FormEvent) => {
@@ -87,9 +143,18 @@ export function MaterialsPage() {
     setPage(1);
   };
 
+  const handleCreate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setFormError(null);
+    await createMaterial.mutateAsync({
+      ...newMaterial,
+      summary: newMaterial.summary || null,
+      status: 'draft',
+    });
+  };
+
   return (
     <div className="space-y-6">
-      {/* Заголовок */}
       <div>
         <h1 className="text-2xl font-bold text-gray-900">База знаний</h1>
         <p className="mt-1 text-gray-600">
@@ -97,7 +162,114 @@ export function MaterialsPage() {
         </p>
       </div>
 
-      {/* Поиск и фильтры */}
+      {isOwner && (
+        <div className="card">
+          <h3 className="card-title mb-3 text-lg">Создать материал</h3>
+          {formError && (
+            <div className="mb-3 rounded-md bg-red-50 p-3 text-sm text-red-600">
+              {formError}
+            </div>
+          )}
+          <form className="space-y-3" onSubmit={handleCreate}>
+            <div className="grid gap-3 md:grid-cols-2">
+              <div>
+                <label className="label" htmlFor="title">
+                  Заголовок
+                </label>
+                <input
+                  id="title"
+                  className="input"
+                  value={newMaterial.title}
+                  onChange={(e) => setNewMaterial((prev) => ({ ...prev, title: e.target.value }))}
+                  required
+                />
+              </div>
+              <div>
+                <label className="label" htmlFor="type">
+                  Тип
+                </label>
+                <select
+                  id="type"
+                  className="input"
+                  value={newMaterial.type}
+                  onChange={(e) =>
+                    setNewMaterial((prev) => ({ ...prev, type: e.target.value as MaterialType }))
+                  }
+                >
+                  {materialTypes
+                    .filter((item) => item.value)
+                    .map((item) => (
+                      <option key={item.value} value={item.value}>
+                        {item.label}
+                      </option>
+                    ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="grid gap-3 md:grid-cols-2">
+              <div>
+                <label className="label" htmlFor="summary">
+                  Краткое описание
+                </label>
+                <input
+                  id="summary"
+                  className="input"
+                  value={newMaterial.summary}
+                  onChange={(e) =>
+                    setNewMaterial((prev) => ({ ...prev, summary: e.target.value }))
+                  }
+                />
+              </div>
+              <div>
+                <label className="label" htmlFor="category">
+                  Категория
+                </label>
+                <select
+                  id="category"
+                  className="input"
+                  value={newMaterial.category_id ?? ''}
+                  onChange={(e) =>
+                    setNewMaterial((prev) => ({
+                      ...prev,
+                      category_id: e.target.value ? Number(e.target.value) : undefined,
+                    }))
+                  }
+                >
+                  <option value="">Без категории</option>
+                  {categoriesQuery.data?.map((category) => (
+                    <option key={category.id} value={category.id}>
+                      {category.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label className="label" htmlFor="content">
+                Содержимое
+              </label>
+              <textarea
+                id="content"
+                className="input min-h-[120px]"
+                value={newMaterial.content}
+                onChange={(e) =>
+                  setNewMaterial((prev) => ({ ...prev, content: e.target.value }))
+                }
+                required
+              />
+            </div>
+
+            <div className="flex justify-end">
+              <button type="submit" className="btn-primary" disabled={createMaterial.isPending}>
+                {createMaterial.isPending ? 'Сохранение...' : 'Сохранить черновик'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
       <div className="card">
         <form onSubmit={handleSearch} className="flex gap-3">
           <div className="relative flex-1">
@@ -136,8 +308,7 @@ export function MaterialsPage() {
         </div>
       </div>
 
-      {/* Результаты */}
-      {isLoading ? (
+      {materialsQuery.isLoading ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {[...Array(6)].map((_, i) => (
             <div key={i} className="card animate-pulse">
@@ -147,20 +318,25 @@ export function MaterialsPage() {
             </div>
           ))}
         </div>
-      ) : data?.items.length === 0 ? (
+      ) : materialsQuery.data?.items.length === 0 ? (
         <div className="card text-center">
           <p className="text-gray-500">Материалы не найдены</p>
         </div>
       ) : (
         <>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {data?.items.map((material) => (
-              <MaterialCard key={material.id} material={material} />
+            {materialsQuery.data?.items.map((material) => (
+              <MaterialCard
+                key={material.id}
+                material={material}
+                onPublish={publishMaterial.mutateAsync}
+                isOwner={isOwner}
+                isPublishing={publishMaterial.isPending}
+              />
             ))}
           </div>
 
-          {/* Пагинация */}
-          {data && data.pages > 1 && (
+          {materialsQuery.data && materialsQuery.data.pages > 1 && (
             <div className="flex justify-center gap-2">
               <button
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
@@ -170,11 +346,13 @@ export function MaterialsPage() {
                 Назад
               </button>
               <span className="flex items-center px-4 text-sm text-gray-600">
-                Страница {page} из {data.pages}
+                Страница {page} из {materialsQuery.data.pages}
               </span>
               <button
-                onClick={() => setPage((p) => Math.min(data.pages, p + 1))}
-                disabled={page === data.pages}
+                onClick={() =>
+                  setPage((p) => Math.min(materialsQuery.data?.pages ?? page, p + 1))
+                }
+                disabled={page === materialsQuery.data.pages}
                 className="btn-secondary"
               >
                 Вперёд

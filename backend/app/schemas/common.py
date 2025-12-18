@@ -1,10 +1,10 @@
 """Общие схемы: пагинация, ответы и т.д."""
 
-from typing import Generic, TypeVar
+from __future__ import annotations
+
+from typing import Any
 
 from pydantic import BaseModel, Field
-
-T = TypeVar("T")
 
 
 class PaginationParams(BaseModel):
@@ -24,10 +24,10 @@ class PaginationParams(BaseModel):
         return self.page_size
 
 
-class PaginatedResponse(BaseModel, Generic[T]):
+class PaginatedResponse(BaseModel):
     """Ответ с пагинацией для списков."""
 
-    items: list[T]
+    items: list[Any]
     total: int = Field(description="Общее количество элементов")
     page: int = Field(description="Текущая страница")
     page_size: int = Field(description="Размер страницы")
@@ -36,11 +36,11 @@ class PaginatedResponse(BaseModel, Generic[T]):
     @classmethod
     def create(
         cls,
-        items: list[T],
+        items: list[Any],
         total: int,
         page: int,
         page_size: int,
-    ) -> "PaginatedResponse[T]":
+    ) -> PaginatedResponse:
         """Создать ответ с пагинацией.
 
         Args:
@@ -67,7 +67,7 @@ class ErrorDetail(BaseModel):
 
     code: str = Field(description="Код ошибки")
     message: str = Field(description="Сообщение об ошибке")
-    details: dict = Field(default_factory=dict, description="Дополнительные детали")
+    details: dict[str, Any] = Field(default_factory=dict, description="Дополнительные детали")
 
 
 class ErrorResponse(BaseModel):

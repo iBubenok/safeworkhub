@@ -4,11 +4,12 @@ SafeWorkHub — это современная корпоративная спр�
 
 ## Ключевые возможности
 
-- **База знаний по охране труда** — структурированные экспертные рекомендации, нормативно-правовая база, шаблоны документов
-- **Экспертные консультации** — многоуровневая поддержка от специалистов по охране труда
-- **Система обучения (LMS)** — онлайн-курсы, тестирование, выдача удостоверений
-- **Интерактивные сервисы** — мастера документов, калькуляторы, навигаторы СИЗ
-- **Корпоративный контур** — многопользовательский режим, роли и права, хранение внутренних документов
+- **Аутентификация с ротацией refresh** — httpOnly cookie, защита от повторного использования, access-токены только в памяти
+- **Корпоративный контур** — организации, роли `org_owner`/`member`, управление пользователями и их статусами
+- **Подписки** — статусы trial/active/blocked, единый guard для защищённых модулей
+- **База знаний** — материалы, категории, поиск (FTS), публикация и аудит изменений
+- **Обучение (LMS)** — курсы, модули, назначения, обновление прогресса
+- **Наблюдаемость** — health/readiness, метрики Prometheus, структурированные логи
 
 ## Технологический стек
 
@@ -17,7 +18,6 @@ SafeWorkHub — это современная корпоративная спр�
 - **FastAPI** — асинхронный веб-фреймворк
 - **PostgreSQL 16** — основная СУБД
 - **Redis** — кэширование и очереди задач
-- **Celery** — фоновые задачи
 - **SQLAlchemy 2.0** — ORM
 - **Alembic** — миграции БД
 
@@ -38,84 +38,55 @@ SafeWorkHub — это современная корпоративная спр�
 
 ### Требования
 - Docker 24+ и Docker Compose 2.20+
-- Node.js 20+ (для локальной разработки frontend)
-- Python 3.12+ (для локальной разработки backend)
+- Node.js 20+ (для разработки frontend)
+- Python 3.12+ (для разработки backend)
 
 ### Запуск через Docker Compose
 
 ```bash
-# Клонирование репозитория
 git clone https://github.com/iBubenok/safeworkhub.git
 cd safeworkhub
 
-# Копирование конфигурации окружения
 cp .env.example .env
-
-# Запуск всех сервисов
-docker compose up -d
-
-# Применение миграций БД
+make up
 docker compose exec backend alembic upgrade head
-
-# Создание начальных данных
-docker compose exec backend python -m app.db.init_data
 ```
 
-После запуска:
-- API: http://localhost:8000
-- Документация API (Swagger): http://localhost:8000/docs
+Доступы:
+- API: http://localhost:8000/api/v1
+- Swagger: http://localhost:8000/docs
 - Frontend: http://localhost:3000
 
 ### Локальная разработка
 
-#### Backend
 ```bash
-cd backend
+# Backend
+python -m venv .venv && source .venv/bin/activate
+make install-backend
+APP_ENV=development .venv/bin/uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
-# Создание виртуального окружения
-python -m venv .venv
-source .venv/bin/activate  # Linux/macOS
-# .venv\Scripts\activate   # Windows
-
-# Установка зависимостей
-pip install -e ".[dev]"
-
-# Запуск сервера разработки
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+# Frontend
+make install-frontend
+cd frontend && npm run dev -- --host
 ```
 
-#### Frontend
-```bash
-cd frontend
-
-# Установка зависимостей
-npm install
-
-# Запуск сервера разработки
-npm run dev
-```
+Полезные команды:
+- `make lint` — ruff + eslint/tsc
+- `make test` — pytest + vitest
+- `make db-migrate` — применить миграции Alembic
+- `make up` / `make down` — поднять/остановить docker-compose окружение
 
 ## Структура проекта
 
 ```
-repository/
-├── backend/                 # Серверная часть
-│   ├── app/                 # Исходный код приложения
-│   │   ├── api/             # API endpoints
-│   │   ├── core/            # Конфигурация и базовые компоненты
-│   │   ├── db/              # Работа с БД, миграции
-│   │   ├── models/          # SQLAlchemy модели
-│   │   ├── schemas/         # Pydantic схемы
-│   │   ├── services/        # Бизнес-логика
-│   │   └── tasks/           # Celery задачи
-│   └── tests/               # Тесты backend
-├── frontend/                # Клиентская часть
-│   ├── src/                 # Исходный код
-│   └── tests/               # Тесты frontend
-├── infra/                   # Инфраструктура
-│   ├── docker/              # Dockerfile и конфигурации
-│   └── ci/                  # CI/CD пайплайны
-└── docs/                    # Дополнительная документация
+safeworkhub/
+├── backend/                 # FastAPI, модели, схемы, сервисы, тесты
+├── frontend/                # React/Vite, Zustand, TanStack Query, тесты
+├── infra/                   # Dockerfile, конфигурации nginx
+├── .github/workflows/       # CI/CD на GitHub Actions
+├── Makefile                 # Стандартные команды (lint/test/build/up)
+├── runbook.md               # Операционное руководство
+└── *.md                     # Архитектурные и процессные документы
 ```
 
 ## Документация
@@ -127,6 +98,7 @@ repository/
 - [Принципы разработки](development-style.md) — архитектурные и инженерные практики
 - [Архитектура работы с БД](sql-execution-engine-architecture.md) — слой данных и SQL
 - [Система тестирования](testing-and-code-quality-system.md) — стратегия тестирования
+- [Runbook](runbook.md) — диагностика, миграции, бэкапы/восстановление
 
 ## Лицензия
 

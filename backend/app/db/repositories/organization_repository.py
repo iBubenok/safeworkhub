@@ -1,5 +1,7 @@
 """Репозиторий для работы с организациями."""
 
+from uuid import UUID
+
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -58,7 +60,10 @@ class OrganizationRepository(BaseRepository[Organization]):
         query = (
             select(func.count())
             .select_from(OrganizationUser)
-            .where(OrganizationUser.organization_id == organization_id)
+            .where(
+                OrganizationUser.organization_id == organization_id,
+                OrganizationUser.is_active.is_(True),
+            )
         )
         result = await self.session.execute(query)
         return result.scalar_one()
@@ -78,6 +83,13 @@ class OrganizationRepository(BaseRepository[Organization]):
             query = query.where(Organization.id != exclude_id)
         result = await self.session.execute(query)
         return result.scalar_one_or_none() is not None
+
+    async def set_owner(self, organization_id: int, user_id: UUID) -> None:
+        """Назначить владельца организации."""
+        organization = await self.get_by_id(organization_id)
+        if organization:
+            organization.owner_id = user_id
+            await self.session.flush()
 
     async def search(
         self,

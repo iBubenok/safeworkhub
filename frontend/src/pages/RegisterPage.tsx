@@ -3,7 +3,7 @@
  */
 
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -13,24 +13,23 @@ import { getErrorMessage } from '@/api/client';
 
 const registerSchema = z
   .object({
-    organizationName: z.string().min(1, 'Введите название организации'),
+    organization_name: z.string().min(1, 'Введите название организации'),
     inn: z
       .string()
       .regex(/^\d{10,12}$/, 'ИНН должен содержать 10 или 12 цифр'),
-    adminName: z.string().min(1, 'Введите имя'),
-    adminEmail: z.string().email('Введите корректный email'),
-    adminPassword: z.string().min(8, 'Пароль должен содержать минимум 8 символов'),
-    confirmPassword: z.string(),
+    admin_name: z.string().min(1, 'Введите имя'),
+    admin_email: z.string().email('Введите корректный email'),
+    admin_password: z.string().min(8, 'Пароль должен содержать минимум 8 символов'),
+    confirm_password: z.string(),
   })
-  .refine((data) => data.adminPassword === data.confirmPassword, {
+  .refine((data) => data.admin_password === data.confirm_password, {
     message: 'Пароли не совпадают',
-    path: ['confirmPassword'],
+    path: ['confirm_password'],
   });
 
 type RegisterFormData = z.infer<typeof registerSchema>;
 
 export function RegisterPage() {
-  const navigate = useNavigate();
   const { register: registerOrg, isRegistering } = useAuth();
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
@@ -47,11 +46,11 @@ export function RegisterPage() {
     setError(null);
     try {
       await registerOrg({
-        organizationName: data.organizationName,
+        organization_name: data.organization_name,
         inn: data.inn,
-        adminName: data.adminName,
-        adminEmail: data.adminEmail,
-        adminPassword: data.adminPassword,
+        admin_name: data.admin_name,
+        admin_email: data.admin_email,
+        admin_password: data.admin_password,
       });
       setSuccess(true);
     } catch (err) {
@@ -103,18 +102,18 @@ export function RegisterPage() {
 
             <div className="space-y-3">
               <div>
-                <label htmlFor="organizationName" className="label">
+                <label htmlFor="organization_name" className="label">
                   Название организации
                 </label>
                 <input
-                  {...register('organizationName')}
+                  {...register('organization_name')}
                   type="text"
-                  id="organizationName"
+                  id="organization_name"
                   className="input"
                   placeholder="ООО «Название»"
                 />
-                {errors.organizationName && (
-                  <p className="error-message">{errors.organizationName.message}</p>
+                {errors.organization_name && (
+                  <p className="error-message">{errors.organization_name.message}</p>
                 )}
               </div>
 
@@ -142,18 +141,18 @@ export function RegisterPage() {
 
             <div className="space-y-3">
               <div>
-                <label htmlFor="adminName" className="label">
+                <label htmlFor="admin_name" className="label">
                   Имя
                 </label>
                 <input
-                  {...register('adminName')}
+                  {...register('admin_name')}
                   type="text"
-                  id="adminName"
+                  id="admin_name"
                   className="input"
                   placeholder="Иван Иванов"
                 />
-                {errors.adminName && (
-                  <p className="error-message">{errors.adminName.message}</p>
+                {errors.admin_name && (
+                  <p className="error-message">{errors.admin_name.message}</p>
                 )}
               </div>
 
@@ -162,14 +161,14 @@ export function RegisterPage() {
                   Email
                 </label>
                 <input
-                  {...register('adminEmail')}
+                  {...register('admin_email')}
                   type="email"
                   id="adminEmail"
                   className="input"
                   placeholder="admin@example.com"
                 />
-                {errors.adminEmail && (
-                  <p className="error-message">{errors.adminEmail.message}</p>
+                {errors.admin_email && (
+                  <p className="error-message">{errors.admin_email.message}</p>
                 )}
               </div>
 
@@ -178,30 +177,30 @@ export function RegisterPage() {
                   Пароль
                 </label>
                 <input
-                  {...register('adminPassword')}
+                  {...register('admin_password')}
                   type="password"
                   id="adminPassword"
                   className="input"
                   placeholder="Минимум 8 символов"
                 />
-                {errors.adminPassword && (
-                  <p className="error-message">{errors.adminPassword.message}</p>
+                {errors.admin_password && (
+                  <p className="error-message">{errors.admin_password.message}</p>
                 )}
               </div>
 
               <div>
-                <label htmlFor="confirmPassword" className="label">
+                <label htmlFor="confirm_password" className="label">
                   Подтверждение пароля
                 </label>
                 <input
-                  {...register('confirmPassword')}
+                  {...register('confirm_password')}
                   type="password"
-                  id="confirmPassword"
+                  id="confirm_password"
                   className="input"
                   placeholder="Повторите пароль"
                 />
-                {errors.confirmPassword && (
-                  <p className="error-message">{errors.confirmPassword.message}</p>
+                {errors.confirm_password && (
+                  <p className="error-message">{errors.confirm_password.message}</p>
                 )}
               </div>
             </div>
