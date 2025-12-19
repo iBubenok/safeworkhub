@@ -46,13 +46,12 @@ jobs:
 
       - name: Деплой (build + up + миграции)
         uses: appleboy/ssh-action@v1.0.0
-        env:
-          APP_DIR: /root/safeworkhub
         with:
           host: ${{ secrets.PROD_SSH_HOST }}
           username: ${{ secrets.PROD_SSH_USER }}
           key: ${{ secrets.PROD_SSH_KEY }}
           port: ${{ secrets.PROD_SSH_PORT }}
+          envs: APP_DIR
           script: |
             set -euo pipefail
             cd $APP_DIR
