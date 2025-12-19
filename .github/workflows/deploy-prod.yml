@@ -46,6 +46,8 @@ jobs:
 
       - name: Деплой (build + up + миграции)
         uses: appleboy/ssh-action@v1.0.0
+        env:
+          APP_DIR: /root/safeworkhub
         with:
           host: ${{ secrets.PROD_SSH_HOST }}
           username: ${{ secrets.PROD_SSH_USER }}
