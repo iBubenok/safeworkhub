@@ -1,0 +1,135 @@
+services:
+  traefik:
+    image: traefik:v3.1
+    container_name: safeworkhub-traefik
+    restart: unless-stopped
+    command:
+      - --entrypoints.web.address=:80
+      - --entrypoints.web.http.redirections.entrypoint.to=websecure
+      - --entrypoints.web.http.redirections.entrypoint.scheme=https
+      - --entrypoints.websecure.address=:443
+      - --certificatesresolvers.letsencrypt.acme.email=yan@bubenok.com
+      - --certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json
+      - --certificatesresolvers.letsencrypt.acme.httpchallenge=true
+      - --certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web
+      - --providers.file.directory=/etc/traefik/dynamic
+      - --providers.file.watch=true
+      - --accesslog=true
+      - --log.level=INFO
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./infra/traefik/acme:/letsencrypt
+      - ./infra/traefik/dynamic.yml:/etc/traefik/dynamic/dynamic.yml:ro
+    networks:
+      - safeworkhub-network
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: safeworkhub-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infra/docker/init-db.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - safeworkhub-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: safeworkhub-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - safeworkhub-network
+
+  backend:
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile.backend
+    image: safeworkhub-backend:prod
+    container_name: safeworkhub-backend
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      APP_ENV: ${APP_ENV}
+      DEBUG: ${DEBUG}
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      REDIS_URL: redis://redis:6379/0
+      SECRET_KEY: ${SECRET_KEY}
+      CORS_ORIGINS: ${CORS_ORIGINS}
+      REFRESH_TOKEN_SECURE: ${REFRESH_TOKEN_SECURE}
+      REFRESH_TOKEN_DOMAIN: ${REFRESH_TOKEN_DOMAIN}
+      REFRESH_TOKEN_SAMESITE: ${REFRESH_TOKEN_SAMESITE}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - safeworkhub-network
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.backend.rule=Host(`safeworkhub.ru`,`www.safeworkhub.ru`) && PathPrefix(`/api`)
+      - traefik.http.routers.backend.entrypoints=websecure
+      - traefik.http.routers.backend.tls.certresolver=letsencrypt
+      - traefik.http.services.backend.loadbalancer.server.port=8000
+
+  frontend:
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile.frontend
+      target: production
+      args:
+        VITE_API_URL: ${VITE_API_URL}
+    image: safeworkhub-frontend:prod
+    container_name: safeworkhub-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    networks:
+      - safeworkhub-network
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.frontend.rule=Host(`safeworkhub.ru`,`www.safeworkhub.ru`)
+      - traefik.http.routers.frontend.entrypoints=websecure
+      - traefik.http.routers.frontend.tls.certresolver=letsencrypt
+      - traefik.http.services.frontend.loadbalancer.server.port=80
+
+volumes:
+  postgres_data:
+    name: safeworkhub-postgres-data
+  redis_data:
+    name: safeworkhub-redis-data
+
+networks:
+  safeworkhub-network:
+    name: safeworkhub-network
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.30.0.0/24

@@ -115,7 +115,11 @@ class CourseAssignment(Base, UUIDMixin, TimestampMixin):
         nullable=False,
     )
     status: Mapped[AssignmentStatus] = mapped_column(
-        Enum(AssignmentStatus, name="course_assignment_status"),
+        Enum(
+            AssignmentStatus,
+            name="course_assignment_status",
+            values_callable=lambda enum_cls: [e.value for e in enum_cls],
+        ),
         nullable=False,
         default=AssignmentStatus.ASSIGNED,
     )

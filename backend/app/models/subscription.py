@@ -72,7 +72,11 @@ class Subscription(Base, IntegerPKMixin, TimestampMixin):
         nullable=False,
     )
     status: Mapped[SubscriptionStatus] = mapped_column(
-        Enum(SubscriptionStatus, name="subscription_status"),
+        Enum(
+            SubscriptionStatus,
+            name="subscription_status",
+            values_callable=lambda enum_cls: [e.value for e in enum_cls],
+        ),
         nullable=False,
         default=SubscriptionStatus.TRIAL,
     )

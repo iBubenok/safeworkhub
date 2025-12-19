@@ -1,0 +1,26 @@
+http:
+  routers:
+    frontend:
+      rule: Host(`safeworkhub.ru`) || Host(`www.safeworkhub.ru`)
+      entryPoints:
+        - websecure
+      service: frontend
+      tls:
+        certResolver: letsencrypt
+    backend:
+      rule: (Host(`safeworkhub.ru`) || Host(`www.safeworkhub.ru`)) && PathPrefix(`/api`)
+      entryPoints:
+        - websecure
+      service: backend
+      tls:
+        certResolver: letsencrypt
+
+  services:
+    frontend:
+      loadBalancer:
+        servers:
+          - url: http://safeworkhub-frontend
+    backend:
+      loadBalancer:
+        servers:
+          - url: http://safeworkhub-backend:8000

@@ -1,0 +1,54 @@
+# Автодеплой на прод после успешного CI
+
+name: Deploy Production
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types:
+      - completed
+
+env:
+  APP_DIR: /root/safeworkhub
+
+jobs:
+  deploy:
+    name: Deploy to production
+    if: >
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_branch == 'main'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+
+    steps:
+      - name: Проверка, что деплоим тот же коммит
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - name: Синхронизация файлов на сервер
+        uses: burnett01/rsync-deployments@v7.1.3
+        with:
+          switches: -avzr --delete --exclude=".git" --exclude=".github" --exclude=".env" --exclude="infra/traefik/acme/" --exclude="frontend/node_modules" --exclude="backend/.venv"
+          path: ./
+          remote_path: ${{ env.APP_DIR }}
+          remote_host: ${{ secrets.PROD_SSH_HOST }}
+          remote_user: ${{ secrets.PROD_SSH_USER }}
+          remote_port: ${{ secrets.PROD_SSH_PORT }}
+          ssh_private_key: ${{ secrets.PROD_SSH_KEY }}
+
+      - name: Деплой (build + up + миграции)
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.PROD_SSH_HOST }}
+          username: ${{ secrets.PROD_SSH_USER }}
+          key: ${{ secrets.PROD_SSH_KEY }}
+          port: ${{ secrets.PROD_SSH_PORT }}
+          script: |
+            set -euo pipefail
+            cd $APP_DIR
+            docker compose -f docker-compose.prod.yml build backend frontend
+            docker compose -f docker-compose.prod.yml up -d
+            docker compose -f docker-compose.prod.yml exec -T backend alembic upgrade head

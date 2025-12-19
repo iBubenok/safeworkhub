@@ -21,12 +21,14 @@ def upgrade() -> None:
         "reference",
         "news",
         name="material_type",
+        create_type=False,
     )
     material_status = postgresql.ENUM(
         "draft",
         "published",
         "archived",
         name="material_status",
+        create_type=False,
     )
     subscription_status = postgresql.ENUM(
         "trial",
@@ -35,6 +37,7 @@ def upgrade() -> None:
         "blocked",
         "expired",
         name="subscription_status",
+        create_type=False,
     )
     course_assignment_status = postgresql.ENUM(
         "assigned",
@@ -42,6 +45,7 @@ def upgrade() -> None:
         "completed",
         "overdue",
         name="course_assignment_status",
+        create_type=False,
     )
 
     material_type.create(op.get_bind(), checkfirst=True)

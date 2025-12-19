@@ -103,12 +103,20 @@ class Material(Base, UUIDMixin, TimestampMixin):
     content: Mapped[str] = mapped_column(Text, nullable=False)
     summary: Mapped[str | None] = mapped_column(String(1000))
     type: Mapped[MaterialType] = mapped_column(
-        Enum(MaterialType, name="material_type"),
+        Enum(
+            MaterialType,
+            name="material_type",
+            values_callable=lambda enum_cls: [e.value for e in enum_cls],
+        ),
         nullable=False,
         default=MaterialType.ARTICLE,
     )
     status: Mapped[MaterialStatus] = mapped_column(
-        Enum(MaterialStatus, name="material_status"),
+        Enum(
+            MaterialStatus,
+            name="material_status",
+            values_callable=lambda enum_cls: [e.value for e in enum_cls],
+        ),
         nullable=False,
         default=MaterialStatus.DRAFT,
     )
