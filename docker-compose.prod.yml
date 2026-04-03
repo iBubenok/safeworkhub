@@ -132,4 +132,4 @@ networks:
     ipam:
       driver: default
       config:
-        - subnet: 172.30.0.0/24
+      	- subnet: 10.100.0.0/24

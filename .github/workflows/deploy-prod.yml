@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
 
 env:
-  APP_DIR: /root/safeworkhub
+  APP_DIR: /opt/safeworkhub
 
 jobs:
   deploy:
