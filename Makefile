@@ -6,6 +6,7 @@ DATABASE_URL_TEST ?= postgresql+asyncpg://safeworkhub:safeworkhub_dev@localhost:
 REDIS_URL_TEST ?= redis://localhost:6379/1
 SECRET_KEY ?= test-secret-key-change-me-0123456789abcdef123456
 VITE_API_URL ?= http://localhost:8000/api/v1
+APP_ENV ?= development
 
 .PHONY: install-backend install-frontend lint-backend lint-frontend test-backend test-frontend build-backend build-frontend up down db-migrate format-backend lint test build
 
@@ -43,7 +44,7 @@ test: test-backend test-frontend
 build: build-backend build-frontend
 
 db-migrate:
-	cd backend && APP_ENV=${APP_ENV:-development} ../.venv/bin/alembic upgrade head
+	cd backend && APP_ENV=$(APP_ENV) ../.venv/bin/alembic upgrade head
 
 up:
 	$(COMPOSE) up -d --build

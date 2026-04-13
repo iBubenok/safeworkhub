@@ -61,7 +61,9 @@ docker compose exec backend alembic upgrade head
 
 ```bash
 # Backend
+# В случае отсутствия ссылки на python используйте python3
 python -m venv .venv && source .venv/bin/activate
+
 make install-backend
 APP_ENV=development .venv/bin/uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
@@ -74,6 +76,12 @@ cd frontend && npm run dev -- --host
 - `make lint` — ruff + eslint/tsc
 - `make test` — pytest + vitest
 - `make db-migrate` — применить миграции Alembic
+    
+    Перед запуском alembic миграций, необходимо скопировать файл `.env` *(если его нет, скопируйте из шаблона см. выше)* или создать ссылку на него в директории `backend`
+    ```shell
+    ln -s ../.env backend/.env
+    ```
+
 - `make up` / `make down` — поднять/остановить docker-compose окружение
 
 ## Структура проекта
