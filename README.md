@@ -65,6 +65,11 @@ docker compose exec backend alembic upgrade head
 python -m venv .venv && source .venv/bin/activate
 
 make install-backend
+
+# Запуск из корня проекта safeworkhub
+APP_ENV=development .venv/bin/uvicorn app.main:app --reload --host 0.0.0.0 --port 8000 --app-dir backend
+
+# Запуск из директории safeworkhub/backend
 APP_ENV=development .venv/bin/uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 # Frontend
