@@ -46,11 +46,13 @@ class MaterialStatus(StrEnum):
     PUBLISHED = "published"
     ARCHIVED = "archived"
 
+
 class MaterialVisibility(StrEnum):
     """Видимость материалов."""
 
     ORG = "org"
     PUBLIC = "public"
+
 
 class Category(Base, IntegerPKMixin, TimestampMixin):
     """Категория материалов (иерархия поддерживается через parent_id)."""
