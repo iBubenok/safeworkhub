@@ -6,7 +6,7 @@
 
 from app.models.audit_log import AuditLog
 from app.models.course import AssignmentStatus, Course, CourseAssignment, CourseModule
-from app.models.material import Category, Material, MaterialStatus, MaterialType
+from app.models.material import Category, Material, MaterialStatus, MaterialType, MaterialVisibility
 from app.models.organization import Organization, OrganizationUser, OrgRole
 from app.models.refresh_session import RefreshSession
 from app.models.subscription import Subscription, SubscriptionStatus, Tariff
@@ -22,6 +22,7 @@ __all__ = [
     "Material",
     "MaterialStatus",
     "MaterialType",
+    "MaterialVisibility",
     "OrgRole",
     "Organization",
     "OrganizationUser",

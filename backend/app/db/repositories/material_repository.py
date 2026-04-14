@@ -4,11 +4,11 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from sqlalchemy import desc, func, select
+from sqlalchemy import desc, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.repositories.base import BaseRepository
-from app.models import Material, MaterialStatus, MaterialType
+from app.models import Material, MaterialStatus, MaterialType, MaterialVisibility
 
 
 class MaterialRepository(BaseRepository[Material]):
@@ -28,8 +28,11 @@ class MaterialRepository(BaseRepository[Material]):
     ) -> tuple[list[Material], int]:
         """Получить опубликованные материалы."""
         query = select(Material).where(
-            Material.organization_id == organization_id,
             Material.status == MaterialStatus.PUBLISHED,
+            or_(
+                Material.organization_id == organization_id,
+                Material.visibility == MaterialVisibility.PUBLIC,
+            ),
         )
 
         if material_type:
@@ -63,9 +66,12 @@ class MaterialRepository(BaseRepository[Material]):
         query = (
             select(Material, rank)
             .where(Material.search_vector.op("@@")(ts_query))
+            .where(Material.status == MaterialStatus.PUBLISHED)
             .where(
-                Material.organization_id == organization_id,
-                Material.status == MaterialStatus.PUBLISHED,
+                or_(
+                    Material.organization_id == organization_id,
+                    Material.visibility == MaterialVisibility.PUBLIC,
+                ),
             )
         )
 
@@ -101,9 +107,12 @@ class MaterialRepository(BaseRepository[Material]):
         """Получить популярные материалы."""
         query = (
             select(Material)
+            .where(Material.status == MaterialStatus.PUBLISHED)
             .where(
-                Material.organization_id == organization_id,
-                Material.status == MaterialStatus.PUBLISHED,
+                or_(
+                    Material.organization_id == organization_id,
+                    Material.visibility == MaterialVisibility.PUBLIC,
+                ),
             )
             .order_by(desc(Material.views_count))
             .limit(limit)

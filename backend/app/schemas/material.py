@@ -5,7 +5,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.models.material import MaterialStatus, MaterialType
+from app.models.material import MaterialStatus, MaterialType, MaterialVisibility
 
 
 class MaterialBase(BaseModel):
@@ -16,6 +16,10 @@ class MaterialBase(BaseModel):
     type: MaterialType = Field(description="Тип материала")
     category_id: int | None = Field(None, description="ID категории")
     status: MaterialStatus = Field(default=MaterialStatus.DRAFT, description="Статус материала")
+    visibility: MaterialVisibility = Field(
+        default=MaterialVisibility.ORG,
+        description="Видимость материала",
+    )
 
 
 class MaterialCreate(MaterialBase):
@@ -33,6 +37,7 @@ class MaterialUpdate(BaseModel):
     type: MaterialType | None = None
     category_id: int | None = None
     status: MaterialStatus | None = None
+    visibility: MaterialVisibility | None = None
 
 
 class MaterialResponse(MaterialBase):
@@ -65,6 +70,7 @@ class MaterialListItem(BaseModel):
     status: MaterialStatus
     views_count: int
     published_at: datetime | None
+    visibility: MaterialVisibility
 
 
 class MaterialListResponse(BaseModel):

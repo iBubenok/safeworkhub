@@ -46,6 +46,11 @@ class MaterialStatus(StrEnum):
     PUBLISHED = "published"
     ARCHIVED = "archived"
 
+class MaterialVisibility(StrEnum):
+    """Видимость материалов."""
+
+    ORG = "org"
+    PUBLIC = "public"
 
 class Category(Base, IntegerPKMixin, TimestampMixin):
     """Категория материалов (иерархия поддерживается через parent_id)."""
@@ -119,6 +124,15 @@ class Material(Base, UUIDMixin, TimestampMixin):
         ),
         nullable=False,
         default=MaterialStatus.DRAFT,
+    )
+    visibility: Mapped[MaterialVisibility] = mapped_column(
+        Enum(
+            MaterialVisibility,
+            name="material_visibility",
+            values_callable=lambda enum_cls: [e.value for e in enum_cls],
+        ),
+        nullable=False,
+        default=MaterialVisibility.ORG,
     )
     category_id: Mapped[int | None] = mapped_column(
         ForeignKey("categories.id", ondelete="SET NULL"),

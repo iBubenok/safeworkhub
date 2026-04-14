@@ -53,6 +53,7 @@ class MaterialService:
             summary=data.summary,
             type=data.type,
             status=data.status,
+            visibility=data.visibility,
             category_id=data.category_id,
             published_at=utcnow() if data.status == MaterialStatus.PUBLISHED else None,
         )
@@ -222,6 +223,7 @@ class MaterialService:
                 summary=m.summary,
                 type=m.type,
                 status=m.status,
+                visibility=m.visibility,
                 views_count=m.views_count,
                 published_at=m.published_at,
                 highlights=None,
