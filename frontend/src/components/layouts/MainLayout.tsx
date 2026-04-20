@@ -20,7 +20,7 @@ import { cn } from '@/utils/cn';
 
 const navigation = [
   { name: 'Главная', href: '/dashboard', icon: LayoutDashboard },
-  { name: 'База знаний', href: '/materials', icon: BookOpen },
+  { name: 'Документы и журналы', href: '/materials', icon: BookOpen },
   { name: 'Обучение', href: '/courses', icon: GraduationCap },
   { name: 'Пользователи', href: '/users', icon: Users },
   { name: 'Настройки', href: '/settings', icon: Settings },

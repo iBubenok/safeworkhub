@@ -156,7 +156,7 @@ export function MaterialsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">База знаний</h1>
+        <h1 className="text-2xl font-bold text-gray-900">Документы и журналы</h1>
         <p className="mt-1 text-gray-600">
           Поиск по материалам, нормативным документам и шаблонам
         </p>
