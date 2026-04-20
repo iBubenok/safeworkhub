@@ -12,6 +12,7 @@ import {
   LogOut,
   Menu,
   X,
+  Check,
 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -21,6 +22,7 @@ import { cn } from '@/utils/cn';
 const navigation = [
   { name: 'Главная', href: '/dashboard', icon: LayoutDashboard },
   { name: 'Документы и журналы', href: '/materials', icon: BookOpen },
+  { name: 'Проверки и чек-листы', href: '/checks', icon: Check },
   { name: 'Обучение', href: '/courses', icon: GraduationCap },
   { name: 'Пользователи', href: '/users', icon: Users },
   { name: 'Настройки', href: '/settings', icon: Settings },
