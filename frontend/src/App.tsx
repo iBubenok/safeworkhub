@@ -12,6 +12,7 @@ import { CoursesPage } from '@/pages/CoursesPage';
 import { UsersPage } from '@/pages/UsersPage';
 import { SettingsPage } from '@/pages/SettingsPage';
 import { NotFoundPage } from '@/pages/NotFoundPage';
+import { ReportsPage } from '@/pages/ReportsPage';
 
 /**
  * Защищённый маршрут — требует аутентификации.
@@ -97,6 +98,7 @@ export default function App() {
         <Route path="materials" element={<MaterialsPage />} />
         <Route path="checks" element={<ChecksPage />} />
         <Route path="courses" element={<CoursesPage />} />
+        <Route path="reports" element={<ReportsPage />} />
         <Route path="users" element={<UsersPage />} />
         <Route path="settings" element={<SettingsPage />} />
       </Route>

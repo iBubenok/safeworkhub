@@ -13,6 +13,7 @@ import {
   Menu,
   X,
   Check,
+  BookCheckIcon,
 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -24,6 +25,7 @@ const navigation = [
   { name: 'Документы и журналы', href: '/materials', icon: BookOpen },
   { name: 'Проверки и чек-листы', href: '/checks', icon: Check },
   { name: 'Обучение', href: '/courses', icon: GraduationCap },
+  { name: 'Отчеты', href: '/reports', icon: BookCheckIcon },
   { name: 'Пользователи', href: '/users', icon: Users },
   { name: 'Настройки', href: '/settings', icon: Settings },
 ];
