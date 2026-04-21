@@ -54,7 +54,14 @@ async def test_notification_stream_yields_message_and_heartbeat() -> None:
         async def subscribe(self, channel: str) -> None:
             self.subscribed.append(channel)
 
-        async def get_message(self, *, ignore_subscribe_messages: bool, timeout: float) -> dict[str, str] | None:
+        async def get_message(
+            self,
+            *,
+            ignore_subscribe_messages: bool,
+            timeout: float,
+        ) -> dict[str, str] | None:
+            _ = ignore_subscribe_messages
+            _ = timeout
             self.calls += 1
             if self.calls == 1:
                 return {"type": "message", "data": "{\"id\":\"1\"}"}

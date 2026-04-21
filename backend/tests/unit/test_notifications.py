@@ -80,7 +80,9 @@ def _notification(
 
 
 @pytest.mark.asyncio
-async def test_create_notification_persists_and_publishes(notification_service: tuple[NotificationService, SimpleNamespace, _FakeRedisClient]) -> None:
+async def test_create_notification_persists_and_publishes(
+    notification_service: tuple[NotificationService, SimpleNamespace, _FakeRedisClient],
+) -> None:
     service, db, redis_client = notification_service
     user_id = uuid4()
     data = NotificationCreate(
@@ -109,7 +111,9 @@ async def test_create_notification_persists_and_publishes(notification_service: 
 
 
 @pytest.mark.asyncio
-async def test_create_notification_respects_disabled_category(notification_service: tuple[NotificationService, SimpleNamespace, _FakeRedisClient]) -> None:
+async def test_create_notification_respects_disabled_category(
+    notification_service: tuple[NotificationService, SimpleNamespace, _FakeRedisClient],
+) -> None:
     service, db, redis_client = notification_service
     user_id = uuid4()
     disabled = NotificationSettings(
@@ -136,7 +140,9 @@ async def test_create_notification_respects_disabled_category(notification_servi
 
 
 @pytest.mark.asyncio
-async def test_get_list_returns_counts_and_serialized_items(notification_service: tuple[NotificationService, SimpleNamespace, _FakeRedisClient]) -> None:
+async def test_get_list_returns_counts_and_serialized_items(
+    notification_service: tuple[NotificationService, SimpleNamespace, _FakeRedisClient],
+) -> None:
     service, db, _ = notification_service
     user_id = uuid4()
     first = _notification(user_id=user_id, title="First")
@@ -156,7 +162,9 @@ async def test_get_list_returns_counts_and_serialized_items(notification_service
 
 
 @pytest.mark.asyncio
-async def test_get_unread_count_reads_from_database(notification_service: tuple[NotificationService, SimpleNamespace, _FakeRedisClient]) -> None:
+async def test_get_unread_count_reads_from_database(
+    notification_service: tuple[NotificationService, SimpleNamespace, _FakeRedisClient],
+) -> None:
     service, db, _ = notification_service
     db.execute.return_value = _FakeScalarResult(5)
 
@@ -166,7 +174,9 @@ async def test_get_unread_count_reads_from_database(notification_service: tuple[
 
 
 @pytest.mark.asyncio
-async def test_mark_as_read_updates_database_and_redis(notification_service: tuple[NotificationService, SimpleNamespace, _FakeRedisClient]) -> None:
+async def test_mark_as_read_updates_database_and_redis(
+    notification_service: tuple[NotificationService, SimpleNamespace, _FakeRedisClient],
+) -> None:
     service, db, redis_client = notification_service
     db.execute.return_value = SimpleNamespace(rowcount=1)
     redis_client.get.return_value = "1"
@@ -180,7 +190,9 @@ async def test_mark_as_read_updates_database_and_redis(notification_service: tup
 
 
 @pytest.mark.asyncio
-async def test_mark_all_as_read_updates_all_rows(notification_service: tuple[NotificationService, SimpleNamespace, _FakeRedisClient]) -> None:
+async def test_mark_all_as_read_updates_all_rows(
+    notification_service: tuple[NotificationService, SimpleNamespace, _FakeRedisClient],
+) -> None:
     service, db, redis_client = notification_service
     db.execute.return_value = SimpleNamespace(rowcount=3)
 
@@ -192,7 +204,9 @@ async def test_mark_all_as_read_updates_all_rows(notification_service: tuple[Not
 
 
 @pytest.mark.asyncio
-async def test_delete_notification_returns_boolean(notification_service: tuple[NotificationService, SimpleNamespace, _FakeRedisClient]) -> None:
+async def test_delete_notification_returns_boolean(
+    notification_service: tuple[NotificationService, SimpleNamespace, _FakeRedisClient],
+) -> None:
     service, db, _ = notification_service
     db.execute.return_value = SimpleNamespace(rowcount=1)
 
