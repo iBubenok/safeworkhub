@@ -11,12 +11,12 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.core.exceptions import AuthenticationError, AuthorizationError
 from app.core.security import TokenType, verify_token
 from app.db.repositories import SubscriptionRepository, UserRepository
 from app.db.session import get_session
 from app.models import OrgRole, SubscriptionStatus, User
-from app.core.config import settings
 from app.services.notification_service import NotificationService
 from app.services.redis_service import RedisService
 
@@ -145,3 +145,5 @@ CurrentContext = Annotated[RequestContext, Depends(get_current_context)]
 CurrentContextFromToken = Annotated[RequestContext, Depends(get_current_context_from_token)]
 ActiveSubscriptionContext = Annotated[RequestContext, Depends(enforce_active_subscription)]
 DbSession = Annotated[AsyncSession, Depends(get_session)]
+CurrentNotificationService = Annotated[NotificationService, Depends(get_notification_service)]
+RedisSession = Annotated[RedisService, Depends(get_redis)]

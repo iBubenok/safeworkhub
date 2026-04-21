@@ -1,14 +1,14 @@
 # app/api/routes/notifications.py
 
 from uuid import UUID
-from fastapi import APIRouter, Depends, Query
+
+from fastapi import APIRouter, Query
 
 from app.core.dependencies import (
     CurrentContext,
-    get_notification_service,
+    CurrentNotificationService,
 )
 from app.schemas.notification import NotificationList
-from app.services.notification_service import NotificationService
 
 router = APIRouter(tags=["notifications"])
 
@@ -16,10 +16,10 @@ router = APIRouter(tags=["notifications"])
 @router.get("", response_model=NotificationList)
 async def get_notifications(
     ctx: CurrentContext,
+    service: CurrentNotificationService,
     limit: int = Query(20, le=100),
     offset: int = Query(0, ge=0),
     unread_only: bool = Query(False),
-    service: NotificationService = Depends(get_notification_service),
 ):
     return await service.get_list(
         user_id=ctx.user.id,
@@ -32,7 +32,7 @@ async def get_notifications(
 @router.get("/unread-count")
 async def get_unread_count(
     ctx: CurrentContext,
-    service: NotificationService = Depends(get_notification_service),
+    service: CurrentNotificationService,
 ):
     count = await service.get_unread_count(ctx.user.id)
     return {"unread_count": count}
@@ -42,7 +42,7 @@ async def get_unread_count(
 async def mark_as_read(
     notification_id: UUID,
     ctx: CurrentContext,
-    service: NotificationService = Depends(get_notification_service),
+    service: CurrentNotificationService,
 ):
     success = await service.mark_as_read(notification_id, ctx.user.id)
     return {"success": success}
@@ -51,7 +51,7 @@ async def mark_as_read(
 @router.patch("/read-all")
 async def mark_all_as_read(
     ctx: CurrentContext,
-    service: NotificationService = Depends(get_notification_service),
+    service: CurrentNotificationService,
 ):
     count = await service.mark_all_as_read(ctx.user.id)
     return {"marked_count": count}
@@ -61,7 +61,7 @@ async def mark_all_as_read(
 async def delete_notification(
     notification_id: UUID,
     ctx: CurrentContext,
-    service: NotificationService = Depends(get_notification_service),
+    service: CurrentNotificationService,
 ):
     success = await service.delete(notification_id, ctx.user.id)
     return {"success": success}

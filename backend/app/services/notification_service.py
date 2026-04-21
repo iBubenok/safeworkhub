@@ -1,9 +1,9 @@
-# app/services/notification_service.py
-
-import uuid
 from datetime import datetime
-from sqlalchemy import select, func, update, delete
+from uuid import UUID
+
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.models.notification import Notification, NotificationSettings
 from app.schemas.notification import NotificationCreate
 from app.services.redis_service import RedisService
@@ -16,7 +16,7 @@ class NotificationService:
 
     async def create(self, data: NotificationCreate) -> Notification | None:
         """Создать уведомление и отправить через Redis PubSub."""
-        
+
         # Проверяем настройки пользователя
         settings = await self._get_settings(data.user_id)
         if settings and data.category not in settings.enabled_categories:
@@ -56,9 +56,7 @@ class NotificationService:
         return notification
 
     # Массовая рассылка
-    async def create_bulk(
-        self, user_ids: list[uuid.UUID], data: NotificationCreate
-    ) -> list[Notification]:
+    async def create_bulk(self, user_ids: list[UUID], data: NotificationCreate) -> list[Notification]:
         """Отправить уведомление нескольким пользователям."""
         notifications = []
         for user_id in user_ids:
@@ -70,7 +68,7 @@ class NotificationService:
     # Получение списка уведомлений
     async def get_list(
         self,
-        user_id: uuid.UUID,
+        user_id: UUID,
         limit: int = 20,
         offset: int = 0,
         unread_only: bool = False,
@@ -78,7 +76,7 @@ class NotificationService:
         query = select(Notification).where(Notification.user_id == user_id)
 
         if unread_only:
-            query = query.where(Notification.is_read == False)
+            query = query.where(not Notification.is_read)
 
         query = query.order_by(Notification.created_at.desc())
 
@@ -89,7 +87,7 @@ class NotificationService:
         # Непрочитанные
         unread_query = select(func.count()).where(
             Notification.user_id == user_id,
-            Notification.is_read == False,
+            not Notification.is_read,
         )
         unread_count = (await self.db.execute(unread_query)).scalar()
 
@@ -104,16 +102,20 @@ class NotificationService:
             "total": total,
         }
 
-    async def get_unread_count(self, user_id: uuid.UUID) -> int:
+    async def get_unread_count(self, user_id: UUID) -> int:
         """Получить количество непрочитанных уведомлений из БД."""
-        query = select(func.count()).select_from(Notification).where(
-            Notification.user_id == user_id,
-            Notification.is_read == False,
+        query = (
+            select(func.count())
+            .select_from(Notification)
+            .where(
+                Notification.user_id == user_id,
+                not Notification.is_read,
+            )
         )
         return int((await self.db.execute(query)).scalar() or 0)
 
     # Прочитать одно уведомление
-    async def mark_as_read(self, notification_id: uuid.UUID, user_id: uuid.UUID) -> bool:
+    async def mark_as_read(self, notification_id: UUID, user_id: UUID) -> bool:
         stmt = (
             update(Notification)
             .where(
@@ -130,13 +132,13 @@ class NotificationService:
             return True
         return False
 
-    # Прочитать все уведомления 
-    async def mark_all_as_read(self, user_id: uuid.UUID) -> int:
+    # Прочитать все уведомления
+    async def mark_all_as_read(self, user_id: UUID) -> int:
         stmt = (
             update(Notification)
             .where(
                 Notification.user_id == user_id,
-                Notification.is_read == False,
+                not Notification.is_read,
             )
             .values(is_read=True, read_at=datetime.utcnow())
         )
@@ -147,8 +149,8 @@ class NotificationService:
 
         return result.rowcount
 
-    # Удалить уведомление 
-    async def delete(self, notification_id: uuid.UUID, user_id: uuid.UUID) -> bool:
+    # Удалить уведомление
+    async def delete(self, notification_id: UUID, user_id: UUID) -> bool:
         stmt = delete(Notification).where(
             Notification.id == notification_id,
             Notification.user_id == user_id,
@@ -158,9 +160,7 @@ class NotificationService:
         return result.rowcount > 0
 
     # Настройки пользователя для уведомлений
-    async def _get_settings(self, user_id: uuid.UUID) -> NotificationSettings | None:
-        query = select(NotificationSettings).where(
-            NotificationSettings.user_id == user_id
-        )
+    async def _get_settings(self, user_id: UUID) -> NotificationSettings | None:
+        query = select(NotificationSettings).where(NotificationSettings.user_id == user_id)
         result = await self.db.execute(query)
         return result.scalar_one_or_none()

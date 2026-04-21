@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter
 
-from app.api.v1.endpoints import auth, courses, health, materials, users, notifications, notifications_sse
+from app.api.v1.endpoints import auth, courses, health, materials, notifications, notifications_sse, users
 
 api_router = APIRouter()
 

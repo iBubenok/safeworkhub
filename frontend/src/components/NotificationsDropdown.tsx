@@ -1,7 +1,7 @@
 // src/components/NotificationsDropdown.tsx
 
 import { useEffect, useRef } from "react";
-import { Bell, BellDot, Check } from "lucide-react";
+import { Bell, Check } from "lucide-react";
 import { useNotificationStore } from "@/store/notificationStore";
 import { useNotifications, useMarkAsRead, useMarkAllAsRead } from "@/hooks/useNotifications";
 import { formatDistanceToNow } from "date-fns";
