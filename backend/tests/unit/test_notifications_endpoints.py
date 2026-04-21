@@ -64,7 +64,7 @@ async def test_notification_stream_yields_message_and_heartbeat() -> None:
             _ = timeout
             self.calls += 1
             if self.calls == 1:
-                return {"type": "message", "data": "{\"id\":\"1\"}"}
+                return {"type": "message", "data": '{"id":"1"}'}
             return None
 
         async def unsubscribe(self, channel: str) -> None:
