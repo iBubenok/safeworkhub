@@ -13,6 +13,7 @@ from app.db.base import Base, TimestampMixin, UUIDMixin
 if TYPE_CHECKING:
     from app.models.course import CourseAssignment
     from app.models.material import Material
+    from app.models.notification import Notification, NotificationSettings
     from app.models.organization import Organization, OrganizationUser
     from app.models.refresh_session import RefreshSession
 
@@ -45,6 +46,15 @@ class User(Base, UUIDMixin, TimestampMixin):
     )
     refresh_sessions: Mapped[list["RefreshSession"]] = relationship(
         back_populates="user",
+        cascade="all, delete-orphan",
+    )
+    notifications: Mapped[list["Notification"]] = relationship(
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
+    notification_settings: Mapped["NotificationSettings | None"] = relationship(
+        back_populates="user",
+        uselist=False,
         cascade="all, delete-orphan",
     )
     owned_organizations: Mapped[list["Organization"]] = relationship(

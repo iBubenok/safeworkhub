@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
-from collections.abc import Awaitable, Callable
+from collections.abc import AsyncGenerator, Awaitable, Callable
 from dataclasses import dataclass
 from typing import Annotated
 
-from fastapi import Depends, HTTPException, Request, status
+from fastapi import Depends, HTTPException, Query, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import AuthenticationError, AuthorizationError
@@ -15,6 +16,9 @@ from app.core.security import TokenType, verify_token
 from app.db.repositories import SubscriptionRepository, UserRepository
 from app.db.session import get_session
 from app.models import OrgRole, SubscriptionStatus, User
+from app.core.config import settings
+from app.services.notification_service import NotificationService
+from app.services.redis_service import RedisService
 
 security = HTTPBearer(auto_error=False)
 
@@ -34,13 +38,12 @@ async def _extract_token(credentials: HTTPAuthorizationCredentials | None) -> st
     return credentials.credentials
 
 
-async def get_current_context(
-    request: Request,
-    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(security)],
-    session: Annotated[AsyncSession, Depends(get_session)],
+async def _resolve_context(
+    token: str,
+    session: AsyncSession,
+    request: Request | None = None,
 ) -> RequestContext:
-    """Получить контекст аутентифицированного пользователя."""
-    token = await _extract_token(credentials)
+    """Собрать контекст пользователя из access-токена."""
     payload = verify_token(token, TokenType.ACCESS)
     if payload is None or payload.org is None:
         raise AuthenticationError("Невалидный токен")
@@ -54,14 +57,61 @@ async def get_current_context(
     if membership is None or not membership.is_active:
         raise AuthorizationError("Нет доступа к организации")
 
-    request.state.organization_id = payload.org
-    request.state.user_id = str(user.id)
+    if request is not None:
+        request.state.organization_id = payload.org
+        request.state.user_id = str(user.id)
 
     return RequestContext(
         user=user,
         organization_id=payload.org,
         role=membership.role if isinstance(membership.role, OrgRole) else OrgRole(membership.role),
     )
+
+
+async def get_current_context(
+    request: Request,
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(security)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> RequestContext:
+    """Получить контекст аутентифицированного пользователя."""
+    token = await _extract_token(credentials)
+    return await _resolve_context(token, session, request)
+
+
+async def get_current_context_from_token(
+    token: Annotated[str, Query(min_length=1)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> RequestContext:
+    """Получить контекст аутентифицированного пользователя из query token."""
+    return await _resolve_context(token, session)
+
+
+async def get_redis() -> AsyncGenerator[Redis, None]:
+    """Получить Redis-клиент на время запроса."""
+    redis_client = Redis.from_url(
+        settings.redis_url,
+        encoding="utf-8",
+        decode_responses=True,
+    )
+    try:
+        yield redis_client
+    finally:
+        await redis_client.aclose()
+
+
+async def get_redis_service(
+    redis_client: Annotated[Redis, Depends(get_redis)],
+) -> RedisService:
+    """Собрать сервис Redis поверх клиента."""
+    return RedisService(redis_client)
+
+
+async def get_notification_service(
+    session: Annotated[AsyncSession, Depends(get_session)],
+    redis_service: Annotated[RedisService, Depends(get_redis_service)],
+) -> NotificationService:
+    """Собрать сервис уведомлений через DI FastAPI."""
+    return NotificationService(session, redis_service)
 
 
 def require_roles(*allowed_roles: OrgRole) -> Callable[[RequestContext], Awaitable[RequestContext]]:
@@ -92,5 +142,6 @@ async def enforce_active_subscription(
 
 
 CurrentContext = Annotated[RequestContext, Depends(get_current_context)]
+CurrentContextFromToken = Annotated[RequestContext, Depends(get_current_context_from_token)]
 ActiveSubscriptionContext = Annotated[RequestContext, Depends(enforce_active_subscription)]
 DbSession = Annotated[AsyncSession, Depends(get_session)]
