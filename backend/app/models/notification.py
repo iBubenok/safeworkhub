@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import Boolean, DateTime, ForeignKey, String, Text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
@@ -30,7 +30,7 @@ class Notification(Base):
     is_read: Mapped[bool] = mapped_column(Boolean, default=False)
     read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
-    metadata_: Mapped[dict] = mapped_column("metadata", JSONB, default=dict)
+    metadata_: Mapped[dict[str, Any]] = mapped_column("metadata", JSONB, default=dict)
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
 
@@ -45,7 +45,10 @@ class NotificationSettings(Base):
     user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), unique=True
     )
-    enabled_categories: Mapped[list] = mapped_column(JSONB, default=lambda: ["check", "system", "reminder", "task"])
+    enabled_categories: Mapped[list[str]] = mapped_column(
+        JSONB,
+        default=lambda: ["check", "system", "reminder", "task"],
+    )
     in_app: Mapped[bool] = mapped_column(Boolean, default=True)
     email: Mapped[bool] = mapped_column(Boolean, default=False)
     user: Mapped["User"] = relationship(back_populates="notification_settings")

@@ -146,4 +146,4 @@ CurrentContextFromToken = Annotated[RequestContext, Depends(get_current_context_
 ActiveSubscriptionContext = Annotated[RequestContext, Depends(enforce_active_subscription)]
 DbSession = Annotated[AsyncSession, Depends(get_session)]
 CurrentNotificationService = Annotated[NotificationService, Depends(get_notification_service)]
-RedisSession = Annotated[RedisService, Depends(get_redis)]
+RedisSession = Annotated[Redis, Depends(get_redis)]

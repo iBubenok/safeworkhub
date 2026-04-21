@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Any
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -12,7 +13,7 @@ class NotificationCreate(BaseModel):
     category: str = "system"
     entity_type: str | None = None
     entity_id: UUID | None = None
-    metadata: dict = Field(default_factory=dict)
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class NotificationRead(BaseModel):
@@ -24,7 +25,7 @@ class NotificationRead(BaseModel):
     entity_type: str | None
     entity_id: UUID | None
     is_read: bool
-    metadata: dict = Field(
+    metadata: dict[str, Any] = Field(
         default_factory=dict,
         validation_alias="metadata_",
         serialization_alias="metadata",

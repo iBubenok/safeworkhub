@@ -1,5 +1,6 @@
 import json
 import logging
+from typing import Any
 
 import redis.asyncio as redis
 from redis.exceptions import RedisError
@@ -12,7 +13,7 @@ class RedisService:
         self.redis = redis_client
 
     # Публикация уведомлений
-    async def publish_notification(self, user_id: str, notification: dict):
+    async def publish_notification(self, user_id: str, notification: dict[str, Any]) -> None:
         """Публикуем уведомление в канал пользователя."""
         channel = f"notifications:{user_id}"
         try:
@@ -35,7 +36,7 @@ class RedisService:
             )
             return 0
 
-    async def increment_unread_count(self, user_id: str):
+    async def increment_unread_count(self, user_id: str) -> None:
         try:
             await self.redis.incr(f"unread_count:{user_id}")
         except RedisError:
@@ -44,7 +45,7 @@ class RedisService:
                 extra={"user_id": user_id},
             )
 
-    async def decrement_unread_count(self, user_id: str):
+    async def decrement_unread_count(self, user_id: str) -> None:
         try:
             count = await self.get_unread_count(user_id)
             if count > 0:
@@ -55,7 +56,7 @@ class RedisService:
                 extra={"user_id": user_id},
             )
 
-    async def reset_unread_count(self, user_id: str):
+    async def reset_unread_count(self, user_id: str) -> None:
         try:
             await self.redis.set(f"unread_count:{user_id}", 0)
         except RedisError:

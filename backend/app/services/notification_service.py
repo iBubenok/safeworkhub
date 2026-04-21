@@ -1,11 +1,13 @@
 from datetime import datetime
+from typing import Any, cast
 from uuid import UUID
 
 from sqlalchemy import delete, func, select, update
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.notification import Notification, NotificationSettings
-from app.schemas.notification import NotificationCreate
+from app.schemas.notification import NotificationCreate, NotificationList, NotificationRead
 from app.services.redis_service import RedisService
 
 
@@ -58,7 +60,7 @@ class NotificationService:
     # Массовая рассылка
     async def create_bulk(self, user_ids: list[UUID], data: NotificationCreate) -> list[Notification]:
         """Отправить уведомление нескольким пользователям."""
-        notifications = []
+        notifications: list[Notification] = []
         for user_id in user_ids:
             notification = await self.create(data.model_copy(update={"user_id": user_id}))
             if notification:
@@ -72,35 +74,35 @@ class NotificationService:
         limit: int = 20,
         offset: int = 0,
         unread_only: bool = False,
-    ) -> dict:
+    ) -> NotificationList:
         query = select(Notification).where(Notification.user_id == user_id)
 
         if unread_only:
-            query = query.where(not Notification.is_read)
+            query = query.where(Notification.is_read.is_(False))
 
         query = query.order_by(Notification.created_at.desc())
 
         # Общее количество
         count_query = select(func.count()).select_from(query.subquery())
-        total = (await self.db.execute(count_query)).scalar()
+        total = int((await self.db.execute(count_query)).scalar() or 0)
 
         # Непрочитанные
         unread_query = select(func.count()).where(
             Notification.user_id == user_id,
-            not Notification.is_read,
+            Notification.is_read.is_(False),
         )
-        unread_count = (await self.db.execute(unread_query)).scalar()
+        unread_count = int((await self.db.execute(unread_query)).scalar() or 0)
 
         # Пагинация
         query = query.limit(limit).offset(offset)
         result = await self.db.execute(query)
         items = result.scalars().all()
 
-        return {
-            "items": items,
-            "unread_count": unread_count,
-            "total": total,
-        }
+        return NotificationList(
+            items=[NotificationRead.model_validate(item) for item in items],
+            unread_count=unread_count,
+            total=total,
+        )
 
     async def get_unread_count(self, user_id: UUID) -> int:
         """Получить количество непрочитанных уведомлений из БД."""
@@ -109,7 +111,7 @@ class NotificationService:
             .select_from(Notification)
             .where(
                 Notification.user_id == user_id,
-                not Notification.is_read,
+                Notification.is_read.is_(False),
             )
         )
         return int((await self.db.execute(query)).scalar() or 0)
@@ -124,7 +126,7 @@ class NotificationService:
             )
             .values(is_read=True, read_at=datetime.utcnow())
         )
-        result = await self.db.execute(stmt)
+        result = cast("CursorResult[Any]", await self.db.execute(stmt))
         await self.db.commit()
 
         if result.rowcount > 0:
@@ -138,16 +140,16 @@ class NotificationService:
             update(Notification)
             .where(
                 Notification.user_id == user_id,
-                not Notification.is_read,
+                Notification.is_read.is_(False),
             )
             .values(is_read=True, read_at=datetime.utcnow())
         )
-        result = await self.db.execute(stmt)
+        result = cast("CursorResult[Any]", await self.db.execute(stmt))
         await self.db.commit()
 
         await self.redis.reset_unread_count(str(user_id))
 
-        return result.rowcount
+        return int(result.rowcount or 0)
 
     # Удалить уведомление
     async def delete(self, notification_id: UUID, user_id: UUID) -> bool:
@@ -155,9 +157,9 @@ class NotificationService:
             Notification.id == notification_id,
             Notification.user_id == user_id,
         )
-        result = await self.db.execute(stmt)
+        result = cast("CursorResult[Any]", await self.db.execute(stmt))
         await self.db.commit()
-        return result.rowcount > 0
+        return bool(result.rowcount and result.rowcount > 0)
 
     # Настройки пользователя для уведомлений
     async def _get_settings(self, user_id: UUID) -> NotificationSettings | None:

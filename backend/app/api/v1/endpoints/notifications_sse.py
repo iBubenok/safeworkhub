@@ -1,6 +1,7 @@
 # app/api/routes/notifications_sse.py
 
 import asyncio
+from collections.abc import AsyncIterator
 
 from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
@@ -17,8 +18,8 @@ router = APIRouter(tags=["notifications"])
 async def notification_stream(
     ctx: CurrentContextFromToken,
     redis_client: RedisSession,
-):
-    async def event_generator():
+) -> StreamingResponse:
+    async def event_generator() -> AsyncIterator[str]:
         pubsub = redis_client.pubsub()
         channel = f"notifications:{ctx.user.id}"
         await pubsub.subscribe(channel)
