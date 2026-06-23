@@ -34,4 +34,10 @@ export const notificationsApi = {
 
   delete: (id: string) =>
     apiClient.delete(`/notifications/${id}`),
+
+  deleteMany: (ids: string[]) =>
+    apiClient.post<{ deleted_count: number }>("/notifications/delete", { ids }),
+
+  deleteAll: () =>
+    apiClient.delete<{ deleted_count: number }>("/notifications"),
 };

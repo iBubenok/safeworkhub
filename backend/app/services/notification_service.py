@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Any, cast
 from uuid import UUID
 
-from sqlalchemy import delete, func, select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -75,7 +75,10 @@ class NotificationService:
         offset: int = 0,
         unread_only: bool = False,
     ) -> NotificationList:
-        query = select(Notification).where(Notification.user_id == user_id)
+        query = select(Notification).where(
+            Notification.user_id == user_id,
+            Notification.deleted_at.is_(None),
+        )
 
         if unread_only:
             query = query.where(Notification.is_read.is_(False))
@@ -90,6 +93,7 @@ class NotificationService:
         unread_query = select(func.count()).where(
             Notification.user_id == user_id,
             Notification.is_read.is_(False),
+            Notification.deleted_at.is_(None),
         )
         unread_count = int((await self.db.execute(unread_query)).scalar() or 0)
 
@@ -112,6 +116,7 @@ class NotificationService:
             .where(
                 Notification.user_id == user_id,
                 Notification.is_read.is_(False),
+                Notification.deleted_at.is_(None),
             )
         )
         return int((await self.db.execute(query)).scalar() or 0)
@@ -123,6 +128,7 @@ class NotificationService:
             .where(
                 Notification.id == notification_id,
                 Notification.user_id == user_id,
+                Notification.deleted_at.is_(None),
             )
             .values(is_read=True, read_at=datetime.utcnow())
         )
@@ -141,6 +147,7 @@ class NotificationService:
             .where(
                 Notification.user_id == user_id,
                 Notification.is_read.is_(False),
+                Notification.deleted_at.is_(None),
             )
             .values(is_read=True, read_at=datetime.utcnow())
         )
@@ -151,15 +158,67 @@ class NotificationService:
 
         return int(result.rowcount or 0)
 
-    # Удалить уведомление
+    # Удалить уведомление (мягко: проставляем deleted_at, строку не убираем из БД)
     async def delete(self, notification_id: UUID, user_id: UUID) -> bool:
-        stmt = delete(Notification).where(
-            Notification.id == notification_id,
-            Notification.user_id == user_id,
+        stmt = (
+            update(Notification)
+            .where(
+                Notification.id == notification_id,
+                Notification.user_id == user_id,
+                Notification.deleted_at.is_(None),
+            )
+            .values(deleted_at=datetime.utcnow())
+            .returning(Notification.is_read)
+        )
+        result = cast("CursorResult[Any]", await self.db.execute(stmt))
+        row = result.first()
+        await self.db.commit()
+
+        if row is None:
+            return False
+        # Если удаляем непрочитанное — синхронно уменьшаем счётчик в Redis.
+        if not row[0]:
+            await self.redis.decrement_unread_count(str(user_id))
+        return True
+
+    # Удалить выбранные уведомления (мягко)
+    async def delete_many(self, notification_ids: list[UUID], user_id: UUID) -> int:
+        if not notification_ids:
+            return 0
+        stmt = (
+            update(Notification)
+            .where(
+                Notification.id.in_(notification_ids),
+                Notification.user_id == user_id,
+                Notification.deleted_at.is_(None),
+            )
+            .values(deleted_at=datetime.utcnow())
+            .returning(Notification.is_read)
+        )
+        result = cast("CursorResult[Any]", await self.db.execute(stmt))
+        rows = result.all()
+        await self.db.commit()
+
+        unread_deleted = sum(1 for row in rows if not row[0])
+        for _ in range(unread_deleted):
+            await self.redis.decrement_unread_count(str(user_id))
+        return len(rows)
+
+    # Удалить все уведомления пользователя (мягко)
+    async def delete_all(self, user_id: UUID) -> int:
+        stmt = (
+            update(Notification)
+            .where(
+                Notification.user_id == user_id,
+                Notification.deleted_at.is_(None),
+            )
+            .values(deleted_at=datetime.utcnow())
         )
         result = cast("CursorResult[Any]", await self.db.execute(stmt))
         await self.db.commit()
-        return bool(result.rowcount and result.rowcount > 0)
+
+        await self.redis.reset_unread_count(str(user_id))
+        return int(result.rowcount or 0)
 
     # Настройки пользователя для уведомлений
     async def _get_settings(self, user_id: UUID) -> NotificationSettings | None:

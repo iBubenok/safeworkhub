@@ -1,11 +1,17 @@
 // src/components/NotificationsDropdown.tsx
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Bell, Check, ChevronRight, ExternalLink } from "lucide-react";
+import { Bell, Check, ChevronRight, ExternalLink, MoreHorizontal, Trash2 } from "lucide-react";
 import { useNotificationStore } from "@/store/notificationStore";
 import type { Notification } from "@/api/notifications";
-import { useNotifications, useMarkAsRead, useMarkAllAsRead } from "@/hooks/useNotifications";
+import {
+  useNotifications,
+  useMarkAsRead,
+  useMarkAllAsRead,
+  useDeleteNotification,
+  useDeleteAllNotifications,
+} from "@/hooks/useNotifications";
 import { formatDistanceToNow } from "date-fns";
 import { ru } from "date-fns/locale";
 
@@ -48,10 +54,14 @@ export function NotificationsDropdown() {
     useNotificationStore();
 
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
   const navigate = useNavigate();
   const { isLoading } = useNotifications();
   const markAsRead = useMarkAsRead();
   const markAllAsRead = useMarkAllAsRead();
+  const deleteNotification = useDeleteNotification();
+  const deleteAll = useDeleteAllNotifications();
 
   // Клик по уведомлению: помечаем прочитанным и, если есть назначение, переходим.
   function handleClick(n: Notification) {
@@ -66,16 +76,31 @@ export function NotificationsDropdown() {
     }
   }
 
-  // Закрытие по клику вне
+  // Удаление одного уведомления: stopPropagation, чтобы клик не сработал как переход.
+  function handleDelete(e: React.MouseEvent, id: string) {
+    e.stopPropagation();
+    deleteNotification.mutate(id);
+  }
+
+  // Закрытие по клику вне: сначала меню действий, затем сам дропдаун.
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+      const target = e.target as Node;
+      if (menuRef.current && !menuRef.current.contains(target)) {
+        setMenuOpen(false);
+      }
+      if (dropdownRef.current && !dropdownRef.current.contains(target)) {
         setOpen(false);
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [setOpen]);
+
+  // Закрытие дропдауна сбрасывает и состояние меню действий.
+  useEffect(() => {
+    if (!isOpen) setMenuOpen(false);
+  }, [isOpen]);
 
   const typeStyles = {
     info: "bg-blue-50 border-blue-200",
@@ -121,14 +146,53 @@ export function NotificationsDropdown() {
                   </span>
                 )}
               </h3>
-              {unreadCount > 0 && (
-                <button
-                  onClick={() => markAllAsRead.mutate()}
-                  className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700"
-                >
-                  <Check size={14} />
-                  Прочитать все
-                </button>
+              {notifications.length > 0 && (
+                <div className="relative" ref={menuRef}>
+                  <button
+                    type="button"
+                    aria-label="Действия с уведомлениями"
+                    aria-haspopup="menu"
+                    aria-expanded={menuOpen}
+                    onClick={() => setMenuOpen((v) => !v)}
+                    className="rounded-full p-1.5 text-gray-500 transition hover:bg-gray-100"
+                  >
+                    <MoreHorizontal size={18} />
+                  </button>
+
+                  {menuOpen && (
+                    <div
+                      role="menu"
+                      className="absolute right-0 z-50 mt-1 w-48 overflow-hidden rounded-lg border border-gray-200 bg-white py-1 shadow-lg"
+                    >
+                      {unreadCount > 0 && (
+                        <button
+                          type="button"
+                          role="menuitem"
+                          onClick={() => {
+                            markAllAsRead.mutate();
+                            setMenuOpen(false);
+                          }}
+                          className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 transition hover:bg-gray-50"
+                        >
+                          <Check size={16} className="text-blue-600" />
+                          Прочитать все
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={() => {
+                          deleteAll.mutate();
+                          setMenuOpen(false);
+                        }}
+                        className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-red-600 transition hover:bg-red-50"
+                      >
+                        <Trash2 size={16} />
+                        Очистить все
+                      </button>
+                    </div>
+                  )}
+                </div>
               )}
             </div>
 
@@ -188,6 +252,14 @@ export function NotificationsDropdown() {
                         ) : (
                           <ChevronRight size={14} className="text-gray-400" />
                         ))}
+                      <button
+                        type="button"
+                        aria-label="Удалить уведомление"
+                        onClick={(e) => handleDelete(e, n.id)}
+                        className="rounded p-1 text-gray-400 transition hover:bg-red-50 hover:text-red-600"
+                      >
+                        <Trash2 size={14} />
+                      </button>
                     </div>
                   </div>
                 </div>

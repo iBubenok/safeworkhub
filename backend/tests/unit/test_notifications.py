@@ -32,6 +32,9 @@ class _FakeScalarResult:
     def all(self) -> list[object]:
         return self._items
 
+    def first(self) -> object | None:
+        return self._items[0] if self._items else self._value
+
 
 class _FakeRedisClient:
     def __init__(self) -> None:
@@ -204,15 +207,75 @@ async def test_mark_all_as_read_updates_all_rows(
 
 
 @pytest.mark.asyncio
-async def test_delete_notification_returns_boolean(
+async def test_delete_notification_soft_deletes_and_decrements_unread(
     notification_service: tuple[NotificationService, SimpleNamespace, _FakeRedisClient],
 ) -> None:
-    service, db, _ = notification_service
-    db.execute.return_value = SimpleNamespace(rowcount=1)
+    service, db, redis_client = notification_service
+    # RETURNING is_read = False -> уведомление было непрочитанным
+    db.execute.return_value = _FakeScalarResult(items=[(False,)])
+    redis_client.get.return_value = "1"
 
     deleted = await service.delete(uuid4(), uuid4())
 
     assert deleted is True
+    db.commit.assert_awaited_once()
+    redis_client.decr.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_delete_notification_returns_false_when_missing(
+    notification_service: tuple[NotificationService, SimpleNamespace, _FakeRedisClient],
+) -> None:
+    service, db, redis_client = notification_service
+    db.execute.return_value = _FakeScalarResult(items=[])
+
+    deleted = await service.delete(uuid4(), uuid4())
+
+    assert deleted is False
+    redis_client.decr.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_delete_many_counts_rows_and_decrements_unread(
+    notification_service: tuple[NotificationService, SimpleNamespace, _FakeRedisClient],
+) -> None:
+    service, db, redis_client = notification_service
+    # Два удалённых: одно непрочитанное (False), одно прочитанное (True)
+    db.execute.return_value = _FakeScalarResult(items=[(False,), (True,)])
+    redis_client.get.return_value = "5"
+
+    deleted = await service.delete_many([uuid4(), uuid4()], uuid4())
+
+    assert deleted == 2
+    db.commit.assert_awaited_once()
+    redis_client.decr.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_delete_many_empty_list_is_noop(
+    notification_service: tuple[NotificationService, SimpleNamespace, _FakeRedisClient],
+) -> None:
+    service, db, _ = notification_service
+
+    deleted = await service.delete_many([], uuid4())
+
+    assert deleted == 0
+    db.execute.assert_not_called()
+    db.commit.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_delete_all_resets_unread_count(
+    notification_service: tuple[NotificationService, SimpleNamespace, _FakeRedisClient],
+) -> None:
+    service, db, redis_client = notification_service
+    db.execute.return_value = SimpleNamespace(rowcount=4)
+
+    deleted = await service.delete_all(uuid4())
+
+    assert deleted == 4
+    db.commit.assert_awaited_once()
+    redis_client.set.assert_awaited_once()
 
 
 @pytest.mark.asyncio

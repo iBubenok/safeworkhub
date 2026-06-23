@@ -50,3 +50,29 @@ export function useMarkAllAsRead() {
     },
   });
 }
+
+export function useDeleteNotification() {
+  const queryClient = useQueryClient();
+  const removeOne = useNotificationStore((s) => s.removeOne);
+
+  return useMutation({
+    mutationFn: notificationsApi.delete,
+    onSuccess: (_, id) => {
+      removeOne(id);
+      queryClient.invalidateQueries({ queryKey: ["notifications"] });
+    },
+  });
+}
+
+export function useDeleteAllNotifications() {
+  const queryClient = useQueryClient();
+  const clearAll = useNotificationStore((s) => s.clearAll);
+
+  return useMutation({
+    mutationFn: notificationsApi.deleteAll,
+    onSuccess: () => {
+      clearAll();
+      queryClient.invalidateQueries({ queryKey: ["notifications"] });
+    },
+  });
+}

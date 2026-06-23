@@ -43,3 +43,9 @@ class NotificationList(BaseModel):
 
 class NotificationUpdate(BaseModel):
     is_read: bool = True
+
+
+class NotificationDeleteRequest(BaseModel):
+    """Запрос на удаление выбранных уведомлений."""
+
+    ids: list[UUID] = Field(min_length=1, description="Идентификаторы уведомлений для удаления")

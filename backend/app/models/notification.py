@@ -34,6 +34,10 @@ class Notification(Base):
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
 
+    # Мягкое удаление: NULL — уведомление активно; иначе момент, когда пользователь его удалил.
+    # Удалённые строки остаются в БД (история сохраняется), но исключаются из всех выборок.
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
     # Relationships
     user: Mapped["User"] = relationship(back_populates="notifications")
 

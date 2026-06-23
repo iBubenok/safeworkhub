@@ -8,7 +8,7 @@ from app.core.dependencies import (
     CurrentContext,
     CurrentNotificationService,
 )
-from app.schemas.notification import NotificationList
+from app.schemas.notification import NotificationDeleteRequest, NotificationList
 
 router = APIRouter(tags=["notifications"])
 
@@ -55,6 +55,25 @@ async def mark_all_as_read(
 ) -> dict[str, int]:
     count = await service.mark_all_as_read(ctx.user.id)
     return {"marked_count": count}
+
+
+@router.post("/delete")
+async def delete_selected(
+    payload: NotificationDeleteRequest,
+    ctx: CurrentContext,
+    service: CurrentNotificationService,
+) -> dict[str, int]:
+    deleted = await service.delete_many(payload.ids, ctx.user.id)
+    return {"deleted_count": deleted}
+
+
+@router.delete("")
+async def delete_all_notifications(
+    ctx: CurrentContext,
+    service: CurrentNotificationService,
+) -> dict[str, int]:
+    deleted = await service.delete_all(ctx.user.id)
+    return {"deleted_count": deleted}
 
 
 @router.delete("/{notification_id}")
