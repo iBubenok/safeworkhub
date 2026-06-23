@@ -76,7 +76,7 @@ export function NotificationsDropdown() {
                   onClick={() => markAllAsRead.mutate()}
                   className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700"
                 >
-                  <Check size={12} />
+                  <Check size={14} />
                   Прочитать все
                 </button>
               )}
@@ -132,13 +132,6 @@ export function NotificationsDropdown() {
                   </div>
                 </div>
               ))}
-            </div>
-
-            {/* Footer */}
-            <div className="border-t px-3 py-3 text-center sm:px-4">
-              <button className="text-sm font-medium text-blue-600 hover:text-blue-700">
-                Смотреть все уведомления
-              </button>
             </div>
           </div>
         </>
