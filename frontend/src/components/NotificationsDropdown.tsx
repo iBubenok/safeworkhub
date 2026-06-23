@@ -1,20 +1,70 @@
 // src/components/NotificationsDropdown.tsx
 
 import { useEffect, useRef } from "react";
-import { Bell, Check } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { Bell, Check, ChevronRight, ExternalLink } from "lucide-react";
 import { useNotificationStore } from "@/store/notificationStore";
+import type { Notification } from "@/api/notifications";
 import { useNotifications, useMarkAsRead, useMarkAllAsRead } from "@/hooks/useNotifications";
 import { formatDistanceToNow } from "date-fns";
 import { ru } from "date-fns/locale";
+
+// Сопоставляет тип сущности из уведомления с внутренним маршрутом приложения,
+// чтобы по клику открыть конкретный объект (например, материал по его id).
+//
+// Это задел на будущее: маршрута /materials/:id в App.tsx пока нет (есть только
+// список /materials), поэтому переход по такой ссылке сейчас приведёт на 404.
+// Чтобы он заработал, нужно добавить detail-страницу и маршрут во фронтенде —
+// данные для неё уже можно получить с бэкенда: материал по id отдаёт
+// эндпоинт GET /{material_id} (get_material в backend/app/api/v1/endpoints/materials.py).
+//
+// Курс сюда пока не добавлен сознательно: на бэкенде нет эндпоинта для получения
+// курса по id (есть только список и операции /{id}/publish, /{id}/assign, /{id}/progress).
+const entityRoutes: Record<string, (id: string) => string> = {
+  material: (id) => `/materials/${id}`,
+};
+
+// Определяет, куда ведёт уведомление. Приоритет: внешний URL -> внутренний путь -> сущность.
+function notificationHref(n: Notification): { url: string; external: boolean } | null {
+  const external = n.metadata?.external_url;
+  if (typeof external === "string" && external.startsWith("https://")) {
+    return { url: external, external: true };
+  }
+  const internal = n.metadata?.url;
+  if (typeof internal === "string" && internal.startsWith("/")) {
+    return { url: internal, external: false };
+  }
+  if (n.entity_type && n.entity_id) {
+    const buildRoute = entityRoutes[n.entity_type];
+    if (buildRoute) {
+      return { url: buildRoute(n.entity_id), external: false };
+    }
+  }
+  return null;
+}
 
 export function NotificationsDropdown() {
   const { notifications, unreadCount, isOpen, toggleOpen, setOpen } =
     useNotificationStore();
 
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const navigate = useNavigate();
   const { isLoading } = useNotifications();
   const markAsRead = useMarkAsRead();
   const markAllAsRead = useMarkAllAsRead();
+
+  // Клик по уведомлению: помечаем прочитанным и, если есть назначение, переходим.
+  function handleClick(n: Notification) {
+    if (!n.is_read) markAsRead.mutate(n.id);
+    const href = notificationHref(n);
+    if (!href) return;
+    if (href.external) {
+      window.open(href.url, "_blank", "noopener,noreferrer");
+    } else {
+      setOpen(false);
+      navigate(href.url);
+    }
+  }
 
   // Закрытие по клику вне
   useEffect(() => {
@@ -97,10 +147,12 @@ export function NotificationsDropdown() {
                 </div>
               )}
 
-              {notifications.map((n) => (
+              {notifications.map((n) => {
+                const href = notificationHref(n);
+                return (
                 <div
                   key={n.id}
-                  onClick={() => !n.is_read && markAsRead.mutate(n.id)}
+                  onClick={() => handleClick(n)}
                   className={`
                   cursor-pointer border-b border-l-4 px-3 py-3 transition hover:bg-gray-50 sm:px-4
                   ${!n.is_read ? typeStyles[n.type] : "border-l-transparent"}
@@ -126,12 +178,21 @@ export function NotificationsDropdown() {
                       </p>
                     </div>
 
-                    {!n.is_read && (
-                      <span className="ml-2 mt-1 h-2 w-2 flex-shrink-0 rounded-full bg-blue-500" />
-                    )}
+                    <div className="ml-2 mt-1 flex flex-shrink-0 items-center gap-2">
+                      {!n.is_read && (
+                        <span className="h-2 w-2 rounded-full bg-blue-500" />
+                      )}
+                      {href &&
+                        (href.external ? (
+                          <ExternalLink size={14} className="text-gray-400" />
+                        ) : (
+                          <ChevronRight size={14} className="text-gray-400" />
+                        ))}
+                    </div>
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </>
