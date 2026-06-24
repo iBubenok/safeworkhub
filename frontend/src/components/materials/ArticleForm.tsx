@@ -4,8 +4,8 @@ import { useNavigate } from 'react-router-dom';
 
 import * as materialsApi from '@/api/materials';
 import { getErrorMessage } from '@/api/client';
-import { MarkdownEditor } from '@/components/MarkdownEditor';
-import type { Category, MaterialStatus } from '@/types';
+import { ContentEditor } from '@/components/ContentEditor';
+import type { Category, MaterialContentFormat, MaterialStatus } from '@/types';
 
 /**
  * Форма создания статьи (Markdown). Самодостаточный per-type компонент:
@@ -15,6 +15,7 @@ export function ArticleForm({ categories }: { categories: Category[] }) {
   const [title, setTitle] = useState('');
   const [summary, setSummary] = useState('');
   const [content, setContent] = useState('');
+  const [format, setFormat] = useState<MaterialContentFormat>('markdown');
   const [categoryId, setCategoryId] = useState<number | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
 
@@ -40,6 +41,7 @@ export function ArticleForm({ categories }: { categories: Category[] }) {
       title,
       summary: summary || null,
       content,
+      content_format: format,
       category_id: categoryId,
       status,
     });
@@ -102,13 +104,14 @@ export function ArticleForm({ categories }: { categories: Category[] }) {
 
       <div>
         <label className="label" htmlFor="article-content">
-          Текст (Markdown)
+          Текст
         </label>
-        <MarkdownEditor
+        <ContentEditor
           id="article-content"
           value={content}
           onChange={setContent}
-          placeholder={'## Заголовок\n\nТекст с **разметкой** и [ссылкой](https://...)'}
+          format={format}
+          onFormatChange={setFormat}
         />
       </div>
 

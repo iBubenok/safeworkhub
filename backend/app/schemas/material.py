@@ -52,6 +52,7 @@ class MaterialUpdate(BaseModel):
     title: str | None = Field(None, min_length=1, max_length=500)
     summary: str | None = None
     content: str | None = None
+    content_format: MaterialContentFormat | None = None
     type: MaterialType | None = None
     category_id: int | None = None
     status: MaterialStatus | None = None

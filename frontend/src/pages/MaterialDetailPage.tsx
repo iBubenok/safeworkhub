@@ -6,8 +6,9 @@ import { Archive, ArchiveRestore, ArrowLeft, Check, Pencil, Trash2, X } from 'lu
 import * as materialsApi from '@/api/materials';
 import { getErrorMessage } from '@/api/client';
 import { Markdown } from '@/components/Markdown';
-import { MarkdownEditor } from '@/components/MarkdownEditor';
+import { ContentEditor } from '@/components/ContentEditor';
 import { useAuth } from '@/hooks/useAuth';
+import type { MaterialContentFormat } from '@/types';
 
 const statusLabel: Record<string, string> = {
   published: 'Опубликован',
@@ -25,6 +26,7 @@ export function MaterialDetailPage() {
   const [title, setTitle] = useState('');
   const [summary, setSummary] = useState('');
   const [content, setContent] = useState('');
+  const [format, setFormat] = useState<MaterialContentFormat>('markdown');
   const [error, setError] = useState<string | null>(null);
 
   const { data, isLoading, isError } = useQuery({
@@ -34,8 +36,12 @@ export function MaterialDetailPage() {
   });
 
   const update = useMutation({
-    mutationFn: (payload: { title?: string; summary?: string | null; content?: string }) =>
-      materialsApi.updateMaterial(id as string, payload),
+    mutationFn: (payload: {
+      title?: string;
+      summary?: string | null;
+      content?: string;
+      content_format?: MaterialContentFormat;
+    }) => materialsApi.updateMaterial(id as string, payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['material', id] });
       queryClient.invalidateQueries({ queryKey: ['materials'] });
@@ -94,6 +100,7 @@ export function MaterialDetailPage() {
     setTitle(data.title);
     setSummary(data.summary ?? '');
     setContent(data.content);
+    setFormat(data.content_format);
     setEditing(true);
   };
 
@@ -123,10 +130,16 @@ export function MaterialDetailPage() {
     }
     // Отправляем только реально изменённые поля; если изменений нет —
     // просто выходим из режима правки, не помечая статью изменённой.
-    const payload: { title?: string; summary?: string | null; content?: string } = {};
+    const payload: {
+      title?: string;
+      summary?: string | null;
+      content?: string;
+      content_format?: MaterialContentFormat;
+    } = {};
     if (title !== data.title) payload.title = title;
     if ((summary || '') !== (data.summary ?? '')) payload.summary = summary || null;
     if (content !== data.content) payload.content = content;
+    if (format !== data.content_format) payload.content_format = format;
 
     if (Object.keys(payload).length === 0) {
       setEditing(false);
@@ -149,6 +162,11 @@ export function MaterialDetailPage() {
           <span className="rounded-full bg-gray-100 px-2 py-1 uppercase tracking-wide">
             {statusLabel[data.status] ?? data.status}
           </span>
+          {isAuthor && (
+            <span className="rounded-full bg-gray-100 px-2 py-1 uppercase tracking-wide">
+              {data.content_format === 'html' ? 'HTML' : 'Markdown'}
+            </span>
+          )}
           {data.published_at && <span>{new Date(data.published_at).toLocaleDateString('ru-RU')}</span>}
           <span>{data.views_count} просмотров</span>
           {(data.organization_name || data.author_name) && (
@@ -268,9 +286,15 @@ export function MaterialDetailPage() {
             </div>
             <div>
               <label className="label" htmlFor="edit-content">
-                Текст (Markdown)
+                Текст
               </label>
-              <MarkdownEditor id="edit-content" value={content} onChange={setContent} />
+              <ContentEditor
+                id="edit-content"
+                value={content}
+                onChange={setContent}
+                format={format}
+                onFormatChange={setFormat}
+              />
             </div>
           </div>
         ) : (
@@ -279,13 +303,7 @@ export function MaterialDetailPage() {
             {data.summary && <p className="mt-1 text-gray-600">{data.summary}</p>}
 
             <div className="mt-4 border-t pt-4">
-              {data.content_format === 'markdown' ? (
-                <Markdown>{data.content}</Markdown>
-              ) : (
-                <p className="text-sm text-gray-500">
-                  Формат HTML пока не поддерживается для просмотра.
-                </p>
-              )}
+              <Markdown>{data.content}</Markdown>
             </div>
           </>
         )}

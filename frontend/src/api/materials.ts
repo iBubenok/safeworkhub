@@ -3,6 +3,7 @@ import type {
   ArticleCreateInput,
   Category,
   Material,
+  MaterialContentFormat,
   MaterialListItem,
   MaterialType,
   MaterialSearchParams,
@@ -68,7 +69,12 @@ export async function publishMaterial(materialId: string): Promise<Material> {
 
 export async function updateMaterial(
   materialId: string,
-  payload: { title?: string; summary?: string | null; content?: string },
+  payload: {
+    title?: string;
+    summary?: string | null;
+    content?: string;
+    content_format?: MaterialContentFormat;
+  },
 ): Promise<Material> {
   const response = await apiClient.patch<Material>(`/materials/${materialId}`, payload);
   return response.data;

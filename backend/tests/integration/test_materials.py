@@ -617,3 +617,54 @@ async def test_superuser_can_view_any_draft(
         cookies=login.cookies,
     )
     assert resp.status_code == 200, resp.text
+
+
+@pytest.mark.asyncio
+async def test_create_article_with_html_format(
+    client: AsyncClient,
+    unique_email: str,
+):
+    """Статью можно создать в формате HTML."""
+    tokens, cookies = await register_and_login(client, unique_email)
+    created = await client.post(
+        "/api/v1/materials/articles",
+        json={"title": "HTML-статья", "content": "<h2>Привет</h2>", "content_format": "html"},
+        headers=auth_headers(tokens),
+        cookies=cookies,
+    )
+    assert created.status_code == 201, created.text
+    assert created.json()["content_format"] == "html"
+
+    fetched = await client.get(
+        f"/api/v1/materials/{created.json()['id']}",
+        headers=auth_headers(tokens),
+        cookies=cookies,
+    )
+    assert fetched.status_code == 200, fetched.text
+    assert fetched.json()["content_format"] == "html"
+    assert fetched.json()["content"] == "<h2>Привет</h2>"
+
+
+@pytest.mark.asyncio
+async def test_update_changes_content_format(
+    client: AsyncClient,
+    unique_email: str,
+):
+    """Редактирование может сменить формат тела (markdown → html)."""
+    tokens, cookies = await register_and_login(client, unique_email)
+    article = await create_article(client, tokens, cookies)  # markdown по умолчанию
+
+    patch = await client.patch(
+        f"/api/v1/materials/{article['id']}",
+        json={"content": "<p>Теперь HTML</p>", "content_format": "html"},
+        headers=auth_headers(tokens),
+        cookies=cookies,
+    )
+    assert patch.status_code == 200, patch.text
+
+    fetched = await client.get(
+        f"/api/v1/materials/{article['id']}",
+        headers=auth_headers(tokens),
+        cookies=cookies,
+    )
+    assert fetched.json()["content_format"] == "html"
