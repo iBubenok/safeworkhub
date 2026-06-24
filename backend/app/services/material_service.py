@@ -170,13 +170,16 @@ class MaterialService:
         return MaterialResponse.model_validate(updated)
 
     async def get_material(self, material_id: UUID, *, organization_id: int) -> MaterialResponse:
-        material = await self.repository.get_by_id(material_id)
+        material = await self.repository.get_with_relations(material_id)
         if material is None or material.organization_id != organization_id:
             raise NotFoundError("Материал", str(material_id))
 
         # Сериализуем ДО инкремента: increment_views делает flush и обновляет объект,
         # после чего ленивое чтение атрибутов в async-контексте падает (MissingGreenlet).
+        # Автор и организация подгружены заранее (selectinload) — обращение безопасно.
         response = MaterialResponse.model_validate(material)
+        response.author_name = material.author.name if material.author else None
+        response.organization_name = material.organization.name if material.organization else None
 
         # Члены организации видят и черновики своей организации (чтение перед публикацией).
         # Счётчик просмотров увеличиваем только для опубликованных — чтобы не накручивать

@@ -6,6 +6,7 @@ from uuid import UUID
 
 from sqlalchemy import desc, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.db.repositories.base import BaseRepository
 from app.models import Material, MaterialStatus, MaterialType, MaterialVisibility
@@ -16,6 +17,16 @@ class MaterialRepository(BaseRepository[Material]):
 
     def __init__(self, session: AsyncSession) -> None:
         super().__init__(Material, session)
+
+    async def get_with_relations(self, material_id: UUID) -> Material | None:
+        """Материал вместе с автором и организацией (для детального просмотра)."""
+        query = (
+            select(Material)
+            .options(selectinload(Material.author), selectinload(Material.organization))
+            .where(Material.id == material_id)
+        )
+        result = await self.session.execute(query)
+        return result.scalar_one_or_none()
 
     async def get_published(
         self,

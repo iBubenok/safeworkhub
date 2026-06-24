@@ -66,6 +66,8 @@ class MaterialResponse(MaterialBase):
     id: UUID
     organization_id: int
     author_id: UUID
+    author_name: str | None = None
+    organization_name: str | None = None
     content: str
     content_format: MaterialContentFormat
     views_count: int

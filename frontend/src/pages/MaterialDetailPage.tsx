@@ -39,12 +39,17 @@ export function MaterialDetailPage() {
       </Link>
 
       <article className="card">
-        <div className="flex items-center gap-3 text-xs text-gray-500">
+        <div className="flex flex-wrap items-center gap-3 text-xs text-gray-500">
           <span className="rounded-full bg-gray-100 px-2 py-1 uppercase tracking-wide">
             {data.status === 'published' ? 'Опубликован' : 'Черновик'}
           </span>
           {data.published_at && <span>{new Date(data.published_at).toLocaleDateString('ru-RU')}</span>}
           <span>{data.views_count} просмотров</span>
+          {(data.organization_name || data.author_name) && (
+            <span>
+              Автор: {[data.organization_name, data.author_name].filter(Boolean).join(' · ')}
+            </span>
+          )}
         </div>
 
         <h1 className="mt-2 text-2xl font-bold text-gray-900">{data.title}</h1>

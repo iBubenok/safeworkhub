@@ -62,6 +62,9 @@ export interface Material {
   content_format: MaterialContentFormat;
   type: MaterialType;
   status: MaterialStatus;
+  author_id: string;
+  author_name?: string | null;
+  organization_name?: string | null;
   views_count: number;
   published_at: string | null;
   updated_by_id?: string | null;
