@@ -18,6 +18,7 @@ export async function getMaterials(
       page_size: params.page_size ?? 20,
       type: params.type,
       category_id: params.category_id,
+      status: params.status,
     },
   });
   return response.data;
@@ -75,6 +76,11 @@ export async function updateMaterial(
 
 export async function archiveMaterial(materialId: string): Promise<Material> {
   const response = await apiClient.post<Material>(`/materials/${materialId}/archive`);
+  return response.data;
+}
+
+export async function restoreMaterial(materialId: string): Promise<Material> {
+  const response = await apiClient.post<Material>(`/materials/${materialId}/restore`);
   return response.data;
 }
 

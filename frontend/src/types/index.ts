@@ -128,6 +128,7 @@ export interface MaterialSearchParams extends PaginationParams {
   query?: string;
   type?: MaterialType;
   category_id?: number;
+  status?: MaterialStatus;
 }
 
 export interface CourseModule {

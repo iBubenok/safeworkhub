@@ -213,6 +213,41 @@ class MaterialService:
         )
         return MaterialResponse.model_validate(updated)
 
+    async def restore_material(
+        self,
+        material_id: UUID,
+        *,
+        organization_id: int,
+        user_id: UUID,
+        is_superuser: bool = False,
+        request_id: str | None = None,
+    ) -> MaterialResponse:
+        """Восстановить материал из архива в черновик (только автор)."""
+        material = await self.repository.get_by_id(material_id)
+        if material is None or material.organization_id != organization_id:
+            raise NotFoundError("Материал", str(material_id))
+        if material.author_id != user_id and not is_superuser:
+            raise AuthorizationError("Восстанавливать материал может только его автор")
+
+        # Возврат в черновик: снимаем дату публикации, материал снова скрыт от всех.
+        updated = await self.repository.update(
+            material_id,
+            status=MaterialStatus.DRAFT,
+            published_at=None,
+            updated_by_id=user_id,
+        )
+        await log_audit(
+            self.session,
+            action="material_restored",
+            entity_type="material",
+            entity_id=str(material_id),
+            organization_id=organization_id,
+            user_id=str(user_id),
+            request_id=request_id,
+            details={"status": MaterialStatus.DRAFT},
+        )
+        return MaterialResponse.model_validate(updated)
+
     async def delete_material(
         self,
         material_id: UUID,
@@ -289,18 +324,35 @@ class MaterialService:
         organization_id: int,
         material_type: MaterialType | None = None,
         category_id: int | None = None,
+        status: MaterialStatus | None = None,
+        requester_id: UUID | None = None,
+        is_superuser: bool = False,
         page: int = 1,
         page_size: int = 20,
     ) -> MaterialListResponse:
         offset = (page - 1) * page_size
 
-        materials, total = await self.repository.get_published(
-            organization_id=organization_id,
-            material_type=material_type,
-            category_id=category_id,
-            limit=page_size,
-            offset=offset,
-        )
+        if status is None or status == MaterialStatus.PUBLISHED:
+            # Публичный список опубликованных (своя организация + публичные из других).
+            materials, total = await self.repository.get_published(
+                organization_id=organization_id,
+                material_type=material_type,
+                category_id=category_id,
+                limit=page_size,
+                offset=offset,
+            )
+        else:
+            # Черновики/архив: строго внутри организации. Обычный пользователь видит
+            # только свои, суперпользователь — всех авторов организации.
+            materials, total = await self.repository.list_by_status(
+                organization_id=organization_id,
+                status=status,
+                material_type=material_type,
+                category_id=category_id,
+                author_id=None if is_superuser else requester_id,
+                limit=page_size,
+                offset=offset,
+            )
 
         items = [MaterialListItem.model_validate(m) for m in materials]
         pages = (total + page_size - 1) // page_size if page_size > 0 else 0

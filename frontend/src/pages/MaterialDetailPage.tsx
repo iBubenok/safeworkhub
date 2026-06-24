@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Archive, ArrowLeft, Check, Pencil, Trash2, X } from 'lucide-react';
+import { Archive, ArchiveRestore, ArrowLeft, Check, Pencil, Trash2, X } from 'lucide-react';
 
 import * as materialsApi from '@/api/materials';
 import { getErrorMessage } from '@/api/client';
@@ -53,6 +53,15 @@ export function MaterialDetailPage() {
     onError: (e) => alert(getErrorMessage(e)),
   });
 
+  const restore = useMutation({
+    mutationFn: () => materialsApi.restoreMaterial(id as string),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['material', id] });
+      queryClient.invalidateQueries({ queryKey: ['materials'] });
+    },
+    onError: (e) => alert(getErrorMessage(e)),
+  });
+
   const remove = useMutation({
     mutationFn: () => materialsApi.deleteMaterial(id as string),
     onSuccess: () => {
@@ -78,7 +87,7 @@ export function MaterialDetailPage() {
   }
 
   const isAuthor = !!user && (user.id === data.author_id || user.is_superuser);
-  const busy = archive.isPending || remove.isPending || update.isPending;
+  const busy = archive.isPending || restore.isPending || remove.isPending || update.isPending;
 
   const startEdit = () => {
     setError(null);
@@ -97,6 +106,12 @@ export function MaterialDetailPage() {
   const handleDelete = () => {
     if (window.confirm('Удалить статью без возможности восстановления?')) {
       remove.mutate();
+    }
+  };
+
+  const handleRestore = () => {
+    if (window.confirm('Вернуть статью из архива в черновики?')) {
+      restore.mutate();
     }
   };
 
@@ -164,7 +179,7 @@ export function MaterialDetailPage() {
               >
                 <Pencil size={16} />
               </button>
-              {data.status !== 'archived' && (
+              {data.status !== 'archived' ? (
                 <button
                   type="button"
                   title="В архив"
@@ -174,6 +189,17 @@ export function MaterialDetailPage() {
                   className="rounded p-1.5 text-gray-500 transition hover:bg-gray-100 hover:text-gray-700 disabled:opacity-40"
                 >
                   <Archive size={16} />
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  title="Восстановить из архива"
+                  aria-label="Восстановить из архива"
+                  onClick={handleRestore}
+                  disabled={busy}
+                  className="rounded p-1.5 text-gray-500 transition hover:bg-gray-100 hover:text-gray-700 disabled:opacity-40"
+                >
+                  <ArchiveRestore size={16} />
                 </button>
               )}
               <button

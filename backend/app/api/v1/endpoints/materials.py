@@ -11,7 +11,7 @@ from app.core.dependencies import (
     DbSession,
     require_roles,
 )
-from app.models.material import MaterialType
+from app.models.material import MaterialStatus, MaterialType
 from app.models.organization import OrgRole
 from app.schemas.material import (
     ArticleCreate,
@@ -170,6 +170,10 @@ async def get_materials(
     session: DbSession,
     material_type: Annotated[MaterialType | None, Query(description="Фильтр по типу материала", alias="type")] = None,
     category_id: Annotated[int | None, Query(description="Фильтр по категории")] = None,
+    status: Annotated[
+        MaterialStatus | None,
+        Query(description="Фильтр по статусу: published (по умолчанию), draft, archived"),
+    ] = None,
     page: Annotated[int, Query(ge=1, description="Номер страницы")] = 1,
     page_size: Annotated[int, Query(ge=1, le=100, description="Размер страницы")] = 20,
 ) -> MaterialListResponse:
@@ -178,6 +182,9 @@ async def get_materials(
         organization_id=ctx.organization_id,
         material_type=material_type,
         category_id=category_id,
+        status=status,
+        requester_id=ctx.user.id,
+        is_superuser=ctx.user.is_superuser,
         page=page,
         page_size=page_size,
     )
@@ -285,6 +292,28 @@ async def delete_material(
 ) -> None:
     service = MaterialService(session)
     await service.delete_material(
+        material_id,
+        organization_id=ctx.organization_id,
+        user_id=ctx.user.id,
+        is_superuser=ctx.user.is_superuser,
+        request_id=getattr(request.state, "request_id", None),
+    )
+
+
+@router.post(
+    "/{material_id}/restore",
+    response_model=MaterialResponse,
+    summary="Восстановить материал из архива",
+    description="Возврат материала из архива в черновик. Доступно только автору материала.",
+)
+async def restore_material(
+    material_id: UUID,
+    request: Request,
+    ctx: CurrentContext,
+    session: DbSession,
+) -> MaterialResponse:
+    service = MaterialService(session)
+    return await service.restore_material(
         material_id,
         organization_id=ctx.organization_id,
         user_id=ctx.user.id,

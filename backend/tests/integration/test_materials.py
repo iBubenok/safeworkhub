@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import pytest
 from httpx import AsyncClient
-from sqlalchemy import select
+from sqlalchemy import select, update
 
-from app.models import Subscription, SubscriptionStatus
+from app.models import Subscription, SubscriptionStatus, User
 
 
 def build_registration_payload(email: str) -> dict:
@@ -19,8 +19,10 @@ def build_registration_payload(email: str) -> dict:
     }
 
 
-async def register_and_login(client: AsyncClient, email: str):
+async def register_and_login(client: AsyncClient, email: str, inn: str | None = None):
     payload = build_registration_payload(email)
+    if inn:
+        payload["inn"] = inn
     register = await client.post("/api/v1/auth/register", json=payload)
     assert register.status_code == 201
     auth = await client.post(
@@ -397,3 +399,221 @@ async def test_delete_article_only_author(
         cookies=member_cookies,
     )
     assert resp.status_code == 403, resp.text
+
+
+@pytest.mark.asyncio
+async def test_list_drafts_returns_own_and_excludes_published(
+    client: AsyncClient,
+    unique_email: str,
+):
+    """Раздел «Черновики» отдаёт черновики автора и не содержит опубликованных."""
+    tokens, cookies = await register_and_login(client, unique_email)
+    await create_article(client, tokens, cookies, title="Черновик", status="draft")
+    await create_article(client, tokens, cookies, title="Опубликованная", status="published")
+
+    resp = await client.get(
+        "/api/v1/materials",
+        params={"status": "draft"},
+        headers=auth_headers(tokens),
+        cookies=cookies,
+    )
+    assert resp.status_code == 200, resp.text
+    titles = [item["title"] for item in resp.json()["items"]]
+    assert "Черновик" in titles
+    assert "Опубликованная" not in titles
+
+
+@pytest.mark.asyncio
+async def test_list_archived_returns_archived(
+    client: AsyncClient,
+    unique_email: str,
+):
+    """Раздел «Архив» отдаёт архивные материалы."""
+    tokens, cookies = await register_and_login(client, unique_email)
+    article = await create_article(client, tokens, cookies, title="Будет в архиве")
+    await client.post(
+        f"/api/v1/materials/{article['id']}/archive",
+        headers=auth_headers(tokens),
+        cookies=cookies,
+    )
+
+    resp = await client.get(
+        "/api/v1/materials",
+        params={"status": "archived"},
+        headers=auth_headers(tokens),
+        cookies=cookies,
+    )
+    assert resp.status_code == 200, resp.text
+    titles = [item["title"] for item in resp.json()["items"]]
+    assert "Будет в архиве" in titles
+
+
+@pytest.mark.asyncio
+async def test_drafts_not_visible_to_other_org(
+    client: AsyncClient,
+    unique_email: str,
+):
+    """Черновики одной организации не видны владельцу другой организации."""
+    owner_a, cookies_a = await register_and_login(client, unique_email)
+    await create_article(client, owner_a, cookies_a, title="Секретный черновик A", status="draft")
+
+    owner_b, cookies_b = await register_and_login(client, f"b_{unique_email}", inn="9999999999")
+    resp = await client.get(
+        "/api/v1/materials",
+        params={"status": "draft"},
+        headers=auth_headers(owner_b),
+        cookies=cookies_b,
+    )
+    assert resp.status_code == 200, resp.text
+    titles = [item["title"] for item in resp.json()["items"]]
+    assert "Секретный черновик A" not in titles
+
+
+@pytest.mark.asyncio
+async def test_member_does_not_see_owner_drafts(
+    client: AsyncClient,
+    unique_email: str,
+):
+    """Участник организации (не автор) не видит чужие черновики."""
+    owner, cookies = await register_and_login(client, unique_email)
+    await create_article(client, owner, cookies, title="Черновик владельца", status="draft")
+    member_tokens, member_cookies = await create_member_and_login(
+        client, owner, cookies, f"member_{unique_email}"
+    )
+
+    resp = await client.get(
+        "/api/v1/materials",
+        params={"status": "draft"},
+        headers=auth_headers(member_tokens),
+        cookies=member_cookies,
+    )
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["items"] == []
+
+
+@pytest.mark.asyncio
+async def test_superuser_sees_org_drafts(
+    client: AsyncClient,
+    db_session,
+    unique_email: str,
+):
+    """Суперпользователь видит черновики всех авторов организации."""
+    owner, cookies = await register_and_login(client, unique_email)
+    await create_article(client, owner, cookies, title="Черновик для супера", status="draft")
+
+    member_email = f"super_{unique_email}"
+    await create_member_and_login(client, owner, cookies, member_email)
+    # Делаем участника суперпользователем и перелогиниваемся, чтобы токен это отражал.
+    await db_session.execute(update(User).where(User.email == member_email).values(is_superuser=True))
+    await db_session.commit()
+    login = await client.post(
+        "/api/v1/auth/login",
+        json={"email": member_email, "password": "MemberPass123!"},
+    )
+    assert login.status_code == 200, login.text
+
+    resp = await client.get(
+        "/api/v1/materials",
+        params={"status": "draft"},
+        headers=auth_headers(login.json()),
+        cookies=login.cookies,
+    )
+    assert resp.status_code == 200, resp.text
+    titles = [item["title"] for item in resp.json()["items"]]
+    assert "Черновик для супера" in titles
+
+
+@pytest.mark.asyncio
+async def test_restore_archived_to_draft(
+    client: AsyncClient,
+    unique_email: str,
+):
+    """Восстановление возвращает архивный материал в черновик."""
+    tokens, cookies = await register_and_login(client, unique_email)
+    article = await create_article(client, tokens, cookies)
+    await client.post(
+        f"/api/v1/materials/{article['id']}/archive",
+        headers=auth_headers(tokens),
+        cookies=cookies,
+    )
+
+    restored = await client.post(
+        f"/api/v1/materials/{article['id']}/restore",
+        headers=auth_headers(tokens),
+        cookies=cookies,
+    )
+    assert restored.status_code == 200, restored.text
+    assert restored.json()["status"] == "draft"
+
+
+@pytest.mark.asyncio
+async def test_restore_only_author(
+    client: AsyncClient,
+    unique_email: str,
+):
+    """Восстанавливать из архива может только автор."""
+    owner_tokens, owner_cookies = await register_and_login(client, unique_email)
+    article = await create_article(client, owner_tokens, owner_cookies)
+    await client.post(
+        f"/api/v1/materials/{article['id']}/archive",
+        headers=auth_headers(owner_tokens),
+        cookies=owner_cookies,
+    )
+    member_tokens, member_cookies = await create_member_and_login(
+        client, owner_tokens, owner_cookies, f"member_{unique_email}"
+    )
+
+    resp = await client.post(
+        f"/api/v1/materials/{article['id']}/restore",
+        headers=auth_headers(member_tokens),
+        cookies=member_cookies,
+    )
+    assert resp.status_code == 403, resp.text
+
+
+@pytest.mark.asyncio
+async def test_draft_not_viewable_by_other_member(
+    client: AsyncClient,
+    unique_email: str,
+):
+    """Чужой черновик нельзя открыть по прямой ссылке (даже члену той же организации)."""
+    owner_tokens, owner_cookies = await register_and_login(client, unique_email)
+    draft = await create_article(client, owner_tokens, owner_cookies, status="draft")
+    member_tokens, member_cookies = await create_member_and_login(
+        client, owner_tokens, owner_cookies, f"member_{unique_email}"
+    )
+
+    resp = await client.get(
+        f"/api/v1/materials/{draft['id']}",
+        headers=auth_headers(member_tokens),
+        cookies=member_cookies,
+    )
+    assert resp.status_code == 404, resp.text
+
+
+@pytest.mark.asyncio
+async def test_superuser_can_view_any_draft(
+    client: AsyncClient,
+    db_session,
+    unique_email: str,
+):
+    """Суперпользователь может открыть чужой черновик по ссылке."""
+    owner_tokens, owner_cookies = await register_and_login(client, unique_email)
+    draft = await create_article(client, owner_tokens, owner_cookies, status="draft")
+
+    member_email = f"super_{unique_email}"
+    await create_member_and_login(client, owner_tokens, owner_cookies, member_email)
+    await db_session.execute(update(User).where(User.email == member_email).values(is_superuser=True))
+    await db_session.commit()
+    login = await client.post(
+        "/api/v1/auth/login",
+        json={"email": member_email, "password": "MemberPass123!"},
+    )
+    assert login.status_code == 200, login.text
+
+    resp = await client.get(
+        f"/api/v1/materials/{draft['id']}",
+        headers=auth_headers(login.json()),
+        cookies=login.cookies,
+    )
+    assert resp.status_code == 200, resp.text

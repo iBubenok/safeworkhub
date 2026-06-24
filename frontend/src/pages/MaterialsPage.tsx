@@ -7,7 +7,7 @@ import * as materialsApi from '@/api/materials';
 import { getErrorMessage } from '@/api/client';
 import { useAuth } from '@/hooks/useAuth';
 import { ArticleForm } from '@/components/materials/ArticleForm';
-import type { MaterialListItem, MaterialType } from '@/types';
+import type { MaterialListItem, MaterialStatus, MaterialType } from '@/types';
 
 const materialTypes: { value: MaterialType | ''; label: string; icon: typeof FileText }[] = [
   { value: '', label: 'Все материалы', icon: File },
@@ -16,6 +16,18 @@ const materialTypes: { value: MaterialType | ''; label: string; icon: typeof Fil
   { value: 'template', label: 'Шаблоны', icon: File },
   { value: 'news', label: 'Новости', icon: Newspaper },
 ];
+
+const statusFilters: { value: MaterialStatus; label: string }[] = [
+  { value: 'published', label: 'Опубликованные' },
+  { value: 'draft', label: 'Черновики' },
+  { value: 'archived', label: 'Архив' },
+];
+
+const statusLabel: Record<string, string> = {
+  published: 'Опубликован',
+  draft: 'Черновик',
+  archived: 'В архиве',
+};
 
 function MaterialTypeIcon({ type }: { type: MaterialType }) {
   switch (type) {
@@ -35,13 +47,15 @@ function MaterialTypeIcon({ type }: { type: MaterialType }) {
 function MaterialCard({
   material,
   onPublish,
+  onRestore,
   isOwner,
-  isPublishing,
+  isBusy,
 }: {
   material: MaterialListItem;
   onPublish?: (id: string) => void;
+  onRestore?: (id: string) => void;
   isOwner: boolean;
-  isPublishing: boolean;
+  isBusy: boolean;
 }) {
   return (
     <div className="card block transition-shadow hover:shadow-md">
@@ -59,7 +73,7 @@ function MaterialCard({
           )}
           <div className="mt-2 flex items-center gap-3 text-xs text-gray-500">
             <span className="rounded-full bg-gray-100 px-2 py-1 text-xs uppercase tracking-wide">
-              {material.status === 'published' ? 'Опубликован' : 'Черновик'}
+              {statusLabel[material.status] ?? material.status}
             </span>
             <span>{material.views_count} просмотров</span>
             {material.published_at && (
@@ -68,13 +82,22 @@ function MaterialCard({
               </span>
             )}
           </div>
-          {isOwner && material.status !== 'published' && onPublish && (
+          {isOwner && material.status === 'draft' && onPublish && (
             <button
               onClick={() => onPublish(material.id)}
               className="btn-secondary mt-3"
-              disabled={isPublishing}
+              disabled={isBusy}
             >
               Опубликовать
+            </button>
+          )}
+          {isOwner && material.status === 'archived' && onRestore && (
+            <button
+              onClick={() => onRestore(material.id)}
+              className="btn-secondary mt-3"
+              disabled={isBusy}
+            >
+              Восстановить
             </button>
           )}
         </div>
@@ -86,6 +109,7 @@ function MaterialCard({
 export function MaterialsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedType, setSelectedType] = useState<MaterialType | ''>('');
+  const [selectedStatus, setSelectedStatus] = useState<MaterialStatus>('published');
   const [page, setPage] = useState(1);
   const [formError, setFormError] = useState<string | null>(null);
   const [createType, setCreateType] = useState<MaterialType>('article');
@@ -102,9 +126,18 @@ export function MaterialsPage() {
   const isOwner = role === 'org_owner';
 
   const materialsQuery = useQuery({
-    queryKey: ['materials', searchQuery, selectedType, page],
-    queryFn: () =>
-      searchQuery
+    queryKey: ['materials', selectedStatus, searchQuery, selectedType, page],
+    queryFn: () => {
+      // Черновики/архив: только список по статусу (полнотекстовый поиск — по опубликованным).
+      if (selectedStatus !== 'published') {
+        return materialsApi.getMaterials({
+          status: selectedStatus,
+          type: selectedType || undefined,
+          page,
+          page_size: pageSize,
+        });
+      }
+      return searchQuery
         ? materialsApi.searchMaterials({
             query: searchQuery,
             type: selectedType || undefined,
@@ -115,7 +148,8 @@ export function MaterialsPage() {
             type: selectedType || undefined,
             page,
             page_size: pageSize,
-          }),
+          });
+    },
   });
 
   const categoriesQuery = useQuery({
@@ -141,6 +175,11 @@ export function MaterialsPage() {
 
   const publishMaterial = useMutation({
     mutationFn: materialsApi.publishMaterial,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['materials'] }),
+  });
+
+  const restoreMaterial = useMutation({
+    mutationFn: materialsApi.restoreMaterial,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['materials'] }),
   });
 
@@ -279,21 +318,44 @@ export function MaterialsPage() {
       )}
 
       <div className="card">
-        <form onSubmit={handleSearch} className="flex gap-3">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Введите поисковый запрос..."
-              className="input pl-10"
-            />
+        {isOwner && (
+          <div className="mb-4 flex flex-wrap gap-2">
+            {statusFilters.map((s) => (
+              <button
+                key={s.value}
+                onClick={() => {
+                  setSelectedStatus(s.value);
+                  setPage(1);
+                }}
+                className={`rounded-full px-4 py-2 text-sm font-medium transition-colors ${
+                  selectedStatus === s.value
+                    ? 'bg-primary-600 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                {s.label}
+              </button>
+            ))}
           </div>
-          <button type="submit" className="btn-primary">
-            Найти
-          </button>
-        </form>
+        )}
+
+        {selectedStatus === 'published' && (
+          <form onSubmit={handleSearch} className="flex gap-3">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Введите поисковый запрос..."
+                className="input pl-10"
+              />
+            </div>
+            <button type="submit" className="btn-primary">
+              Найти
+            </button>
+          </form>
+        )}
 
         <div className="mt-4 flex flex-wrap gap-2">
           {materialTypes.map((type) => (
@@ -338,8 +400,9 @@ export function MaterialsPage() {
                 key={material.id}
                 material={material}
                 onPublish={publishMaterial.mutateAsync}
+                onRestore={restoreMaterial.mutateAsync}
                 isOwner={isOwner}
-                isPublishing={publishMaterial.isPending}
+                isBusy={publishMaterial.isPending || restoreMaterial.isPending}
               />
             ))}
           </div>

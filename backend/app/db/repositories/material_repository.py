@@ -66,6 +66,45 @@ class MaterialRepository(BaseRepository[Material]):
 
         return materials, total
 
+    async def list_by_status(
+        self,
+        *,
+        organization_id: int,
+        status: MaterialStatus,
+        material_type: MaterialType | None = None,
+        category_id: int | None = None,
+        author_id: UUID | None = None,
+        limit: int = 20,
+        offset: int = 0,
+    ) -> tuple[list[Material], int]:
+        """Материалы организации с заданным статусом (для черновиков и архива).
+
+        Строго в пределах организации (без публичных из других орг). Если задан
+        author_id — только материалы этого автора; иначе все авторы организации
+        (используется для суперпользователя).
+        """
+        conditions = [
+            Material.organization_id == organization_id,
+            Material.status == status,
+        ]
+        if author_id is not None:
+            conditions.append(Material.author_id == author_id)
+        if material_type:
+            conditions.append(Material.type == material_type)
+        if category_id:
+            conditions.append(Material.category_id == category_id)
+
+        query = select(Material).where(*conditions)
+
+        count_query = select(func.count()).select_from(query.subquery())
+        total = await self.session.scalar(count_query) or 0
+
+        query = query.order_by(desc(Material.updated_at)).limit(limit).offset(offset)
+        result = await self.session.execute(query)
+        materials = list(result.scalars().all())
+
+        return materials, total
+
     async def search(
         self,
         query_str: str,
