@@ -1,11 +1,10 @@
 import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { Eye, Pencil } from 'lucide-react';
 
 import * as materialsApi from '@/api/materials';
 import { getErrorMessage } from '@/api/client';
-import { Markdown } from '@/components/Markdown';
+import { MarkdownEditor } from '@/components/MarkdownEditor';
 import type { Category, MaterialStatus } from '@/types';
 
 /**
@@ -17,7 +16,6 @@ export function ArticleForm({ categories }: { categories: Category[] }) {
   const [summary, setSummary] = useState('');
   const [content, setContent] = useState('');
   const [categoryId, setCategoryId] = useState<number | undefined>(undefined);
-  const [showPreview, setShowPreview] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const queryClient = useQueryClient();
@@ -34,6 +32,10 @@ export function ArticleForm({ categories }: { categories: Category[] }) {
 
   const submit = (status: MaterialStatus) => {
     setError(null);
+    if (!title.trim() || !content.trim()) {
+      setError('Заполните заголовок и текст статьи');
+      return;
+    }
     create.mutate({
       title,
       summary: summary || null,
@@ -99,40 +101,15 @@ export function ArticleForm({ categories }: { categories: Category[] }) {
       </div>
 
       <div>
-        <div className="mb-1 flex items-center justify-between">
-          <label className="text-sm font-medium text-gray-700" htmlFor="article-content">
-            Текст (Markdown)
-          </label>
-          <button
-            type="button"
-            onClick={() => setShowPreview((v) => !v)}
-            className="flex items-center gap-1 text-xs text-primary-600 hover:text-primary-700"
-          >
-            {showPreview ? (
-              <>
-                <Pencil size={14} /> Редактор
-              </>
-            ) : (
-              <>
-                <Eye size={14} /> Превью
-              </>
-            )}
-          </button>
-        </div>
-        {showPreview ? (
-          <div className="min-h-[160px] rounded-md border border-gray-200 p-3">
-            {content ? <Markdown>{content}</Markdown> : <p className="text-sm text-gray-400">Нечего показать</p>}
-          </div>
-        ) : (
-          <textarea
-            id="article-content"
-            className="input min-h-[160px] font-mono"
-            value={content}
-            onChange={(e) => setContent(e.target.value)}
-            placeholder={'## Заголовок\n\nТекст с **разметкой** и [ссылкой](https://...)'}
-            required
-          />
-        )}
+        <label className="label" htmlFor="article-content">
+          Текст (Markdown)
+        </label>
+        <MarkdownEditor
+          id="article-content"
+          value={content}
+          onChange={setContent}
+          placeholder={'## Заголовок\n\nТекст с **разметкой** и [ссылкой](https://...)'}
+        />
       </div>
 
       <div className="flex justify-end gap-2">
