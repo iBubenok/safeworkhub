@@ -6,7 +6,14 @@
 
 from app.models.audit_log import AuditLog
 from app.models.course import AssignmentStatus, Course, CourseAssignment, CourseModule
-from app.models.material import Category, Material, MaterialStatus, MaterialType, MaterialVisibility
+from app.models.material import (
+    Category,
+    Material,
+    MaterialContentFormat,
+    MaterialStatus,
+    MaterialType,
+    MaterialVisibility,
+)
 from app.models.notification import Notification, NotificationSettings
 from app.models.organization import Organization, OrganizationUser, OrgRole
 from app.models.refresh_session import RefreshSession
@@ -21,6 +28,7 @@ __all__ = [
     "CourseAssignment",
     "CourseModule",
     "Material",
+    "MaterialContentFormat",
     "MaterialStatus",
     "MaterialType",
     "MaterialVisibility",

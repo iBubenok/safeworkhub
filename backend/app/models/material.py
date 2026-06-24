@@ -54,6 +54,13 @@ class MaterialVisibility(StrEnum):
     PUBLIC = "public"
 
 
+class MaterialContentFormat(StrEnum):
+    """Формат тела материала."""
+
+    MARKDOWN = "markdown"
+    HTML = "html"
+
+
 class Category(Base, IntegerPKMixin, TimestampMixin):
     """Категория материалов (иерархия поддерживается через parent_id)."""
 
@@ -108,6 +115,15 @@ class Material(Base, UUIDMixin, TimestampMixin):
     )
     title: Mapped[str] = mapped_column(String(500), nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
+    content_format: Mapped[MaterialContentFormat] = mapped_column(
+        Enum(
+            MaterialContentFormat,
+            name="material_content_format",
+            values_callable=lambda enum_cls: [e.value for e in enum_cls],
+        ),
+        nullable=False,
+        default=MaterialContentFormat.MARKDOWN,
+    )
     summary: Mapped[str | None] = mapped_column(String(1000))
     type: Mapped[MaterialType] = mapped_column(
         Enum(

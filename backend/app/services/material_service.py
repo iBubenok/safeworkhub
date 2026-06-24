@@ -6,11 +6,12 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import AuthorizationError, ConflictError, NotFoundError
+from app.core.exceptions import ConflictError, NotFoundError
 from app.db.repositories import CategoryRepository, MaterialRepository
 from app.models import Category
 from app.models.material import MaterialStatus, MaterialType
 from app.schemas.material import (
+    ArticleCreate,
     CategoryCreate,
     MaterialCreate,
     MaterialListItem,
@@ -66,6 +67,44 @@ class MaterialService:
             user_id=str(author_id),
             request_id=request_id,
             details={"status": material.status},
+        )
+        return MaterialResponse.model_validate(material)
+
+    async def create_article(
+        self,
+        *,
+        organization_id: int,
+        author_id: UUID,
+        data: ArticleCreate,
+        request_id: str | None = None,
+    ) -> MaterialResponse:
+        """Создать статью (тип фиксирован ARTICLE).
+
+        Per-type точка входа: позже рядом появятся create_npa и т.д.
+        Переиспользует общий репозиторий/аудит, тело хранится в базовой таблице.
+        """
+        material = await self.repository.create(
+            organization_id=organization_id,
+            author_id=author_id,
+            title=data.title,
+            content=data.content,
+            content_format=data.content_format,
+            summary=data.summary,
+            type=MaterialType.ARTICLE,
+            status=data.status,
+            visibility=data.visibility,
+            category_id=data.category_id,
+            published_at=utcnow() if data.status == MaterialStatus.PUBLISHED else None,
+        )
+        await log_audit(
+            self.session,
+            action="article_created",
+            entity_type="material",
+            entity_id=str(material.id),
+            organization_id=organization_id,
+            user_id=str(author_id),
+            request_id=request_id,
+            details={"status": material.status, "type": MaterialType.ARTICLE},
         )
         return MaterialResponse.model_validate(material)
 
@@ -135,11 +174,16 @@ class MaterialService:
         if material is None or material.organization_id != organization_id:
             raise NotFoundError("Материал", str(material_id))
 
-        if material.status != MaterialStatus.PUBLISHED:
-            raise AuthorizationError("Материал недоступен")
+        # Сериализуем ДО инкремента: increment_views делает flush и обновляет объект,
+        # после чего ленивое чтение атрибутов в async-контексте падает (MissingGreenlet).
+        response = MaterialResponse.model_validate(material)
 
-        await self.repository.increment_views(material_id)
-        return MaterialResponse.model_validate(material)
+        # Члены организации видят и черновики своей организации (чтение перед публикацией).
+        # Счётчик просмотров увеличиваем только для опубликованных — чтобы не накручивать
+        # его на предпросмотре автором.
+        if material.status == MaterialStatus.PUBLISHED:
+            await self.repository.increment_views(material_id)
+        return response
 
     async def get_materials(
         self,

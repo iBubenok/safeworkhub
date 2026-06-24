@@ -93,3 +93,69 @@ async def test_materials_search_and_listing(
     data = search.json()
     assert data["total"] >= 1
     assert any(item["id"] == material_id for item in data["items"])
+
+
+@pytest.mark.asyncio
+async def test_create_article_markdown_and_view_draft(
+    client: AsyncClient,
+    unique_email: str,
+):
+    """Создание статьи (Markdown, черновик) и её просмотр автором до публикации."""
+    tokens, cookies = await register_and_login(client, unique_email)
+    headers = {"Authorization": f"Bearer {tokens['access_token']}"}
+
+    create_payload = {
+        "title": "Как провести вводный инструктаж",
+        "summary": "Пошаговый гайд",
+        "content": "## Шаги\n\n1. Подготовить программу\n2. Провести\n3. Зафиксировать",
+        "status": "draft",
+    }
+    created = await client.post(
+        "/api/v1/materials/articles",
+        json=create_payload,
+        headers=headers,
+        cookies=cookies,
+    )
+    assert created.status_code == 201, created.text
+    body = created.json()
+    assert body["type"] == "article"
+    assert body["content_format"] == "markdown"
+    assert body["status"] == "draft"
+    article_id = body["id"]
+
+    # Черновик доступен для просмотра автору/организации (после правки get_material).
+    fetched = await client.get(
+        f"/api/v1/materials/{article_id}",
+        headers=headers,
+        cookies=cookies,
+    )
+    assert fetched.status_code == 200, fetched.text
+    detail = fetched.json()
+    assert detail["content"].startswith("## Шаги")
+    assert detail["content_format"] == "markdown"
+
+
+@pytest.mark.asyncio
+async def test_view_published_article_increments_views(
+    client: AsyncClient,
+    unique_email: str,
+):
+    """Просмотр опубликованной статьи отдаёт 200 и увеличивает счётчик просмотров."""
+    tokens, cookies = await register_and_login(client, unique_email)
+    headers = {"Authorization": f"Bearer {tokens['access_token']}"}
+
+    created = await client.post(
+        "/api/v1/materials/articles",
+        json={"title": "Опубликованная", "content": "## Текст", "status": "published"},
+        headers=headers,
+        cookies=cookies,
+    )
+    assert created.status_code == 201, created.text
+    article_id = created.json()["id"]
+
+    first = await client.get(f"/api/v1/materials/{article_id}", headers=headers, cookies=cookies)
+    assert first.status_code == 200, first.text
+
+    second = await client.get(f"/api/v1/materials/{article_id}", headers=headers, cookies=cookies)
+    assert second.status_code == 200
+    assert second.json()["views_count"] >= 1

@@ -1,5 +1,6 @@
 import { apiClient } from './client';
 import type {
+  ArticleCreateInput,
   Category,
   Material,
   MaterialListItem,
@@ -51,6 +52,11 @@ export async function createMaterial(payload: {
   status?: string;
 }): Promise<Material> {
   const response = await apiClient.post<Material>('/materials', payload);
+  return response.data;
+}
+
+export async function createArticle(payload: ArticleCreateInput): Promise<Material> {
+  const response = await apiClient.post<Material>('/materials/articles', payload);
   return response.data;
 }
 

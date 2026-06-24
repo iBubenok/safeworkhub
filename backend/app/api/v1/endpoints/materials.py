@@ -14,6 +14,7 @@ from app.core.dependencies import (
 from app.models.material import MaterialType
 from app.models.organization import OrgRole
 from app.schemas.material import (
+    ArticleCreate,
     CategoryCreate,
     CategoryResponse,
     MaterialCreate,
@@ -82,6 +83,29 @@ async def create_material(
 ) -> MaterialResponse:
     service = MaterialService(session)
     return await service.create_material(
+        organization_id=ctx.organization_id,
+        author_id=ctx.user.id,
+        data=data,
+        request_id=getattr(request.state, "request_id", None),
+    )
+
+
+@router.post(
+    "/articles",
+    response_model=MaterialResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Создать статью",
+    description="Создание материала типа «статья» (Markdown). Требуются права владельца организации.",
+    dependencies=[Depends(require_roles(OrgRole.ORG_OWNER))],
+)
+async def create_article(
+    request: Request,
+    data: ArticleCreate,
+    ctx: CurrentContext,
+    session: DbSession,
+) -> MaterialResponse:
+    service = MaterialService(session)
+    return await service.create_article(
         organization_id=ctx.organization_id,
         author_id=ctx.user.id,
         data=data,

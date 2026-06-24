@@ -5,7 +5,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.models.material import MaterialStatus, MaterialType, MaterialVisibility
+from app.models.material import MaterialContentFormat, MaterialStatus, MaterialType, MaterialVisibility
 
 
 class MaterialBase(BaseModel):
@@ -26,6 +26,24 @@ class MaterialCreate(MaterialBase):
     """Схема создания материала."""
 
     content: str = Field(min_length=1, description="Содержимое (HTML)")
+
+
+class ArticleCreate(BaseModel):
+    """Схема создания статьи (per-type контракт).
+
+    Тип фиксирован (ARTICLE) на стороне сервиса — здесь его нет.
+    """
+
+    title: str = Field(min_length=1, max_length=500, description="Заголовок")
+    summary: str | None = Field(None, max_length=1000, description="Краткое описание")
+    content: str = Field(min_length=1, description="Тело статьи в Markdown")
+    content_format: MaterialContentFormat = Field(
+        default=MaterialContentFormat.MARKDOWN,
+        description="Формат тела",
+    )
+    category_id: int | None = Field(None, description="ID категории")
+    status: MaterialStatus = Field(default=MaterialStatus.DRAFT, description="Статус")
+    visibility: MaterialVisibility = Field(default=MaterialVisibility.ORG, description="Видимость")
 
 
 class MaterialUpdate(BaseModel):
@@ -49,6 +67,7 @@ class MaterialResponse(MaterialBase):
     organization_id: int
     author_id: UUID
     content: str
+    content_format: MaterialContentFormat
     views_count: int
     status: MaterialStatus
     published_at: datetime | None

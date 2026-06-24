@@ -7,6 +7,7 @@ import { LoginPage } from '@/pages/LoginPage';
 import { RegisterPage } from '@/pages/RegisterPage';
 import { DashboardPage } from '@/pages/DashboardPage';
 import { MaterialsPage } from '@/pages/MaterialsPage';
+import { MaterialDetailPage } from '@/pages/MaterialDetailPage';
 import { ChecksPage } from '@/pages/ChecksPage';
 import { CoursesPage } from '@/pages/CoursesPage';
 import { UsersPage } from '@/pages/UsersPage';
@@ -96,6 +97,7 @@ export default function App() {
         <Route index element={<Navigate to="/dashboard" replace />} />
         <Route path="dashboard" element={<DashboardPage />} />
         <Route path="materials" element={<MaterialsPage />} />
+        <Route path="materials/:id" element={<MaterialDetailPage />} />
         <Route path="checks" element={<ChecksPage />} />
         <Route path="courses" element={<CoursesPage />} />
         <Route path="reports" element={<ReportsPage />} />

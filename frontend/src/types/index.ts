@@ -51,6 +51,7 @@ export interface RegisterResponse {
 
 export type MaterialType = 'article' | 'npa' | 'template' | 'reference' | 'news';
 export type MaterialStatus = 'draft' | 'published' | 'archived';
+export type MaterialContentFormat = 'markdown' | 'html';
 
 export interface Material {
   id: string;
@@ -58,6 +59,7 @@ export interface Material {
   title: string;
   summary: string | null;
   content: string;
+  content_format: MaterialContentFormat;
   type: MaterialType;
   status: MaterialStatus;
   views_count: number;
@@ -65,6 +67,15 @@ export interface Material {
   updated_by_id?: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface ArticleCreateInput {
+  title: string;
+  summary: string | null;
+  content: string;
+  content_format?: MaterialContentFormat;
+  category_id?: number | null;
+  status?: MaterialStatus;
 }
 
 export interface Category {
