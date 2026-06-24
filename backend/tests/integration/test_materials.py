@@ -32,6 +32,40 @@ async def register_and_login(client: AsyncClient, email: str):
     return tokens, auth.cookies
 
 
+def auth_headers(tokens: dict) -> dict:
+    return {"Authorization": f"Bearer {tokens['access_token']}"}
+
+
+async def create_article(client: AsyncClient, tokens, cookies, **overrides) -> dict:
+    payload = {"title": "Статья", "content": "Текст статьи", "status": "published"}
+    payload.update(overrides)
+    resp = await client.post(
+        "/api/v1/materials/articles",
+        json=payload,
+        headers=auth_headers(tokens),
+        cookies=cookies,
+    )
+    assert resp.status_code == 201, resp.text
+    return resp.json()
+
+
+async def create_member_and_login(client: AsyncClient, owner_tokens, owner_cookies, email: str):
+    """Создать участника той же организации (роль member) и залогиниться им."""
+    created = await client.post(
+        "/api/v1/users",
+        json={"email": email, "name": "Сотрудник", "password": "MemberPass123!", "role": "member"},
+        headers=auth_headers(owner_tokens),
+        cookies=owner_cookies,
+    )
+    assert created.status_code == 201, created.text
+    login = await client.post(
+        "/api/v1/auth/login",
+        json={"email": email, "password": "MemberPass123!"},
+    )
+    assert login.status_code == 200, login.text
+    return login.json(), login.cookies
+
+
 @pytest.mark.asyncio
 async def test_subscription_guard_blocks_materials_when_inactive(
     client: AsyncClient,
@@ -159,3 +193,207 @@ async def test_view_published_article_increments_views(
     second = await client.get(f"/api/v1/materials/{article_id}", headers=headers, cookies=cookies)
     assert second.status_code == 200
     assert second.json()["views_count"] >= 1
+
+
+@pytest.mark.asyncio
+async def test_get_material_returns_author_and_organization(
+    client: AsyncClient,
+    unique_email: str,
+):
+    """Детальный ответ содержит имя автора и название организации."""
+    tokens, cookies = await register_and_login(client, unique_email)
+    article = await create_article(client, tokens, cookies)
+
+    resp = await client.get(
+        f"/api/v1/materials/{article['id']}", headers=auth_headers(tokens), cookies=cookies
+    )
+    assert resp.status_code == 200, resp.text
+    data = resp.json()
+    assert data["author_name"] == "Материаловед"
+    assert data["organization_name"] == "Организация материалов"
+
+
+@pytest.mark.asyncio
+async def test_view_does_not_change_updated_at(
+    client: AsyncClient,
+    unique_email: str,
+):
+    """Просмотр увеличивает счётчик, но не двигает дату изменения."""
+    tokens, cookies = await register_and_login(client, unique_email)
+    article = await create_article(client, tokens, cookies)
+
+    # несколько просмотров
+    for _ in range(2):
+        await client.get(
+            f"/api/v1/materials/{article['id']}", headers=auth_headers(tokens), cookies=cookies
+        )
+    resp = await client.get(
+        f"/api/v1/materials/{article['id']}", headers=auth_headers(tokens), cookies=cookies
+    )
+    data = resp.json()
+    assert data["created_at"] == data["updated_at"]
+    assert data["updated_by_name"] is None
+    assert data["views_count"] >= 1
+
+
+@pytest.mark.asyncio
+async def test_update_article_records_editor_and_change_time(
+    client: AsyncClient,
+    unique_email: str,
+):
+    """Реальная правка меняет контент, дату изменения и фиксирует редактора."""
+    tokens, cookies = await register_and_login(client, unique_email)
+    article = await create_article(client, tokens, cookies, content="старый текст")
+
+    patch = await client.patch(
+        f"/api/v1/materials/{article['id']}",
+        json={"content": "## Новый\n\nтекст"},
+        headers=auth_headers(tokens),
+        cookies=cookies,
+    )
+    assert patch.status_code == 200, patch.text
+
+    resp = await client.get(
+        f"/api/v1/materials/{article['id']}", headers=auth_headers(tokens), cookies=cookies
+    )
+    data = resp.json()
+    assert data["content"].startswith("## Новый")
+    assert data["created_at"] != data["updated_at"]
+    assert data["updated_by_name"] == "Материаловед"
+
+
+@pytest.mark.asyncio
+async def test_update_article_noop_keeps_unmodified(
+    client: AsyncClient,
+    unique_email: str,
+):
+    """Сохранение без фактических изменений не помечает статью изменённой."""
+    tokens, cookies = await register_and_login(client, unique_email)
+    article = await create_article(client, tokens, cookies, title="Без правок", content="тело")
+
+    patch = await client.patch(
+        f"/api/v1/materials/{article['id']}",
+        json={"title": "Без правок", "content": "тело"},
+        headers=auth_headers(tokens),
+        cookies=cookies,
+    )
+    assert patch.status_code == 200, patch.text
+
+    resp = await client.get(
+        f"/api/v1/materials/{article['id']}", headers=auth_headers(tokens), cookies=cookies
+    )
+    data = resp.json()
+    assert data["created_at"] == data["updated_at"]
+    assert data["updated_by_name"] is None
+
+
+@pytest.mark.asyncio
+async def test_update_article_only_author(
+    client: AsyncClient,
+    unique_email: str,
+):
+    """Редактировать статью может только автор: участник той же организации получает 403."""
+    owner_tokens, owner_cookies = await register_and_login(client, unique_email)
+    article = await create_article(client, owner_tokens, owner_cookies)
+    member_tokens, member_cookies = await create_member_and_login(
+        client, owner_tokens, owner_cookies, f"member_{unique_email}"
+    )
+
+    resp = await client.patch(
+        f"/api/v1/materials/{article['id']}",
+        json={"content": "чужая правка"},
+        headers=auth_headers(member_tokens),
+        cookies=member_cookies,
+    )
+    assert resp.status_code == 403, resp.text
+
+
+@pytest.mark.asyncio
+async def test_archive_article_hides_from_listing(
+    client: AsyncClient,
+    unique_email: str,
+):
+    """Архивация переводит в archived, прячет из списка, но автор статью видит."""
+    tokens, cookies = await register_and_login(client, unique_email)
+    article = await create_article(client, tokens, cookies, title="В архив")
+
+    archived = await client.post(
+        f"/api/v1/materials/{article['id']}/archive",
+        headers=auth_headers(tokens),
+        cookies=cookies,
+    )
+    assert archived.status_code == 200, archived.text
+    assert archived.json()["status"] == "archived"
+
+    listing = await client.get("/api/v1/materials", headers=auth_headers(tokens), cookies=cookies)
+    titles = [item["title"] for item in listing.json()["items"]]
+    assert "В архив" not in titles
+
+    detail = await client.get(
+        f"/api/v1/materials/{article['id']}", headers=auth_headers(tokens), cookies=cookies
+    )
+    assert detail.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_archive_article_only_author(
+    client: AsyncClient,
+    unique_email: str,
+):
+    """Архивировать может только автор."""
+    owner_tokens, owner_cookies = await register_and_login(client, unique_email)
+    article = await create_article(client, owner_tokens, owner_cookies)
+    member_tokens, member_cookies = await create_member_and_login(
+        client, owner_tokens, owner_cookies, f"member_{unique_email}"
+    )
+
+    resp = await client.post(
+        f"/api/v1/materials/{article['id']}/archive",
+        headers=auth_headers(member_tokens),
+        cookies=member_cookies,
+    )
+    assert resp.status_code == 403, resp.text
+
+
+@pytest.mark.asyncio
+async def test_delete_article_then_not_found(
+    client: AsyncClient,
+    unique_email: str,
+):
+    """Удаление возвращает 204, после чего материал недоступен."""
+    tokens, cookies = await register_and_login(client, unique_email)
+    article = await create_article(client, tokens, cookies)
+
+    deleted = await client.request(
+        "DELETE",
+        f"/api/v1/materials/{article['id']}",
+        headers=auth_headers(tokens),
+        cookies=cookies,
+    )
+    assert deleted.status_code == 204, deleted.text
+
+    resp = await client.get(
+        f"/api/v1/materials/{article['id']}", headers=auth_headers(tokens), cookies=cookies
+    )
+    assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_delete_article_only_author(
+    client: AsyncClient,
+    unique_email: str,
+):
+    """Удалить статью может только автор."""
+    owner_tokens, owner_cookies = await register_and_login(client, unique_email)
+    article = await create_article(client, owner_tokens, owner_cookies)
+    member_tokens, member_cookies = await create_member_and_login(
+        client, owner_tokens, owner_cookies, f"member_{unique_email}"
+    )
+
+    resp = await client.request(
+        "DELETE",
+        f"/api/v1/materials/{article['id']}",
+        headers=auth_headers(member_tokens),
+        cookies=member_cookies,
+    )
+    assert resp.status_code == 403, resp.text
