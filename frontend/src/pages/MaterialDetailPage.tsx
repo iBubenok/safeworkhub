@@ -34,8 +34,8 @@ export function MaterialDetailPage() {
   });
 
   const update = useMutation({
-    mutationFn: () =>
-      materialsApi.updateMaterial(id as string, { title, summary: summary || null, content }),
+    mutationFn: (payload: { title?: string; summary?: string | null; content?: string }) =>
+      materialsApi.updateMaterial(id as string, payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['material', id] });
       queryClient.invalidateQueries({ queryKey: ['materials'] });
@@ -106,7 +106,18 @@ export function MaterialDetailPage() {
       setError('Заголовок и текст не могут быть пустыми');
       return;
     }
-    update.mutate();
+    // Отправляем только реально изменённые поля; если изменений нет —
+    // просто выходим из режима правки, не помечая статью изменённой.
+    const payload: { title?: string; summary?: string | null; content?: string } = {};
+    if (title !== data.title) payload.title = title;
+    if ((summary || '') !== (data.summary ?? '')) payload.summary = summary || null;
+    if (content !== data.content) payload.content = content;
+
+    if (Object.keys(payload).length === 0) {
+      setEditing(false);
+      return;
+    }
+    update.mutate(payload);
   };
 
   return (

@@ -127,11 +127,17 @@ class MaterialService:
             raise AuthorizationError("Редактировать материал может только его автор")
 
         update_data = data.model_dump(exclude_unset=True)
-        if "status" in update_data and update_data["status"] == MaterialStatus.PUBLISHED:
-            update_data["published_at"] = update_data.get("published_at") or utcnow()
-        update_data["updated_by_id"] = editor_id
+        # Оставляем только реально изменившиеся поля. Если изменений нет — не пишем,
+        # чтобы не двигать дату изменения и автора правки на пустом сохранении.
+        changed = {key: value for key, value in update_data.items() if getattr(material, key) != value}
+        if not changed:
+            return MaterialResponse.model_validate(material)
 
-        updated = await self.repository.update(material_id, **update_data)
+        if changed.get("status") == MaterialStatus.PUBLISHED:
+            changed["published_at"] = material.published_at or utcnow()
+        changed["updated_by_id"] = editor_id
+
+        updated = await self.repository.update(material_id, **changed)
         await log_audit(
             self.session,
             action="material_updated",
