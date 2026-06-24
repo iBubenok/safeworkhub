@@ -668,3 +668,61 @@ async def test_update_changes_content_format(
         cookies=cookies,
     )
     assert fetched.json()["content_format"] == "html"
+
+
+@pytest.mark.asyncio
+async def test_create_news_with_detail_fields(
+    client: AsyncClient,
+    unique_email: str,
+):
+    """Новость создаётся с источником, датой, обложкой и тегами."""
+    tokens, cookies = await register_and_login(client, unique_email)
+    created = await client.post(
+        "/api/v1/materials/news",
+        json={
+            "title": "Новый приказ Минтруда",
+            "content": "Краткое содержание",
+            "status": "published",
+            "source_url": "https://mintrud.gov.example/order-123",
+            "event_date": "2026-05-10",
+            "cover_image_url": "https://example.com/cover.png",
+            "tags": ["охрана труда", "приказ"],
+        },
+        headers=auth_headers(tokens),
+        cookies=cookies,
+    )
+    assert created.status_code == 201, created.text
+    body = created.json()
+    assert body["type"] == "news"
+    assert body["news"]["source_url"] == "https://mintrud.gov.example/order-123"
+    assert body["news"]["event_date"] == "2026-05-10"
+    assert body["news"]["cover_image_url"] == "https://example.com/cover.png"
+    assert body["news"]["tags"] == ["охрана труда", "приказ"]
+
+    fetched = await client.get(
+        f"/api/v1/materials/{body['id']}",
+        headers=auth_headers(tokens),
+        cookies=cookies,
+    )
+    assert fetched.status_code == 200, fetched.text
+    assert fetched.json()["news"]["tags"] == ["охрана труда", "приказ"]
+
+
+@pytest.mark.asyncio
+async def test_create_minimal_news(
+    client: AsyncClient,
+    unique_email: str,
+):
+    """Лёгкая новость — только заголовок и текст; деталь с пустыми полями."""
+    tokens, cookies = await register_and_login(client, unique_email)
+    created = await client.post(
+        "/api/v1/materials/news",
+        json={"title": "Появился новый виджет", "content": "Описание", "status": "published"},
+        headers=auth_headers(tokens),
+        cookies=cookies,
+    )
+    assert created.status_code == 201, created.text
+    body = created.json()
+    assert body["type"] == "news"
+    assert body["news"]["source_url"] is None
+    assert body["news"]["tags"] == []

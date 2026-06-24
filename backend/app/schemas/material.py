@@ -1,6 +1,6 @@
 """Схемы для работы с материалами базы знаний."""
 
-from datetime import datetime
+from datetime import date, datetime
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -46,6 +46,37 @@ class ArticleCreate(BaseModel):
     visibility: MaterialVisibility = Field(default=MaterialVisibility.ORG, description="Видимость")
 
 
+class NewsDetail(BaseModel):
+    """Поля, специфичные для новости (в ответе)."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    source_url: str | None = None
+    event_date: date | None = None
+    cover_image_url: str | None = None
+    tags: list[str] = Field(default_factory=list)
+
+
+class NewsCreate(BaseModel):
+    """Схема создания новости (per-type контракт)."""
+
+    title: str = Field(min_length=1, max_length=500, description="Заголовок")
+    summary: str | None = Field(None, max_length=1000, description="Краткое описание")
+    content: str = Field(min_length=1, description="Тело новости")
+    content_format: MaterialContentFormat = Field(
+        default=MaterialContentFormat.MARKDOWN,
+        description="Формат тела",
+    )
+    category_id: int | None = Field(None, description="ID категории")
+    status: MaterialStatus = Field(default=MaterialStatus.DRAFT, description="Статус")
+    visibility: MaterialVisibility = Field(default=MaterialVisibility.ORG, description="Видимость")
+    # Поля, специфичные для новости (все опциональны).
+    source_url: str | None = Field(None, max_length=2000, description="Ссылка на первоисточник")
+    event_date: date | None = Field(None, description="Дата события/новости")
+    cover_image_url: str | None = Field(None, max_length=2000, description="Обложка-превью (URL)")
+    tags: list[str] = Field(default_factory=list, description="Теги")
+
+
 class MaterialUpdate(BaseModel):
     """Схема обновления материала."""
 
@@ -78,6 +109,10 @@ class MaterialResponse(MaterialBase):
     updated_by_name: str | None = None
     created_at: datetime
     updated_at: datetime
+    # Деталь для типа «Новость» (для остальных типов — None). Заполняется вручную
+    # в сервисе; validation_alias не даёт model_validate(material) читать ленивую
+    # связь material.news (иначе MissingGreenlet в async-контексте).
+    news: NewsDetail | None = Field(default=None, validation_alias="news_detail")
 
 
 class MaterialListItem(BaseModel):

@@ -53,6 +53,13 @@ export type MaterialType = 'article' | 'npa' | 'template' | 'reference' | 'news'
 export type MaterialStatus = 'draft' | 'published' | 'archived';
 export type MaterialContentFormat = 'markdown' | 'html';
 
+export interface NewsDetail {
+  source_url: string | null;
+  event_date: string | null;
+  cover_image_url: string | null;
+  tags: string[];
+}
+
 export interface Material {
   id: string;
   organization_id: number;
@@ -71,6 +78,7 @@ export interface Material {
   updated_by_name?: string | null;
   created_at: string;
   updated_at: string;
+  news?: NewsDetail | null;
 }
 
 export interface ArticleCreateInput {
@@ -80,6 +88,19 @@ export interface ArticleCreateInput {
   content_format?: MaterialContentFormat;
   category_id?: number | null;
   status?: MaterialStatus;
+}
+
+export interface NewsCreateInput {
+  title: string;
+  summary: string | null;
+  content: string;
+  content_format?: MaterialContentFormat;
+  category_id?: number | null;
+  status?: MaterialStatus;
+  source_url?: string | null;
+  event_date?: string | null;
+  cover_image_url?: string | null;
+  tags?: string[];
 }
 
 export interface Category {

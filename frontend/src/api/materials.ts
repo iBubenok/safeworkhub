@@ -7,6 +7,7 @@ import type {
   MaterialListItem,
   MaterialType,
   MaterialSearchParams,
+  NewsCreateInput,
   PaginatedResponse,
 } from '@/types';
 
@@ -59,6 +60,11 @@ export async function createMaterial(payload: {
 
 export async function createArticle(payload: ArticleCreateInput): Promise<Material> {
   const response = await apiClient.post<Material>('/materials/articles', payload);
+  return response.data;
+}
+
+export async function createNews(payload: NewsCreateInput): Promise<Material> {
+  const response = await apiClient.post<Material>('/materials/news', payload);
   return response.data;
 }
 

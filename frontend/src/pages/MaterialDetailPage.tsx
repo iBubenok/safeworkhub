@@ -302,6 +302,43 @@ export function MaterialDetailPage() {
             <h1 className="mt-2 text-2xl font-bold text-gray-900">{data.title}</h1>
             {data.summary && <p className="mt-1 text-gray-600">{data.summary}</p>}
 
+            {data.news && (
+              <div className="mt-3 space-y-2">
+                {data.news.cover_image_url && (
+                  <img
+                    src={data.news.cover_image_url}
+                    alt=""
+                    referrerPolicy="no-referrer"
+                    className="max-h-64 w-full rounded-lg border border-gray-200 object-cover"
+                  />
+                )}
+                <div className="flex flex-wrap items-center gap-3 text-sm text-gray-500">
+                  {data.news.event_date && (
+                    <span>Дата новости: {new Date(data.news.event_date).toLocaleDateString('ru-RU')}</span>
+                  )}
+                  {data.news.source_url && (
+                    <a
+                      href={data.news.source_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary-600 underline"
+                    >
+                      Первоисточник
+                    </a>
+                  )}
+                </div>
+                {data.news.tags.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {data.news.tags.map((tag) => (
+                      <span key={tag} className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600">
+                        #{tag}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
             <div className="mt-4 border-t pt-4">
               <Markdown>{data.content}</Markdown>
             </div>

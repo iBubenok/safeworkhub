@@ -22,6 +22,7 @@ from app.schemas.material import (
     MaterialListResponse,
     MaterialResponse,
     MaterialUpdate,
+    NewsCreate,
     SearchRequest,
     SearchResponse,
 )
@@ -106,6 +107,29 @@ async def create_article(
 ) -> MaterialResponse:
     service = MaterialService(session)
     return await service.create_article(
+        organization_id=ctx.organization_id,
+        author_id=ctx.user.id,
+        data=data,
+        request_id=getattr(request.state, "request_id", None),
+    )
+
+
+@router.post(
+    "/news",
+    response_model=MaterialResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Создать новость",
+    description="Создание материала типа «новость». Требуются права владельца организации.",
+    dependencies=[Depends(require_roles(OrgRole.ORG_OWNER))],
+)
+async def create_news(
+    request: Request,
+    data: NewsCreate,
+    ctx: CurrentContext,
+    session: DbSession,
+) -> MaterialResponse:
+    service = MaterialService(session)
+    return await service.create_news(
         organization_id=ctx.organization_id,
         author_id=ctx.user.id,
         data=data,

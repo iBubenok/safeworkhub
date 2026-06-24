@@ -28,6 +28,7 @@ class MaterialRepository(BaseRepository[Material]):
                 joinedload(Material.author),
                 joinedload(Material.organization),
                 joinedload(Material.updated_by),
+                joinedload(Material.news),
             )
             .where(Material.id == material_id)
         )

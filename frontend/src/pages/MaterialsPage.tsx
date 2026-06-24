@@ -7,6 +7,7 @@ import * as materialsApi from '@/api/materials';
 import { getErrorMessage } from '@/api/client';
 import { useAuth } from '@/hooks/useAuth';
 import { ArticleForm } from '@/components/materials/ArticleForm';
+import { NewsForm } from '@/components/materials/NewsForm';
 import type { MaterialListItem, MaterialStatus, MaterialType } from '@/types';
 
 const materialTypes: { value: MaterialType | ''; label: string; icon: typeof FileText }[] = [
@@ -237,6 +238,8 @@ export function MaterialsPage() {
 
           {createType === 'article' ? (
             <ArticleForm categories={categoriesQuery.data ?? []} />
+          ) : createType === 'news' ? (
+            <NewsForm categories={categoriesQuery.data ?? []} />
           ) : (
             <>
               {formError && (

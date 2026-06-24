@@ -11,6 +11,7 @@ from app.core.exceptions import AuthorizationError, ConflictError, NotFoundError
 from app.db.repositories import CategoryRepository, MaterialRepository
 from app.models import Category
 from app.models.material import MaterialStatus, MaterialType, MaterialVisibility
+from app.models.news import News
 from app.models.notification import Notification
 from app.schemas.material import (
     ArticleCreate,
@@ -20,6 +21,8 @@ from app.schemas.material import (
     MaterialListResponse,
     MaterialResponse,
     MaterialUpdate,
+    NewsCreate,
+    NewsDetail,
     SearchRequest,
     SearchResponse,
     SearchResult,
@@ -109,6 +112,52 @@ class MaterialService:
             details={"status": material.status, "type": MaterialType.ARTICLE},
         )
         return MaterialResponse.model_validate(material)
+
+    async def create_news(
+        self,
+        *,
+        organization_id: int,
+        author_id: UUID,
+        data: NewsCreate,
+        request_id: str | None = None,
+    ) -> MaterialResponse:
+        """Создать новость: базовый материал (type=NEWS) + деталь-строку news."""
+        material = await self.repository.create(
+            organization_id=organization_id,
+            author_id=author_id,
+            title=data.title,
+            content=data.content,
+            content_format=data.content_format,
+            summary=data.summary,
+            type=MaterialType.NEWS,
+            status=data.status,
+            visibility=data.visibility,
+            category_id=data.category_id,
+            published_at=utcnow() if data.status == MaterialStatus.PUBLISHED else None,
+        )
+        detail = News(
+            material_id=material.id,
+            source_url=data.source_url,
+            event_date=data.event_date,
+            cover_image_url=data.cover_image_url,
+            tags=data.tags,
+        )
+        self.session.add(detail)
+        await self.session.flush()
+
+        await log_audit(
+            self.session,
+            action="news_created",
+            entity_type="material",
+            entity_id=str(material.id),
+            organization_id=organization_id,
+            user_id=str(author_id),
+            request_id=request_id,
+            details={"status": material.status, "type": MaterialType.NEWS},
+        )
+        response = MaterialResponse.model_validate(material)
+        response.news = NewsDetail.model_validate(detail)
+        return response
 
     async def update_material(
         self,
@@ -310,6 +359,8 @@ class MaterialService:
         response.author_name = material.author.name if material.author else None
         response.organization_name = material.organization.name if material.organization else None
         response.updated_by_name = material.updated_by.name if material.updated_by else None
+        # Деталь новости (joinedload в get_with_relations) — если это новость.
+        response.news = NewsDetail.model_validate(material.news) if material.news else None
 
         # Члены организации видят и черновики своей организации (чтение перед публикацией).
         # Счётчик просмотров увеличиваем только для опубликованных — чтобы не накручивать

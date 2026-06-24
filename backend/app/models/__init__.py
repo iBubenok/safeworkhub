@@ -14,6 +14,7 @@ from app.models.material import (
     MaterialType,
     MaterialVisibility,
 )
+from app.models.news import News
 from app.models.notification import Notification, NotificationSettings
 from app.models.organization import Organization, OrganizationUser, OrgRole
 from app.models.refresh_session import RefreshSession
@@ -32,6 +33,7 @@ __all__ = [
     "MaterialStatus",
     "MaterialType",
     "MaterialVisibility",
+    "News",
     "Notification",
     "NotificationSettings",
     "OrgRole",

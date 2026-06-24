@@ -25,6 +25,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base, IntegerPKMixin, TimestampMixin, UUIDMixin
 
 if TYPE_CHECKING:
+    from app.models.news import News
     from app.models.organization import Organization
     from app.models.user import User
 
@@ -183,6 +184,12 @@ class Material(Base, UUIDMixin, TimestampMixin):
     updated_by: Mapped["User | None"] = relationship(
         foreign_keys=[updated_by_id],
         lazy="selectin",
+    )
+    # Деталь для типа «Новость» (1:1). Для остальных типов — None.
+    news: Mapped["News | None"] = relationship(
+        back_populates="material",
+        uselist=False,
+        cascade="all, delete-orphan",
     )
 
     __table_args__ = (
