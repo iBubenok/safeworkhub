@@ -65,6 +65,15 @@ export async function publishMaterial(materialId: string): Promise<Material> {
   return response.data;
 }
 
+export async function archiveMaterial(materialId: string): Promise<Material> {
+  const response = await apiClient.post<Material>(`/materials/${materialId}/archive`);
+  return response.data;
+}
+
+export async function deleteMaterial(materialId: string): Promise<void> {
+  await apiClient.delete(`/materials/${materialId}`);
+}
+
 export async function getCategories(): Promise<Category[]> {
   const response = await apiClient.get<Category[]>('/materials/categories');
   return response.data;

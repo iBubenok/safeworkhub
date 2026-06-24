@@ -245,3 +245,47 @@ async def get_material(
         material_id,
         organization_id=ctx.organization_id,
     )
+
+
+@router.post(
+    "/{material_id}/archive",
+    response_model=MaterialResponse,
+    summary="Архивировать материал",
+    description="Перевод материала в архив. Доступно только автору материала.",
+)
+async def archive_material(
+    material_id: UUID,
+    request: Request,
+    ctx: CurrentContext,
+    session: DbSession,
+) -> MaterialResponse:
+    service = MaterialService(session)
+    return await service.archive_material(
+        material_id,
+        organization_id=ctx.organization_id,
+        user_id=ctx.user.id,
+        is_superuser=ctx.user.is_superuser,
+        request_id=getattr(request.state, "request_id", None),
+    )
+
+
+@router.delete(
+    "/{material_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Удалить материал",
+    description="Полное удаление материала. Доступно только автору материала.",
+)
+async def delete_material(
+    material_id: UUID,
+    request: Request,
+    ctx: CurrentContext,
+    session: DbSession,
+) -> None:
+    service = MaterialService(session)
+    await service.delete_material(
+        material_id,
+        organization_id=ctx.organization_id,
+        user_id=ctx.user.id,
+        is_superuser=ctx.user.is_superuser,
+        request_id=getattr(request.state, "request_id", None),
+    )

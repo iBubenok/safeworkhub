@@ -4,12 +4,14 @@ from __future__ import annotations
 
 from uuid import UUID
 
+from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import ConflictError, NotFoundError
+from app.core.exceptions import AuthorizationError, ConflictError, NotFoundError
 from app.db.repositories import CategoryRepository, MaterialRepository
 from app.models import Category
 from app.models.material import MaterialStatus, MaterialType
+from app.models.notification import Notification
 from app.schemas.material import (
     ArticleCreate,
     CategoryCreate,
@@ -168,6 +170,73 @@ class MaterialService:
             details={"status": MaterialStatus.PUBLISHED},
         )
         return MaterialResponse.model_validate(updated)
+
+    async def archive_material(
+        self,
+        material_id: UUID,
+        *,
+        organization_id: int,
+        user_id: UUID,
+        is_superuser: bool = False,
+        request_id: str | None = None,
+    ) -> MaterialResponse:
+        """Перевести материал в архив (виден только автору, скрыт из общих списков)."""
+        material = await self.repository.get_by_id(material_id)
+        if material is None or material.organization_id != organization_id:
+            raise NotFoundError("Материал", str(material_id))
+        if material.author_id != user_id and not is_superuser:
+            raise AuthorizationError("Архивировать материал может только его автор")
+
+        updated = await self.repository.update(
+            material_id,
+            status=MaterialStatus.ARCHIVED,
+            updated_by_id=user_id,
+        )
+        await log_audit(
+            self.session,
+            action="material_archived",
+            entity_type="material",
+            entity_id=str(material_id),
+            organization_id=organization_id,
+            user_id=str(user_id),
+            request_id=request_id,
+            details={"status": MaterialStatus.ARCHIVED},
+        )
+        return MaterialResponse.model_validate(updated)
+
+    async def delete_material(
+        self,
+        material_id: UUID,
+        *,
+        organization_id: int,
+        user_id: UUID,
+        is_superuser: bool = False,
+        request_id: str | None = None,
+    ) -> None:
+        """Полностью удалить материал (только автор). Чистит связанные уведомления."""
+        material = await self.repository.get_by_id(material_id)
+        if material is None or material.organization_id != organization_id:
+            raise NotFoundError("Материал", str(material_id))
+        if material.author_id != user_id and not is_superuser:
+            raise AuthorizationError("Удалять материал может только его автор")
+
+        # Убираем уведомления-ссылки на этот материал, чтобы не было битых переходов.
+        await self.session.execute(
+            delete(Notification).where(
+                Notification.entity_type == "material",
+                Notification.entity_id == material_id,
+            )
+        )
+        await self.repository.delete(material_id)
+        await log_audit(
+            self.session,
+            action="material_deleted",
+            entity_type="material",
+            entity_id=str(material_id),
+            organization_id=organization_id,
+            user_id=str(user_id),
+            request_id=request_id,
+        )
 
     async def get_material(self, material_id: UUID, *, organization_id: int) -> MaterialResponse:
         material = await self.repository.get_with_relations(material_id)
