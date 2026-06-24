@@ -6,7 +6,7 @@ from uuid import UUID
 
 from sqlalchemy import desc, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import joinedload
 
 from app.db.repositories.base import BaseRepository
 from app.models import Material, MaterialStatus, MaterialType, MaterialVisibility
@@ -23,9 +23,11 @@ class MaterialRepository(BaseRepository[Material]):
         query = (
             select(Material)
             .options(
-                selectinload(Material.author),
-                selectinload(Material.organization),
-                selectinload(Material.updated_by),
+                # joinedload для связей «к одному» подтягивает всё одним запросом
+                # (LEFT JOIN), вместо отдельного запроса на каждую связь.
+                joinedload(Material.author),
+                joinedload(Material.organization),
+                joinedload(Material.updated_by),
             )
             .where(Material.id == material_id)
         )
