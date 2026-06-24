@@ -74,6 +74,7 @@ class MaterialResponse(MaterialBase):
     status: MaterialStatus
     published_at: datetime | None
     updated_by_id: UUID | None = None
+    updated_by_name: str | None = None
     created_at: datetime
     updated_at: datetime
 

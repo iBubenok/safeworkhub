@@ -65,6 +65,14 @@ export async function publishMaterial(materialId: string): Promise<Material> {
   return response.data;
 }
 
+export async function updateMaterial(
+  materialId: string,
+  payload: { title?: string; summary?: string | null; content?: string },
+): Promise<Material> {
+  const response = await apiClient.patch<Material>(`/materials/${materialId}`, payload);
+  return response.data;
+}
+
 export async function archiveMaterial(materialId: string): Promise<Material> {
   const response = await apiClient.post<Material>(`/materials/${materialId}/archive`);
   return response.data;

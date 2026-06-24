@@ -117,8 +117,7 @@ async def create_article(
     "/{material_id}",
     response_model=MaterialResponse,
     summary="Обновить материал",
-    description="Обновление материала. Требуются права владельца организации.",
-    dependencies=[Depends(require_roles(OrgRole.ORG_OWNER))],
+    description="Редактирование материала. Доступно только автору материала.",
 )
 async def update_material(
     material_id: UUID,
@@ -133,6 +132,7 @@ async def update_material(
         organization_id=ctx.organization_id,
         editor_id=ctx.user.id,
         data=data,
+        is_superuser=ctx.user.is_superuser,
         request_id=getattr(request.state, "request_id", None),
     )
 

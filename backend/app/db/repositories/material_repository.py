@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from sqlalchemy import desc, func, or_, select
+from sqlalchemy import desc, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -22,7 +22,11 @@ class MaterialRepository(BaseRepository[Material]):
         """Материал вместе с автором и организацией (для детального просмотра)."""
         query = (
             select(Material)
-            .options(selectinload(Material.author), selectinload(Material.organization))
+            .options(
+                selectinload(Material.author),
+                selectinload(Material.organization),
+                selectinload(Material.updated_by),
+            )
             .where(Material.id == material_id)
         )
         result = await self.session.execute(query)
@@ -102,11 +106,17 @@ class MaterialRepository(BaseRepository[Material]):
         return materials, total
 
     async def increment_views(self, material_id: UUID) -> None:
-        """Увеличить счётчик просмотров материала."""
-        material = await self.get_by_id(material_id)
-        if material:
-            material.views_count += 1
-            await self.session.flush()
+        """Увеличить счётчик просмотров материала.
+
+        Явно сохраняем прежний updated_at, иначе onupdate сдвинул бы дату
+        изменения при обычном просмотре (просмотр — не редактирование).
+        """
+        stmt = (
+            update(Material)
+            .where(Material.id == material_id)
+            .values(views_count=Material.views_count + 1, updated_at=Material.updated_at)
+        )
+        await self.session.execute(stmt)
 
     async def get_popular(
         self,

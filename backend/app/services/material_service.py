@@ -117,11 +117,14 @@ class MaterialService:
         organization_id: int,
         editor_id: UUID,
         data: MaterialUpdate,
+        is_superuser: bool = False,
         request_id: str | None = None,
     ) -> MaterialResponse:
         material = await self.repository.get_by_id(material_id)
         if material is None or material.organization_id != organization_id:
             raise NotFoundError("Материал", str(material_id))
+        if material.author_id != editor_id and not is_superuser:
+            raise AuthorizationError("Редактировать материал может только его автор")
 
         update_data = data.model_dump(exclude_unset=True)
         if "status" in update_data and update_data["status"] == MaterialStatus.PUBLISHED:
@@ -249,6 +252,7 @@ class MaterialService:
         response = MaterialResponse.model_validate(material)
         response.author_name = material.author.name if material.author else None
         response.organization_name = material.organization.name if material.organization else None
+        response.updated_by_name = material.updated_by.name if material.updated_by else None
 
         # Члены организации видят и черновики своей организации (чтение перед публикацией).
         # Счётчик просмотров увеличиваем только для опубликованных — чтобы не накручивать

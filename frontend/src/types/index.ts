@@ -68,6 +68,7 @@ export interface Material {
   views_count: number;
   published_at: string | null;
   updated_by_id?: string | null;
+  updated_by_name?: string | null;
   created_at: string;
   updated_at: string;
 }
