@@ -244,6 +244,8 @@ async def get_material(
     return await service.get_material(
         material_id,
         organization_id=ctx.organization_id,
+        requester_id=ctx.user.id,
+        is_superuser=ctx.user.is_superuser,
     )
 
 

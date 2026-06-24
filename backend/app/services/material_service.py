@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.exceptions import AuthorizationError, ConflictError, NotFoundError
 from app.db.repositories import CategoryRepository, MaterialRepository
 from app.models import Category
-from app.models.material import MaterialStatus, MaterialType
+from app.models.material import MaterialStatus, MaterialType, MaterialVisibility
 from app.models.notification import Notification
 from app.schemas.material import (
     ArticleCreate,
@@ -247,9 +247,25 @@ class MaterialService:
             request_id=request_id,
         )
 
-    async def get_material(self, material_id: UUID, *, organization_id: int) -> MaterialResponse:
+    async def get_material(
+        self,
+        material_id: UUID,
+        *,
+        organization_id: int,
+        requester_id: UUID | None = None,
+        is_superuser: bool = False,
+    ) -> MaterialResponse:
         material = await self.repository.get_with_relations(material_id)
-        if material is None or material.organization_id != organization_id:
+        if material is None:
+            raise NotFoundError("Материал", str(material_id))
+
+        # Контроль доступа:
+        # - опубликованное видно своей организации, а публичное — всем;
+        # - черновик/архив видит только автор (или суперпользователь).
+        if material.status == MaterialStatus.PUBLISHED:
+            if material.organization_id != organization_id and material.visibility != MaterialVisibility.PUBLIC:
+                raise NotFoundError("Материал", str(material_id))
+        elif not (is_superuser or material.author_id == requester_id):
             raise NotFoundError("Материал", str(material_id))
 
         # Сериализуем ДО инкремента: increment_views делает flush и обновляет объект,
