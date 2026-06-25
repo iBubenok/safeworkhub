@@ -302,6 +302,22 @@ export function MaterialDetailPage() {
 
         {editing ? (
           <div className="mt-3 space-y-3">
+            <div className="rounded-lg border border-primary-200 bg-primary-50 p-3">
+              <label className="label" htmlFor="edit-note">
+                Примечание к изменению (необязательно)
+              </label>
+              <input
+                id="edit-note"
+                className="input"
+                placeholder="Например: приведено в соответствие с приказом №…"
+                value={changeNote}
+                onChange={(e) => setChangeNote(e.target.value)}
+                maxLength={500}
+              />
+              <p className="mt-1 text-xs text-gray-500">
+                Появится в истории версий рядом с этой правкой.
+              </p>
+            </div>
             <div>
               <label className="label" htmlFor="edit-title">
                 Заголовок
@@ -329,19 +345,6 @@ export function MaterialDetailPage() {
                 Текст
               </label>
               <ContentEditor id="edit-content" value={content} onChange={setContent} />
-            </div>
-            <div>
-              <label className="label" htmlFor="edit-note">
-                Примечание к изменению (необязательно)
-              </label>
-              <input
-                id="edit-note"
-                className="input"
-                placeholder="Например: приведено в соответствие с приказом №…"
-                value={changeNote}
-                onChange={(e) => setChangeNote(e.target.value)}
-                maxLength={500}
-              />
             </div>
           </div>
         ) : (
