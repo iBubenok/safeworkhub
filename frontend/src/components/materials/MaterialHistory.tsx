@@ -117,7 +117,7 @@ export function MaterialHistory({ materialId }: { materialId: string }) {
                           <span className="block text-gray-500">{formatDateTime(v.created_at)}</span>
                           {v.editor_name && <span className="block truncate text-gray-500">{v.editor_name}</span>}
                           {v.change_note && (
-                            <span className="block truncate text-gray-400" title={v.change_note}>
+                            <span className="block text-gray-400" title={v.change_note}>
                               {v.change_note}
                             </span>
                           )}
