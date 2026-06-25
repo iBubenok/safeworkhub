@@ -1,6 +1,7 @@
 import { apiClient } from './client';
 import type {
   ArticleCreateInput,
+  AttachmentResponse,
   Category,
   Material,
   MaterialContentFormat,
@@ -9,6 +10,7 @@ import type {
   MaterialSearchParams,
   NewsCreateInput,
   PaginatedResponse,
+  TemplateCreateInput,
 } from '@/types';
 
 export async function getMaterials(
@@ -67,6 +69,45 @@ export async function createArticle(payload: ArticleCreateInput): Promise<Materi
 export async function createNews(payload: NewsCreateInput): Promise<Material> {
   const response = await apiClient.post<Material>('/materials/news', payload);
   return response.data;
+}
+
+export async function createTemplate(payload: TemplateCreateInput): Promise<Material> {
+  const response = await apiClient.post<Material>('/materials/templates', payload);
+  return response.data;
+}
+
+export async function uploadAttachment(materialId: string, file: File): Promise<AttachmentResponse> {
+  const formData = new FormData();
+  formData.append('file', file);
+  const response = await apiClient.post<AttachmentResponse>(
+    `/materials/${materialId}/attachments`,
+    formData,
+    // Перекрываем глобальный application/json, чтобы axios выставил multipart-boundary.
+    { headers: { 'Content-Type': 'multipart/form-data' } },
+  );
+  return response.data;
+}
+
+export async function deleteAttachment(materialId: string, attachmentId: string): Promise<void> {
+  await apiClient.delete(`/materials/${materialId}/attachments/${attachmentId}`);
+}
+
+export async function downloadAttachment(
+  materialId: string,
+  attachment: { id: string; filename: string },
+): Promise<void> {
+  const response = await apiClient.get<Blob>(
+    `/materials/${materialId}/attachments/${attachment.id}`,
+    { responseType: 'blob' },
+  );
+  const url = URL.createObjectURL(response.data);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = attachment.filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
 }
 
 export async function publishMaterial(materialId: string): Promise<Material> {

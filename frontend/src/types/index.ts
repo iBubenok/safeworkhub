@@ -60,6 +60,14 @@ export interface NewsDetail {
   tags: string[];
 }
 
+export interface AttachmentResponse {
+  id: string;
+  filename: string;
+  content_type: string;
+  size_bytes: number;
+  created_at: string;
+}
+
 export interface Material {
   id: string;
   organization_id: number;
@@ -79,6 +87,16 @@ export interface Material {
   created_at: string;
   updated_at: string;
   news?: NewsDetail | null;
+  attachments?: AttachmentResponse[];
+}
+
+export interface TemplateCreateInput {
+  title: string;
+  summary: string | null;
+  content?: string;
+  content_format?: MaterialContentFormat;
+  category_id?: number | null;
+  status?: MaterialStatus;
 }
 
 export interface ArticleCreateInput {

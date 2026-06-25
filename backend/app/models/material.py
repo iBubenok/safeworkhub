@@ -25,6 +25,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base, IntegerPKMixin, TimestampMixin, UUIDMixin
 
 if TYPE_CHECKING:
+    from app.models.attachment import MaterialAttachment
     from app.models.news import News
     from app.models.organization import Organization
     from app.models.user import User
@@ -190,6 +191,12 @@ class Material(Base, UUIDMixin, TimestampMixin):
         back_populates="material",
         uselist=False,
         cascade="all, delete-orphan",
+    )
+    # Прикреплённые файлы (1:много). Используются шаблонами.
+    attachments: Mapped[list["MaterialAttachment"]] = relationship(
+        back_populates="material",
+        cascade="all, delete-orphan",
+        order_by="MaterialAttachment.created_at",
     )
 
     __table_args__ = (

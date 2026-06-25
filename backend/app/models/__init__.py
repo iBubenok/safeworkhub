@@ -4,6 +4,7 @@
 и обеспечения корректной работы Alembic.
 """
 
+from app.models.attachment import MaterialAttachment
 from app.models.audit_log import AuditLog
 from app.models.course import AssignmentStatus, Course, CourseAssignment, CourseModule
 from app.models.material import (
@@ -29,6 +30,7 @@ __all__ = [
     "CourseAssignment",
     "CourseModule",
     "Material",
+    "MaterialAttachment",
     "MaterialContentFormat",
     "MaterialStatus",
     "MaterialType",

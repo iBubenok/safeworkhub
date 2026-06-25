@@ -2,19 +2,24 @@
 
 from __future__ import annotations
 
-from uuid import UUID
+from collections.abc import Iterator
+from pathlib import Path
+from uuid import UUID, uuid4
 
+from fastapi import UploadFile
 from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import AuthorizationError, ConflictError, NotFoundError
+from app.core.config import settings
+from app.core.exceptions import AuthorizationError, ConflictError, NotFoundError, ValidationError
 from app.db.repositories import CategoryRepository, MaterialRepository
-from app.models import Category, Material
+from app.models import Category, Material, MaterialAttachment
 from app.models.material import MaterialStatus, MaterialType, MaterialVisibility
 from app.models.news import News
 from app.models.notification import Notification
 from app.schemas.material import (
     ArticleCreate,
+    AttachmentResponse,
     CategoryCreate,
     MaterialCreate,
     MaterialListItem,
@@ -26,7 +31,9 @@ from app.schemas.material import (
     SearchRequest,
     SearchResponse,
     SearchResult,
+    TemplateCreate,
 )
+from app.services.file_storage import LocalFileStorage, StorageLimitExceeded
 from app.services.utils import log_audit, utcnow
 
 
@@ -37,6 +44,7 @@ class MaterialService:
         self.session = session
         self.repository = MaterialRepository(session)
         self.category_repo = CategoryRepository(session)
+        self.storage = LocalFileStorage(settings.storage_local_path)
 
     def _make_slug(self, name: str, slug: str | None) -> str:
         """Упрощённая нормализация slug."""
@@ -317,12 +325,15 @@ class MaterialService:
         is_superuser: bool = False,
         request_id: str | None = None,
     ) -> None:
-        """Полностью удалить материал (только автор). Чистит связанные уведомления."""
-        material = await self.repository.get_by_id(material_id)
+        """Полностью удалить материал (только автор). Чистит уведомления и файлы."""
+        material = await self.repository.get_with_relations(material_id)
         if material is None or material.organization_id != organization_id:
             raise NotFoundError("Материал", str(material_id))
         if material.author_id != user_id and not is_superuser:
             raise AuthorizationError("Удалять материал может только его автор")
+
+        # Запоминаем ключи файлов до удаления строки (каскад уберёт строки вложений).
+        storage_keys = [a.storage_key for a in material.attachments]
 
         # Убираем уведомления-ссылки на этот материал, чтобы не было битых переходов.
         await self.session.execute(
@@ -332,6 +343,9 @@ class MaterialService:
             )
         )
         await self.repository.delete(material_id)
+        # Физические файлы удаляем после строки (best-effort; вне транзакции БД).
+        for key in storage_keys:
+            await self.storage.delete(key)
         await log_audit(
             self.session,
             action="material_deleted",
@@ -372,6 +386,8 @@ class MaterialService:
         response.updated_by_name = material.updated_by.name if material.updated_by else None
         # Деталь новости (joinedload в get_with_relations) — если это новость.
         response.news = NewsDetail.model_validate(material.news) if material.news else None
+        # Прикреплённые файлы (selectinload) — для шаблонов и пр.
+        response.attachments = [AttachmentResponse.model_validate(a) for a in material.attachments]
 
         # Члены организации видят и черновики своей организации (чтение перед публикацией).
         # Счётчик просмотров увеличиваем только для опубликованных — чтобы не накручивать
@@ -379,6 +395,143 @@ class MaterialService:
         if material.status == MaterialStatus.PUBLISHED:
             await self.repository.increment_views(material_id)
         return response
+
+    @staticmethod
+    def _ensure_visible(
+        material: Material,
+        *,
+        organization_id: int,
+        requester_id: UUID | None,
+        is_superuser: bool,
+    ) -> None:
+        """Контроль доступа к материалу (как в get_material). Иначе 404."""
+        if material.status == MaterialStatus.PUBLISHED:
+            if material.organization_id != organization_id and material.visibility != MaterialVisibility.PUBLIC:
+                raise NotFoundError("Материал", str(material.id))
+        elif not (is_superuser or material.author_id == requester_id):
+            raise NotFoundError("Материал", str(material.id))
+
+    def _validate_upload(self, upload: UploadFile, current_count: int) -> str:
+        """Проверить количество/имя/расширение. Вернуть расширение (без точки)."""
+        if current_count >= settings.max_attachments_per_material:
+            raise ValidationError(f"Достигнут лимит вложений ({settings.max_attachments_per_material})")
+        filename = (upload.filename or "").strip()
+        if not filename:
+            raise ValidationError("У файла отсутствует имя")
+        ext = Path(filename).suffix.lower().lstrip(".")
+        allowed = {e.lower() for e in settings.allowed_upload_extensions}
+        if ext not in allowed:
+            raise ValidationError(f"Недопустимый тип файла .{ext}. Разрешены: {', '.join(sorted(allowed))}")
+        return ext
+
+    async def add_attachment(
+        self,
+        material_id: UUID,
+        *,
+        organization_id: int,
+        user_id: UUID,
+        is_superuser: bool,
+        upload: UploadFile,
+        request_id: str | None = None,
+    ) -> AttachmentResponse:
+        """Загрузить файл к материалу (только автор/суперпользователь)."""
+        material = await self.repository.get_with_relations(material_id)
+        if material is None or material.organization_id != organization_id:
+            raise NotFoundError("Материал", str(material_id))
+        if material.author_id != user_id and not is_superuser:
+            raise AuthorizationError("Прикреплять файлы может только автор материала")
+
+        ext = self._validate_upload(upload, len(material.attachments))
+        key = f"attachments/{organization_id}/{uuid4().hex}.{ext}"
+        max_bytes = settings.max_upload_size_mb * 1024 * 1024
+        try:
+            size = await self.storage.save(key, upload, max_bytes=max_bytes)
+        except StorageLimitExceeded as exc:
+            raise ValidationError(f"Файл превышает лимит {settings.max_upload_size_mb} МБ") from exc
+
+        attachment = MaterialAttachment(
+            material_id=material.id,
+            filename=Path(upload.filename or "file").name[:255],
+            storage_key=key,
+            content_type=upload.content_type or "application/octet-stream",
+            size_bytes=size,
+            uploaded_by_id=user_id,
+        )
+        self.session.add(attachment)
+        await self.session.flush()
+
+        await log_audit(
+            self.session,
+            action="attachment_added",
+            entity_type="material",
+            entity_id=str(material.id),
+            organization_id=organization_id,
+            user_id=str(user_id),
+            request_id=request_id,
+            details={"attachment_id": str(attachment.id), "filename": attachment.filename},
+        )
+        return AttachmentResponse.model_validate(attachment)
+
+    async def delete_attachment(
+        self,
+        material_id: UUID,
+        attachment_id: UUID,
+        *,
+        organization_id: int,
+        user_id: UUID,
+        is_superuser: bool,
+        request_id: str | None = None,
+    ) -> None:
+        """Удалить вложение материала (только автор/суперпользователь)."""
+        material = await self.repository.get_by_id(material_id)
+        if material is None or material.organization_id != organization_id:
+            raise NotFoundError("Материал", str(material_id))
+        if material.author_id != user_id and not is_superuser:
+            raise AuthorizationError("Удалять файлы может только автор материала")
+
+        attachment = await self.session.get(MaterialAttachment, attachment_id)
+        if attachment is None or attachment.material_id != material_id:
+            raise NotFoundError("Вложение", str(attachment_id))
+
+        key = attachment.storage_key
+        await self.session.delete(attachment)
+        await self.session.flush()
+        await self.storage.delete(key)
+
+        await log_audit(
+            self.session,
+            action="attachment_deleted",
+            entity_type="material",
+            entity_id=str(material_id),
+            organization_id=organization_id,
+            user_id=str(user_id),
+            request_id=request_id,
+            details={"attachment_id": str(attachment_id)},
+        )
+
+    async def get_attachment_for_download(
+        self,
+        material_id: UUID,
+        attachment_id: UUID,
+        *,
+        organization_id: int,
+        requester_id: UUID,
+        is_superuser: bool = False,
+    ) -> tuple[MaterialAttachment, Iterator[bytes]]:
+        """Вложение + поток файла с проверкой приватности материала."""
+        material = await self.repository.get_by_id(material_id)
+        if material is None:
+            raise NotFoundError("Материал", str(material_id))
+        self._ensure_visible(
+            material,
+            organization_id=organization_id,
+            requester_id=requester_id,
+            is_superuser=is_superuser,
+        )
+        attachment = await self.session.get(MaterialAttachment, attachment_id)
+        if attachment is None or attachment.material_id != material_id:
+            raise NotFoundError("Вложение", str(attachment_id))
+        return attachment, self.storage.open_stream(attachment.storage_key)
 
     async def get_materials(
         self,

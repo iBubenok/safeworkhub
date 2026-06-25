@@ -1,9 +1,11 @@
 """Эндпоинты базы знаний."""
 
 from typing import Annotated
+from urllib.parse import quote
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query, Request, status
+from fastapi import APIRouter, Depends, File, Query, Request, UploadFile, status
+from fastapi.responses import StreamingResponse
 
 from app.core.dependencies import (
     ActiveSubscriptionContext,
@@ -15,6 +17,7 @@ from app.models.material import MaterialStatus, MaterialType
 from app.models.organization import OrgRole
 from app.schemas.material import (
     ArticleCreate,
+    AttachmentResponse,
     CategoryCreate,
     CategoryResponse,
     MaterialCreate,
@@ -25,6 +28,7 @@ from app.schemas.material import (
     NewsCreate,
     SearchRequest,
     SearchResponse,
+    TemplateCreate,
 )
 from app.services.material_service import MaterialService
 
@@ -349,6 +353,86 @@ async def restore_material(
     service = MaterialService(session)
     return await service.restore_material(
         material_id,
+        organization_id=ctx.organization_id,
+        user_id=ctx.user.id,
+        is_superuser=ctx.user.is_superuser,
+        request_id=getattr(request.state, "request_id", None),
+    )
+
+
+@router.post(
+    "/{material_id}/attachments",
+    response_model=AttachmentResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Прикрепить файл к материалу",
+    description="Загрузка файла к материалу. Доступно только автору материала.",
+    dependencies=[Depends(require_roles(OrgRole.ORG_OWNER))],
+)
+async def upload_attachment(
+    material_id: UUID,
+    request: Request,
+    ctx: CurrentContext,
+    session: DbSession,
+    file: Annotated[UploadFile, File(description="Файл вложения")],
+) -> AttachmentResponse:
+    service = MaterialService(session)
+    return await service.add_attachment(
+        material_id,
+        organization_id=ctx.organization_id,
+        user_id=ctx.user.id,
+        is_superuser=ctx.user.is_superuser,
+        upload=file,
+        request_id=getattr(request.state, "request_id", None),
+    )
+
+
+@router.get(
+    "/{material_id}/attachments/{attachment_id}",
+    summary="Скачать файл материала",
+    description="Скачивание прикреплённого файла с проверкой доступа к материалу.",
+)
+async def download_attachment(
+    material_id: UUID,
+    attachment_id: UUID,
+    ctx: ActiveSubscriptionContext,
+    session: DbSession,
+) -> StreamingResponse:
+    service = MaterialService(session)
+    attachment, stream = await service.get_attachment_for_download(
+        material_id,
+        attachment_id,
+        organization_id=ctx.organization_id,
+        requester_id=ctx.user.id,
+        is_superuser=ctx.user.is_superuser,
+    )
+    # Всегда attachment (не inline) — чтобы файл не исполнялся в origin'е.
+    # filename* по RFC 5987 для корректной кириллицы.
+    disposition = f"attachment; filename*=UTF-8''{quote(attachment.filename)}"
+    return StreamingResponse(
+        stream,
+        media_type=attachment.content_type,
+        headers={"Content-Disposition": disposition},
+    )
+
+
+@router.delete(
+    "/{material_id}/attachments/{attachment_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Удалить файл материала",
+    description="Удаление прикреплённого файла. Доступно только автору материала.",
+    dependencies=[Depends(require_roles(OrgRole.ORG_OWNER))],
+)
+async def delete_attachment(
+    material_id: UUID,
+    attachment_id: UUID,
+    request: Request,
+    ctx: CurrentContext,
+    session: DbSession,
+) -> None:
+    service = MaterialService(session)
+    await service.delete_attachment(
+        material_id,
+        attachment_id,
         organization_id=ctx.organization_id,
         user_id=ctx.user.id,
         is_superuser=ctx.user.is_superuser,

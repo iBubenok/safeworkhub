@@ -56,6 +56,15 @@ class Settings(BaseSettings):
     # Redis
     redis_url: str = "redis://localhost:6379/0"
 
+    # Файловое хранилище (вложения материалов)
+    storage_local_path: str = "/app/media"
+    max_upload_size_mb: int = 25
+    max_attachments_per_material: int = 10
+    allowed_upload_extensions: list[str] = Field(
+        default_factory=lambda: ["doc", "docx", "xls", "xlsx", "pdf", "odt", "ods", "rtf", "txt", "csv"],
+        description="Разрешённые расширения файлов вложений (без точки)",
+    )
+
     # Подписки
     subscription_trial_days: int = 14
     default_tariff_code: str = "base"
@@ -65,7 +74,7 @@ class Settings(BaseSettings):
     metrics_namespace: str = "safeworkhub"
     request_timeout_seconds: int = 30
 
-    @field_validator("cors_origins", "allowed_hosts", mode="before")
+    @field_validator("cors_origins", "allowed_hosts", "allowed_upload_extensions", mode="before")
     @classmethod
     def parse_list(cls, value: str | list[str]) -> list[str]:
         """Парсинг списков из строки с разделителем запятая."""

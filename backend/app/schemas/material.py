@@ -64,6 +64,37 @@ class ArticleCreate(BaseModel):
     visibility: MaterialVisibility = Field(default=MaterialVisibility.ORG, description="Видимость")
 
 
+class TemplateCreate(BaseModel):
+    """Схема создания шаблона (per-type контракт).
+
+    Тип фиксирован (TEMPLATE) на стороне сервиса. Файлы загружаются отдельными
+    запросами (multipart) после создания материала.
+    """
+
+    title: str = Field(min_length=1, max_length=500, description="Заголовок")
+    summary: str | None = Field(None, max_length=1000, description="Краткое описание")
+    content: str = Field(default="", description="Инструкция по заполнению (необязательно)")
+    content_format: MaterialContentFormat = Field(
+        default=MaterialContentFormat.MARKDOWN,
+        description="Формат тела",
+    )
+    category_id: int | None = Field(None, description="ID категории")
+    status: MaterialStatus = Field(default=MaterialStatus.DRAFT, description="Статус")
+    visibility: MaterialVisibility = Field(default=MaterialVisibility.ORG, description="Видимость")
+
+
+class AttachmentResponse(BaseModel):
+    """Метаданные прикреплённого файла (в ответе)."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    filename: str
+    content_type: str
+    size_bytes: int
+    created_at: datetime
+
+
 class NewsDetail(BaseModel):
     """Поля, специфичные для новости (в ответе)."""
 
@@ -136,6 +167,10 @@ class MaterialResponse(MaterialBase):
     # в сервисе; validation_alias не даёт model_validate(material) читать ленивую
     # связь material.news (иначе MissingGreenlet в async-контексте).
     news: NewsDetail | None = Field(default=None, validation_alias="news_detail")
+    # Прикреплённые файлы. Alias не совпадает с именем связи Material.attachments,
+    # чтобы model_validate(material) не читал ленивую коллекцию (MissingGreenlet);
+    # заполняется вручную в сервисе.
+    attachments: list[AttachmentResponse] = Field(default_factory=list, validation_alias="attachments_src")
 
 
 class MaterialListItem(BaseModel):

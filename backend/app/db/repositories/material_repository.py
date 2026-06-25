@@ -6,7 +6,7 @@ from uuid import UUID
 
 from sqlalchemy import desc, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import joinedload, selectinload
 
 from app.db.repositories.base import BaseRepository
 from app.models import Material, MaterialStatus, MaterialType, MaterialVisibility
@@ -29,6 +29,9 @@ class MaterialRepository(BaseRepository[Material]):
                 joinedload(Material.organization),
                 joinedload(Material.updated_by),
                 joinedload(Material.news),
+                # Коллекция 1:много — selectinload (отдельный запрос), чтобы не
+                # размножать строки в LEFT JOIN с остальными связями.
+                selectinload(Material.attachments),
             )
             .where(Material.id == material_id)
         )
