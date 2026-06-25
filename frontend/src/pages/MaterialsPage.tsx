@@ -167,6 +167,29 @@ export function MaterialsPage() {
         </p>
       </div>
 
+      {/* Вкладки разделов по типу материала */}
+      <div className="border-b border-gray-200">
+        <nav className="-mb-px flex gap-1 overflow-x-auto">
+          {materialTypes.map((type) => (
+            <button
+              key={type.value}
+              onClick={() => {
+                setSelectedType(type.value);
+                setPage(1);
+              }}
+              className={`flex items-center gap-2 whitespace-nowrap border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
+                selectedType === type.value
+                  ? 'border-primary-600 text-primary-700'
+                  : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
+              }`}
+            >
+              <type.icon className="h-4 w-4" />
+              {type.label}
+            </button>
+          ))}
+        </nav>
+      </div>
+
       <div className="card">
         {isOwner && (
           <div className="mb-4 flex justify-end">
@@ -212,26 +235,6 @@ export function MaterialsPage() {
             </button>
           </form>
         )}
-
-        <div className="mt-4 flex flex-wrap gap-2">
-          {materialTypes.map((type) => (
-            <button
-              key={type.value}
-              onClick={() => {
-                setSelectedType(type.value);
-                setPage(1);
-              }}
-              className={`flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition-colors ${
-                selectedType === type.value
-                  ? 'bg-primary-100 text-primary-700'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              <type.icon className="h-4 w-4" />
-              {type.label}
-            </button>
-          ))}
-        </div>
       </div>
 
       {materialsQuery.isLoading ? (
