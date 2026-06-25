@@ -160,11 +160,14 @@ export function MaterialsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Документы и журналы</h1>
-        <p className="mt-1 text-gray-600">
-          Поиск по материалам, нормативным документам и шаблонам
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Документы и журналы</h1>
+          <p className="mt-1 text-gray-600">
+            Поиск по материалам, нормативным документам и шаблонам
+          </p>
+        </div>
+        {isOwner && <CreateMaterialDialog />}
       </div>
 
       {/* Вкладки разделов по типу материала */}
@@ -191,50 +194,46 @@ export function MaterialsPage() {
       </div>
 
       <div className="card">
-        {isOwner && (
-          <div className="mb-4 flex justify-end">
-            <CreateMaterialDialog />
-          </div>
-        )}
-
-        {isOwner && (
-          <div className="mb-4 flex flex-wrap gap-2">
-            {statusFilters.map((s) => (
-              <button
-                key={s.value}
-                onClick={() => {
-                  setSelectedStatus(s.value);
-                  setPage(1);
-                }}
-                className={`rounded-full px-4 py-2 text-sm font-medium transition-colors ${
-                  selectedStatus === s.value
-                    ? 'bg-primary-600 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-              >
-                {s.label}
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          {selectedStatus === 'published' && (
+            <form onSubmit={handleSearch} className="flex gap-3 sm:flex-1">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Введите поисковый запрос..."
+                  className="input pl-10"
+                />
+              </div>
+              <button type="submit" className="btn-primary">
+                Найти
               </button>
-            ))}
-          </div>
-        )}
+            </form>
+          )}
 
-        {selectedStatus === 'published' && (
-          <form onSubmit={handleSearch} className="flex gap-3">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Введите поисковый запрос..."
-                className="input pl-10"
-              />
+          {isOwner && (
+            <div className="inline-flex shrink-0 self-start overflow-x-auto rounded-lg border border-gray-200 bg-gray-50 p-0.5 sm:ml-auto sm:self-auto">
+              {statusFilters.map((s) => (
+                <button
+                  key={s.value}
+                  onClick={() => {
+                    setSelectedStatus(s.value);
+                    setPage(1);
+                  }}
+                  className={`whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                    selectedStatus === s.value
+                      ? 'bg-white text-primary-700 shadow-sm'
+                      : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                >
+                  {s.label}
+                </button>
+              ))}
             </div>
-            <button type="submit" className="btn-primary">
-              Найти
-            </button>
-          </form>
-        )}
+          )}
+        </div>
       </div>
 
       {materialsQuery.isLoading ? (
