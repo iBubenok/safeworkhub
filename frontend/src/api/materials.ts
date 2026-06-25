@@ -8,6 +8,7 @@ import type {
   MaterialListItem,
   MaterialType,
   MaterialSearchParams,
+  MaterialVersion,
   NewsCreateInput,
   NpaCreateInput,
   PaginatedResponse,
@@ -128,9 +129,15 @@ export async function updateMaterial(
     summary?: string | null;
     content?: string;
     content_format?: MaterialContentFormat;
+    change_note?: string | null;
   },
 ): Promise<Material> {
   const response = await apiClient.patch<Material>(`/materials/${materialId}`, payload);
+  return response.data;
+}
+
+export async function getMaterialVersions(materialId: string): Promise<MaterialVersion[]> {
+  const response = await apiClient.get<MaterialVersion[]>(`/materials/${materialId}/versions`);
   return response.data;
 }
 

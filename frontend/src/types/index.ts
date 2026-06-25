@@ -194,6 +194,21 @@ export interface MaterialListItem {
   attachment_count: number;
 }
 
+export interface MaterialVersion {
+  id: string;
+  version_no: number;
+  editor_id: string | null;
+  editor_name: string | null;
+  change_note: string | null;
+  created_at: string;
+  snapshot: {
+    title?: string;
+    summary?: string | null;
+    content?: string;
+    content_format?: MaterialContentFormat;
+  };
+}
+
 export interface PaginatedResponse<T> {
   items: T[];
   total: number;

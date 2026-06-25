@@ -7,6 +7,7 @@ import * as materialsApi from '@/api/materials';
 import { getErrorMessage } from '@/api/client';
 import { Markdown } from '@/components/Markdown';
 import { ContentEditor } from '@/components/ContentEditor';
+import { MaterialHistory } from '@/components/materials/MaterialHistory';
 import { useAuth } from '@/hooks/useAuth';
 import { safeHttpUrl } from '@/utils/safeUrl';
 import { formatFileSize } from '@/utils/formatFileSize';
@@ -30,6 +31,7 @@ export function MaterialDetailPage() {
   const [summary, setSummary] = useState('');
   const [content, setContent] = useState('');
   const [format, setFormat] = useState<MaterialContentFormat>('markdown');
+  const [changeNote, setChangeNote] = useState('');
   const [error, setError] = useState<string | null>(null);
 
   const { data, isLoading, isError } = useQuery({
@@ -44,11 +46,14 @@ export function MaterialDetailPage() {
       summary?: string | null;
       content?: string;
       content_format?: MaterialContentFormat;
+      change_note?: string | null;
     }) => materialsApi.updateMaterial(id as string, payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['material', id] });
       queryClient.invalidateQueries({ queryKey: ['materials'] });
+      queryClient.invalidateQueries({ queryKey: ['material-versions', id] });
       setEditing(false);
+      setChangeNote('');
     },
     onError: (e) => setError(getErrorMessage(e)),
   });
@@ -139,6 +144,7 @@ export function MaterialDetailPage() {
     setSummary(data.summary ?? '');
     setContent(data.content);
     setFormat(data.content_format);
+    setChangeNote('');
     setEditing(true);
   };
 
@@ -173,6 +179,7 @@ export function MaterialDetailPage() {
       summary?: string | null;
       content?: string;
       content_format?: MaterialContentFormat;
+      change_note?: string | null;
     } = {};
     if (title !== data.title) payload.title = title;
     if ((summary || '') !== (data.summary ?? '')) payload.summary = summary || null;
@@ -183,6 +190,7 @@ export function MaterialDetailPage() {
       setEditing(false);
       return;
     }
+    if (changeNote.trim()) payload.change_note = changeNote.trim();
     update.mutate(payload);
   };
 
@@ -223,8 +231,11 @@ export function MaterialDetailPage() {
             </span>
           )}
 
-          {isAuthor && !editing && (
+          {!editing && (
             <div className="ml-auto flex items-center gap-2">
+              <MaterialHistory materialId={data.id} />
+              {isAuthor && (
+                <>
               <button
                 type="button"
                 title="Редактировать"
@@ -268,6 +279,8 @@ export function MaterialDetailPage() {
               >
                 <Trash2 size={16} />
               </button>
+                </>
+              )}
             </div>
           )}
 
@@ -332,6 +345,19 @@ export function MaterialDetailPage() {
                 onChange={setContent}
                 format={format}
                 onFormatChange={setFormat}
+              />
+            </div>
+            <div>
+              <label className="label" htmlFor="edit-note">
+                Примечание к изменению (необязательно)
+              </label>
+              <input
+                id="edit-note"
+                className="input"
+                placeholder="Например: приведено в соответствие с приказом №…"
+                value={changeNote}
+                onChange={(e) => setChangeNote(e.target.value)}
+                maxLength={500}
               />
             </div>
           </div>
