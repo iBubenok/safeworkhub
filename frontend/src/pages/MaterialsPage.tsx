@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Search, FileText, Book, Newspaper, File } from 'lucide-react';
+import { Search, FileText, Book, Newspaper, File, Eye, Calendar, Building2 } from 'lucide-react';
 
 import * as materialsApi from '@/api/materials';
 import { useAuth } from '@/hooks/useAuth';
@@ -57,50 +57,59 @@ function MaterialCard({
   isBusy: boolean;
 }) {
   return (
-    <div className="card block transition-shadow hover:shadow-md">
+    <div className="card flex flex-col gap-3 transition-shadow hover:shadow-md">
       <div className="flex items-start gap-3">
         <MaterialTypeIcon type={material.type} />
-        <div className="flex-1">
+        <div className="min-w-0 flex-1">
           <Link
             to={`/materials/${material.id}`}
-            className="font-medium text-gray-900 line-clamp-2 hover:text-primary-600"
+            className="block font-medium text-gray-900 line-clamp-2 hover:text-primary-600"
           >
             {material.title}
           </Link>
           {material.summary && (
             <p className="mt-1 text-sm text-gray-500 line-clamp-2">{material.summary}</p>
           )}
-          <div className="mt-2 flex items-center gap-3 text-xs text-gray-500">
-            <span className="rounded-full bg-gray-100 px-2 py-1 text-xs uppercase tracking-wide">
+
+          {/* Мета выровнена по тексту заголовка (правее иконки); flex-wrap не даёт вылезти. */}
+          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-gray-500">
+            <span className="rounded-full bg-gray-100 px-2 py-1 uppercase tracking-wide">
               {statusLabel[material.status] ?? material.status}
             </span>
-            <span>{material.views_count} просмотров</span>
+            <span className="inline-flex items-center gap-1">
+              <Eye className="h-3.5 w-3.5" />
+              {material.views_count}
+            </span>
             {material.published_at && (
-              <span>
+              <span className="inline-flex items-center gap-1">
+                <Calendar className="h-3.5 w-3.5" />
                 {new Date(material.published_at).toLocaleDateString('ru-RU')}
               </span>
             )}
           </div>
-          {isOwner && material.status === 'draft' && onPublish && (
-            <button
-              onClick={() => onPublish(material.id)}
-              className="btn-secondary mt-3"
-              disabled={isBusy}
-            >
-              Опубликовать
-            </button>
-          )}
-          {isOwner && material.status === 'archived' && onRestore && (
-            <button
-              onClick={() => onRestore(material.id)}
-              className="btn-secondary mt-3"
-              disabled={isBusy}
-            >
-              Восстановить
-            </button>
-          )}
         </div>
       </div>
+
+      {/* Сноска: какая организация создала материал. mt-auto прижимает её к низу карточки. */}
+      {material.organization_name && (
+        <div className="mt-auto flex items-center gap-1.5 border-t border-gray-100 pt-2 text-xs text-gray-400">
+          <Building2 className="h-3.5 w-3.5 shrink-0" />
+          <span className="truncate" title={material.organization_name}>
+            {material.organization_name}
+          </span>
+        </div>
+      )}
+
+      {isOwner && material.status === 'draft' && onPublish && (
+        <button onClick={() => onPublish(material.id)} className="btn-secondary self-start" disabled={isBusy}>
+          Опубликовать
+        </button>
+      )}
+      {isOwner && material.status === 'archived' && onRestore && (
+        <button onClick={() => onRestore(material.id)} className="btn-secondary self-start" disabled={isBusy}>
+          Восстановить
+        </button>
+      )}
     </div>
   );
 }

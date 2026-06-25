@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import AuthorizationError, ConflictError, NotFoundError
 from app.db.repositories import CategoryRepository, MaterialRepository
-from app.models import Category
+from app.models import Category, Material
 from app.models.material import MaterialStatus, MaterialType, MaterialVisibility
 from app.models.news import News
 from app.models.notification import Notification
@@ -42,6 +42,17 @@ class MaterialService:
         """Упрощённая нормализация slug."""
         base = slug or name
         return base.strip().lower().replace(" ", "-")
+
+    @staticmethod
+    def _to_list_item(material: Material) -> MaterialListItem:
+        """Краткая карточка материала с названием организации-автора.
+
+        organization подгружается заранее (joinedload), поэтому обращение к
+        material.organization безопасно в async-контексте.
+        """
+        item = MaterialListItem.model_validate(material)
+        item.organization_name = material.organization.name if material.organization else None
+        return item
 
     async def create_material(
         self,
@@ -405,7 +416,7 @@ class MaterialService:
                 offset=offset,
             )
 
-        items = [MaterialListItem.model_validate(m) for m in materials]
+        items = [self._to_list_item(m) for m in materials]
         pages = (total + page_size - 1) // page_size if page_size > 0 else 0
 
         return MaterialListResponse(
@@ -478,6 +489,7 @@ class MaterialService:
             SearchResult(
                 id=m.id,
                 organization_id=m.organization_id,
+                organization_name=m.organization.name if m.organization else None,
                 title=m.title,
                 summary=m.summary,
                 type=m.type,
@@ -513,4 +525,4 @@ class MaterialService:
             material_type=material_type,
             limit=limit,
         )
-        return [MaterialListItem.model_validate(m) for m in materials]
+        return [self._to_list_item(m) for m in materials]

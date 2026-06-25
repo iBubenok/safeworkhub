@@ -116,6 +116,7 @@ export interface Category {
 export interface MaterialListItem {
   id: string;
   organization_id: number;
+  organization_name: string | null;
   title: string;
   summary: string | null;
   type: MaterialType;

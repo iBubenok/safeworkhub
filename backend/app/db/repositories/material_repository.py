@@ -61,7 +61,12 @@ class MaterialRepository(BaseRepository[Material]):
         count_query = select(func.count()).select_from(query.subquery())
         total = await self.session.scalar(count_query) or 0
 
-        query = query.order_by(desc(Material.published_at)).limit(limit).offset(offset)
+        query = (
+            query.options(joinedload(Material.organization))
+            .order_by(desc(Material.published_at))
+            .limit(limit)
+            .offset(offset)
+        )
         result = await self.session.execute(query)
         materials = list(result.scalars().all())
 
@@ -100,7 +105,12 @@ class MaterialRepository(BaseRepository[Material]):
         count_query = select(func.count()).select_from(query.subquery())
         total = await self.session.scalar(count_query) or 0
 
-        query = query.order_by(desc(Material.updated_at)).limit(limit).offset(offset)
+        query = (
+            query.options(joinedload(Material.organization))
+            .order_by(desc(Material.updated_at))
+            .limit(limit)
+            .offset(offset)
+        )
         result = await self.session.execute(query)
         materials = list(result.scalars().all())
 
@@ -153,7 +163,7 @@ class MaterialRepository(BaseRepository[Material]):
         count_query = select(func.count()).select_from(count_subquery)
         total = await self.session.scalar(count_query) or 0
 
-        query = query.order_by(desc("rank")).limit(limit).offset(offset)
+        query = query.options(joinedload(Material.organization)).order_by(desc("rank")).limit(limit).offset(offset)
         result = await self.session.execute(query)
         materials = [row[0] for row in result.all()]
 
@@ -182,6 +192,7 @@ class MaterialRepository(BaseRepository[Material]):
         """Получить популярные материалы."""
         query = (
             select(Material)
+            .options(joinedload(Material.organization))
             .where(Material.status == MaterialStatus.PUBLISHED)
             .where(
                 or_(

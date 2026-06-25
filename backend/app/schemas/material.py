@@ -145,6 +145,7 @@ class MaterialListItem(BaseModel):
 
     id: UUID
     organization_id: int
+    organization_name: str | None = None
     title: str
     summary: str | None
     type: MaterialType
