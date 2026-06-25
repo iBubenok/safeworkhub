@@ -105,6 +105,23 @@ export function NotificationsDropdown() {
     if (!isOpen) setMenuOpen(false);
   }, [isOpen]);
 
+  // На мобильной версии блокируем прокрутку страницы за окном (как у модалки).
+  // Реагируем на изменение ширины, пока окно открыто (например, ресайз окна).
+  useEffect(() => {
+    if (!isOpen) return;
+    const mq = window.matchMedia("(max-width: 639px)");
+    const prev = document.body.style.overflow;
+    const apply = () => {
+      document.body.style.overflow = mq.matches ? "hidden" : prev;
+    };
+    apply();
+    mq.addEventListener("change", apply);
+    return () => {
+      mq.removeEventListener("change", apply);
+      document.body.style.overflow = prev;
+    };
+  }, [isOpen]);
+
   const typeStyles = {
     info: "bg-blue-50 border-blue-200",
     warning: "bg-yellow-50 border-yellow-200",
@@ -133,7 +150,7 @@ export function NotificationsDropdown() {
         <>
           <button
             aria-label="Закрыть уведомления"
-            className="fixed inset-0 z-40 bg-black/20 sm:hidden"
+            className="fixed inset-0 z-40 bg-black/40 sm:hidden"
             onClick={() => setOpen(false)}
             type="button"
           />
