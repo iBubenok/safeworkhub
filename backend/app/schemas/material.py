@@ -188,6 +188,7 @@ class MaterialListItem(BaseModel):
     views_count: int
     published_at: datetime | None
     visibility: MaterialVisibility
+    attachment_count: int = 0
 
 
 class MaterialListResponse(BaseModel):

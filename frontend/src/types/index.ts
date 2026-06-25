@@ -141,6 +141,7 @@ export interface MaterialListItem {
   status: MaterialStatus;
   views_count: number;
   published_at: string | null;
+  attachment_count: number;
 }
 
 export interface PaginatedResponse<T> {

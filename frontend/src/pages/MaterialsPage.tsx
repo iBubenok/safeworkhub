@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Search, FileText, Book, Newspaper, File, Eye, Calendar, Building2 } from 'lucide-react';
+import { Search, FileText, Book, Newspaper, File, Eye, Calendar, Building2, Paperclip } from 'lucide-react';
 
 import * as materialsApi from '@/api/materials';
 import { useAuth } from '@/hooks/useAuth';
@@ -84,6 +84,12 @@ function MaterialCard({
               <span className="inline-flex items-center gap-1">
                 <Calendar className="h-3.5 w-3.5" />
                 {new Date(material.published_at).toLocaleDateString('ru-RU')}
+              </span>
+            )}
+            {material.attachment_count > 0 && (
+              <span className="inline-flex items-center gap-1" title="Прикреплённые файлы">
+                <Paperclip className="h-3.5 w-3.5" />
+                {material.attachment_count}
               </span>
             )}
           </div>

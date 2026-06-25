@@ -60,6 +60,7 @@ class MaterialService:
         """
         item = MaterialListItem.model_validate(material)
         item.organization_name = material.organization.name if material.organization else None
+        item.attachment_count = len(material.attachments)
         return item
 
     async def create_material(
@@ -684,6 +685,7 @@ class MaterialService:
                 visibility=m.visibility,
                 views_count=m.views_count,
                 published_at=m.published_at,
+                attachment_count=len(m.attachments),
                 highlights=None,
             )
             for m in materials
