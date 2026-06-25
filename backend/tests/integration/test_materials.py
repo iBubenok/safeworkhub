@@ -206,9 +206,7 @@ async def test_get_material_returns_author_and_organization(
     tokens, cookies = await register_and_login(client, unique_email)
     article = await create_article(client, tokens, cookies)
 
-    resp = await client.get(
-        f"/api/v1/materials/{article['id']}", headers=auth_headers(tokens), cookies=cookies
-    )
+    resp = await client.get(f"/api/v1/materials/{article['id']}", headers=auth_headers(tokens), cookies=cookies)
     assert resp.status_code == 200, resp.text
     data = resp.json()
     assert data["author_name"] == "Материаловед"
@@ -226,12 +224,8 @@ async def test_view_does_not_change_updated_at(
 
     # несколько просмотров
     for _ in range(2):
-        await client.get(
-            f"/api/v1/materials/{article['id']}", headers=auth_headers(tokens), cookies=cookies
-        )
-    resp = await client.get(
-        f"/api/v1/materials/{article['id']}", headers=auth_headers(tokens), cookies=cookies
-    )
+        await client.get(f"/api/v1/materials/{article['id']}", headers=auth_headers(tokens), cookies=cookies)
+    resp = await client.get(f"/api/v1/materials/{article['id']}", headers=auth_headers(tokens), cookies=cookies)
     data = resp.json()
     assert data["created_at"] == data["updated_at"]
     assert data["updated_by_name"] is None
@@ -255,9 +249,7 @@ async def test_update_article_records_editor_and_change_time(
     )
     assert patch.status_code == 200, patch.text
 
-    resp = await client.get(
-        f"/api/v1/materials/{article['id']}", headers=auth_headers(tokens), cookies=cookies
-    )
+    resp = await client.get(f"/api/v1/materials/{article['id']}", headers=auth_headers(tokens), cookies=cookies)
     data = resp.json()
     assert data["content"].startswith("## Новый")
     assert data["created_at"] != data["updated_at"]
@@ -281,9 +273,7 @@ async def test_update_article_noop_keeps_unmodified(
     )
     assert patch.status_code == 200, patch.text
 
-    resp = await client.get(
-        f"/api/v1/materials/{article['id']}", headers=auth_headers(tokens), cookies=cookies
-    )
+    resp = await client.get(f"/api/v1/materials/{article['id']}", headers=auth_headers(tokens), cookies=cookies)
     data = resp.json()
     assert data["created_at"] == data["updated_at"]
     assert data["updated_by_name"] is None
@@ -331,9 +321,7 @@ async def test_archive_article_hides_from_listing(
     titles = [item["title"] for item in listing.json()["items"]]
     assert "В архив" not in titles
 
-    detail = await client.get(
-        f"/api/v1/materials/{article['id']}", headers=auth_headers(tokens), cookies=cookies
-    )
+    detail = await client.get(f"/api/v1/materials/{article['id']}", headers=auth_headers(tokens), cookies=cookies)
     assert detail.status_code == 200
 
 
@@ -374,9 +362,7 @@ async def test_delete_article_then_not_found(
     )
     assert deleted.status_code == 204, deleted.text
 
-    resp = await client.get(
-        f"/api/v1/materials/{article['id']}", headers=auth_headers(tokens), cookies=cookies
-    )
+    resp = await client.get(f"/api/v1/materials/{article['id']}", headers=auth_headers(tokens), cookies=cookies)
     assert resp.status_code == 404
 
 
@@ -477,9 +463,7 @@ async def test_member_does_not_see_owner_drafts(
     """Участник организации (не автор) не видит чужие черновики."""
     owner, cookies = await register_and_login(client, unique_email)
     await create_article(client, owner, cookies, title="Черновик владельца", status="draft")
-    member_tokens, member_cookies = await create_member_and_login(
-        client, owner, cookies, f"member_{unique_email}"
-    )
+    member_tokens, member_cookies = await create_member_and_login(client, owner, cookies, f"member_{unique_email}")
 
     resp = await client.get(
         "/api/v1/materials",
