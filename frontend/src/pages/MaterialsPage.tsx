@@ -118,29 +118,21 @@ export function MaterialsPage() {
 
   const materialsQuery = useQuery({
     queryKey: ['materials', selectedStatus, searchQuery, selectedType, page],
-    queryFn: () => {
-      // Черновики/архив: только список по статусу (полнотекстовый поиск — по опубликованным).
-      if (selectedStatus !== 'published') {
-        return materialsApi.getMaterials({
-          status: selectedStatus,
-          type: selectedType || undefined,
-          page,
-          page_size: pageSize,
-        });
-      }
-      return searchQuery
+    queryFn: () =>
+      searchQuery
         ? materialsApi.searchMaterials({
             query: searchQuery,
             type: selectedType || undefined,
+            status: selectedStatus,
             page,
             page_size: pageSize,
           })
         : materialsApi.getMaterials({
+            status: selectedStatus,
             type: selectedType || undefined,
             page,
             page_size: pageSize,
-          });
-    },
+          }),
   });
 
   const publishMaterial = useMutation({
@@ -195,23 +187,21 @@ export function MaterialsPage() {
 
       <div className="card">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-          {selectedStatus === 'published' && (
-            <form onSubmit={handleSearch} className="flex gap-3 sm:flex-1">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Введите поисковый запрос..."
-                  className="input pl-10"
-                />
-              </div>
-              <button type="submit" className="btn-primary">
-                Найти
-              </button>
-            </form>
-          )}
+          <form onSubmit={handleSearch} className="flex gap-3 sm:flex-1">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Введите поисковый запрос..."
+                className="input pl-10"
+              />
+            </div>
+            <button type="submit" className="btn-primary">
+              Найти
+            </button>
+          </form>
 
           {isOwner && (
             <div className="inline-flex shrink-0 self-start overflow-x-auto rounded-lg border border-gray-200 bg-gray-50 p-0.5 sm:ml-auto sm:self-auto">

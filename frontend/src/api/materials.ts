@@ -36,6 +36,7 @@ export async function searchMaterials(
       page_size: params.page_size ?? 20,
       type: params.type,
       category_id: params.category_id,
+      status: params.status,
     },
   });
   return response.data;

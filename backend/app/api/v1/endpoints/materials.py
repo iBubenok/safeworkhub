@@ -226,6 +226,10 @@ async def search_materials(
     q: Annotated[str, Query(min_length=2, max_length=200, description="Поисковый запрос")],
     material_type: Annotated[MaterialType | None, Query(description="Фильтр по типу", alias="type")] = None,
     category_id: Annotated[int | None, Query(description="Фильтр по категории")] = None,
+    status: Annotated[
+        MaterialStatus | None,
+        Query(description="Статус: published (по умолчанию), draft, archived"),
+    ] = None,
     page: Annotated[int, Query(ge=1, description="Номер страницы")] = 1,
     page_size: Annotated[int, Query(ge=1, le=100, description="Размер страницы")] = 20,
 ) -> SearchResponse:
@@ -233,11 +237,17 @@ async def search_materials(
         query=q,
         type=material_type,
         category_id=category_id,
+        status=status,
         page=page,
         page_size=page_size,
     )
     service = MaterialService(session)
-    return await service.search(request, organization_id=ctx.organization_id)
+    return await service.search(
+        request,
+        organization_id=ctx.organization_id,
+        requester_id=ctx.user.id,
+        is_superuser=ctx.user.is_superuser,
+    )
 
 
 @router.get(

@@ -448,14 +448,28 @@ class MaterialService:
         )
         return category
 
-    async def search(self, request: SearchRequest, *, organization_id: int) -> SearchResponse:
+    async def search(
+        self,
+        request: SearchRequest,
+        *,
+        organization_id: int,
+        requester_id: UUID | None = None,
+        is_superuser: bool = False,
+    ) -> SearchResponse:
         offset = (request.page - 1) * request.page_size
+
+        # По опубликованным — без фильтра автора; по черновикам/архиву обычный
+        # пользователь ищет только свои, суперпользователь — всех авторов организации.
+        published = request.status is None or request.status == MaterialStatus.PUBLISHED
+        author_id = None if (is_superuser or published) else requester_id
 
         materials, total = await self.repository.search(
             request.query,
             organization_id=organization_id,
+            status=request.status,
             material_type=request.type,
             category_id=request.category_id,
+            author_id=author_id,
             limit=request.page_size,
             offset=offset,
         )

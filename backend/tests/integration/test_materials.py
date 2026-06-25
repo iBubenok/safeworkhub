@@ -710,3 +710,75 @@ async def test_create_minimal_news(
     assert body["type"] == "news"
     assert body["news"]["source_url"] is None
     assert body["news"]["tags"] == []
+
+
+@pytest.mark.asyncio
+async def test_search_in_drafts_returns_own_and_excludes_published(
+    client: AsyncClient,
+    unique_email: str,
+):
+    """Поиск с status=draft находит свой черновик и не возвращает опубликованные."""
+    tokens, cookies = await register_and_login(client, unique_email)
+    await create_article(
+        client, tokens, cookies, title="Черновик про молотки", content="молоток", status="draft"
+    )
+    await create_article(
+        client, tokens, cookies, title="Опубликовано про молотки", content="молоток", status="published"
+    )
+
+    resp = await client.get(
+        "/api/v1/materials/search",
+        params={"q": "молоток", "status": "draft"},
+        headers=auth_headers(tokens),
+        cookies=cookies,
+    )
+    assert resp.status_code == 200, resp.text
+    titles = [item["title"] for item in resp.json()["items"]]
+    assert "Черновик про молотки" in titles
+    assert "Опубликовано про молотки" not in titles
+
+
+@pytest.mark.asyncio
+async def test_search_drafts_is_private(
+    client: AsyncClient,
+    db_session,
+    unique_email: str,
+):
+    """Чужой черновик не находится поиском у участника, но находится у суперпользователя."""
+    owner_tokens, owner_cookies = await register_and_login(client, unique_email)
+    await create_article(
+        client, owner_tokens, owner_cookies, title="Секрет про каски", content="каска", status="draft"
+    )
+
+    member_email = f"member_{unique_email}"
+    member_tokens, member_cookies = await create_member_and_login(
+        client, owner_tokens, owner_cookies, member_email
+    )
+
+    # участник (не автор) — не находит
+    resp = await client.get(
+        "/api/v1/materials/search",
+        params={"q": "каска", "status": "draft"},
+        headers=auth_headers(member_tokens),
+        cookies=member_cookies,
+    )
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["items"] == []
+
+    # делаем участника суперпользователем — находит
+    await db_session.execute(update(User).where(User.email == member_email).values(is_superuser=True))
+    await db_session.commit()
+    login = await client.post(
+        "/api/v1/auth/login",
+        json={"email": member_email, "password": "MemberPass123!"},
+    )
+    assert login.status_code == 200, login.text
+    resp2 = await client.get(
+        "/api/v1/materials/search",
+        params={"q": "каска", "status": "draft"},
+        headers=auth_headers(login.json()),
+        cookies=login.cookies,
+    )
+    assert resp2.status_code == 200, resp2.text
+    titles = [item["title"] for item in resp2.json()["items"]]
+    assert "Секрет про каски" in titles

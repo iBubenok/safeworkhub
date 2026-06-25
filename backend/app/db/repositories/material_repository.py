@@ -111,26 +111,38 @@ class MaterialRepository(BaseRepository[Material]):
         query_str: str,
         *,
         organization_id: int,
+        status: MaterialStatus | None = None,
         material_type: MaterialType | None = None,
         category_id: int | None = None,
+        author_id: UUID | None = None,
         limit: int = 20,
         offset: int = 0,
     ) -> tuple[list[Material], int]:
-        """Полнотекстовый поиск материалов."""
+        """Полнотекстовый поиск материалов.
+
+        По умолчанию (status пуст или published) ищет по опубликованным своей
+        организации + публичным. Для черновиков/архива — строго внутри организации,
+        и, если задан author_id, только материалы этого автора (приватность).
+        """
         ts_query = func.plainto_tsquery("russian", query_str)
 
         rank = func.ts_rank(Material.search_vector, ts_query).label("rank")
-        query = (
-            select(Material, rank)
-            .where(Material.search_vector.op("@@")(ts_query))
-            .where(Material.status == MaterialStatus.PUBLISHED)
-            .where(
+        query = select(Material, rank).where(Material.search_vector.op("@@")(ts_query))
+
+        if status is None or status == MaterialStatus.PUBLISHED:
+            query = query.where(Material.status == MaterialStatus.PUBLISHED).where(
                 or_(
                     Material.organization_id == organization_id,
                     Material.visibility == MaterialVisibility.PUBLIC,
                 ),
             )
-        )
+        else:
+            query = query.where(
+                Material.status == status,
+                Material.organization_id == organization_id,
+            )
+            if author_id is not None:
+                query = query.where(Material.author_id == author_id)
 
         if material_type:
             query = query.where(Material.type == material_type)

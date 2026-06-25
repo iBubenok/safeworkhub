@@ -147,6 +147,7 @@ class SearchRequest(BaseModel):
     query: str = Field(min_length=2, max_length=200, description="Поисковый запрос")
     type: MaterialType | None = Field(None, description="Фильтр по типу")
     category_id: int | None = Field(None, description="Фильтр по категории")
+    status: MaterialStatus | None = Field(None, description="Статус: published (по умолч.), draft, archived")
     page: int = Field(default=1, ge=1, description="Номер страницы")
     page_size: int = Field(default=20, ge=1, le=100, description="Размер страницы")
 
