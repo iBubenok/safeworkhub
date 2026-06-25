@@ -9,6 +9,7 @@ import type {
   MaterialType,
   MaterialSearchParams,
   NewsCreateInput,
+  NpaCreateInput,
   PaginatedResponse,
   TemplateCreateInput,
 } from '@/types';
@@ -73,6 +74,11 @@ export async function createNews(payload: NewsCreateInput): Promise<Material> {
 
 export async function createTemplate(payload: TemplateCreateInput): Promise<Material> {
   const response = await apiClient.post<Material>('/materials/templates', payload);
+  return response.data;
+}
+
+export async function createNpa(payload: NpaCreateInput): Promise<Material> {
+  const response = await apiClient.post<Material>('/materials/npa', payload);
   return response.data;
 }
 

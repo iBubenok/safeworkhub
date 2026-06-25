@@ -7,6 +7,7 @@ import * as materialsApi from '@/api/materials';
 import { getErrorMessage } from '@/api/client';
 import { ArticleForm } from '@/components/materials/ArticleForm';
 import { NewsForm } from '@/components/materials/NewsForm';
+import { NpaForm } from '@/components/materials/NpaForm';
 import { TemplateForm } from '@/components/materials/TemplateForm';
 import type { MaterialType } from '@/types';
 
@@ -115,6 +116,8 @@ export function CreateMaterialDialog() {
             <NewsForm categories={categories} />
           ) : createType === 'template' ? (
             <TemplateForm categories={categories} />
+          ) : createType === 'npa' ? (
+            <NpaForm categories={categories} />
           ) : (
             <>
               {formError && (

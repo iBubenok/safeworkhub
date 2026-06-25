@@ -10,6 +10,7 @@ import { ContentEditor } from '@/components/ContentEditor';
 import { useAuth } from '@/hooks/useAuth';
 import { safeHttpUrl } from '@/utils/safeUrl';
 import { formatFileSize } from '@/utils/formatFileSize';
+import { npaActKindLabels, npaLevelLabels, npaStatusLabels } from '@/utils/npaLabels';
 import type { MaterialContentFormat } from '@/types';
 
 const statusLabel: Record<string, string> = {
@@ -376,14 +377,84 @@ export function MaterialDetailPage() {
               </div>
             )}
 
+            {data.npa && (
+              <div className="mt-3 space-y-2">
+                <div className="flex flex-wrap items-center gap-2 text-xs">
+                  <span className="rounded-full bg-primary-50 px-2 py-1 font-medium text-primary-700">
+                    {npaActKindLabels[data.npa.act_kind]}
+                  </span>
+                  {data.npa.level && (
+                    <span className="rounded-full bg-gray-100 px-2 py-1 text-gray-600">
+                      {npaLevelLabels[data.npa.level]}
+                    </span>
+                  )}
+                  {data.npa.act_status && (
+                    <span className="rounded-full bg-gray-100 px-2 py-1 text-gray-600">
+                      {npaStatusLabels[data.npa.act_status]}
+                    </span>
+                  )}
+                </div>
+                <dl className="grid gap-x-6 gap-y-1 text-sm text-gray-600 sm:grid-cols-2">
+                  {data.npa.document_number && (
+                    <div>
+                      <dt className="inline text-gray-400">Номер: </dt>
+                      <dd className="inline">{data.npa.document_number}</dd>
+                    </div>
+                  )}
+                  {data.npa.adoption_date && (
+                    <div>
+                      <dt className="inline text-gray-400">Дата принятия: </dt>
+                      <dd className="inline">{new Date(data.npa.adoption_date).toLocaleDateString('ru-RU')}</dd>
+                    </div>
+                  )}
+                  {data.npa.effective_date && (
+                    <div>
+                      <dt className="inline text-gray-400">Вступил в силу: </dt>
+                      <dd className="inline">{new Date(data.npa.effective_date).toLocaleDateString('ru-RU')}</dd>
+                    </div>
+                  )}
+                  {data.npa.revision_date && (
+                    <div>
+                      <dt className="inline text-gray-400">Последняя редакция: </dt>
+                      <dd className="inline">{new Date(data.npa.revision_date).toLocaleDateString('ru-RU')}</dd>
+                    </div>
+                  )}
+                  {data.npa.issuing_authority && (
+                    <div>
+                      <dt className="inline text-gray-400">Орган: </dt>
+                      <dd className="inline">{data.npa.issuing_authority}</dd>
+                    </div>
+                  )}
+                  {data.npa.region && (
+                    <div>
+                      <dt className="inline text-gray-400">Регион: </dt>
+                      <dd className="inline">{data.npa.region}</dd>
+                    </div>
+                  )}
+                </dl>
+                {safeHttpUrl(data.npa.official_source_url) && (
+                  <a
+                    href={safeHttpUrl(data.npa.official_source_url)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-block text-sm text-primary-600 underline"
+                  >
+                    Официальный источник
+                  </a>
+                )}
+              </div>
+            )}
+
             <div className="mt-4 border-t pt-4">
               <Markdown>{data.content}</Markdown>
             </div>
           </>
         )}
 
-        {/* Файлы доступны и в просмотре, и в редактировании (для шаблонов — всегда). */}
-        {(data.type === 'template' || (data.attachments && data.attachments.length > 0)) && (
+        {/* Файлы доступны и в просмотре, и в редактировании (для шаблонов и НПА — всегда). */}
+        {(data.type === 'template' ||
+          data.type === 'npa' ||
+          (data.attachments && data.attachments.length > 0)) && (
           <div className="mt-6 border-t pt-4">
             <div className="mb-3 flex items-center justify-between gap-3">
               <h2 className="flex items-center gap-2 text-sm font-semibold text-gray-900">

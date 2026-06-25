@@ -68,6 +68,55 @@ export interface AttachmentResponse {
   created_at: string;
 }
 
+export type NpaActKind =
+  | 'federal_law'
+  | 'constitutional_law'
+  | 'code'
+  | 'presidential_decree'
+  | 'government_decree'
+  | 'ministry_order'
+  | 'gost'
+  | 'sanpin'
+  | 'sp'
+  | 'regional_law'
+  | 'municipal_act'
+  | 'local_act'
+  | 'other';
+export type NpaLevel = 'federal' | 'regional' | 'municipal' | 'local';
+export type NpaStatus = 'in_force' | 'not_in_force' | 'repealed' | 'amended' | 'suspended';
+
+export interface NpaDetail {
+  act_kind: NpaActKind;
+  level: NpaLevel | null;
+  act_status: NpaStatus | null;
+  document_number: string | null;
+  adoption_date: string | null;
+  effective_date: string | null;
+  revision_date: string | null;
+  issuing_authority: string | null;
+  region: string | null;
+  official_source_url: string | null;
+}
+
+export interface NpaCreateInput {
+  title: string;
+  summary: string | null;
+  content?: string;
+  content_format?: MaterialContentFormat;
+  category_id?: number | null;
+  status?: MaterialStatus;
+  act_kind: NpaActKind;
+  level?: NpaLevel | null;
+  act_status?: NpaStatus | null;
+  document_number?: string | null;
+  adoption_date?: string | null;
+  effective_date?: string | null;
+  revision_date?: string | null;
+  issuing_authority?: string | null;
+  region?: string | null;
+  official_source_url?: string | null;
+}
+
 export interface Material {
   id: string;
   organization_id: number;
@@ -87,6 +136,7 @@ export interface Material {
   created_at: string;
   updated_at: string;
   news?: NewsDetail | null;
+  npa?: NpaDetail | null;
   attachments?: AttachmentResponse[];
 }
 
