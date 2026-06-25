@@ -10,6 +10,7 @@ from sqlalchemy.orm import joinedload, selectinload
 
 from app.db.repositories.base import BaseRepository
 from app.models import Material, MaterialStatus, MaterialType, MaterialVisibility
+from app.models.material_version import MaterialVersion
 
 
 class MaterialRepository(BaseRepository[Material]):
@@ -177,6 +178,24 @@ class MaterialRepository(BaseRepository[Material]):
         materials = [row[0] for row in result.all()]
 
         return materials, total
+
+    async def next_version_no(self, material_id: UUID) -> int:
+        """Следующий номер версии материала (1-based)."""
+        stmt = select(func.coalesce(func.max(MaterialVersion.version_no), 0) + 1).where(
+            MaterialVersion.material_id == material_id
+        )
+        return await self.session.scalar(stmt) or 1
+
+    async def list_versions(self, material_id: UUID) -> list[MaterialVersion]:
+        """Версии материала (новые сверху) с подгруженным редактором."""
+        query = (
+            select(MaterialVersion)
+            .options(selectinload(MaterialVersion.editor))
+            .where(MaterialVersion.material_id == material_id)
+            .order_by(desc(MaterialVersion.version_no))
+        )
+        result = await self.session.execute(query)
+        return list(result.scalars().all())
 
     async def increment_views(self, material_id: UUID) -> None:
         """Увеличить счётчик просмотров материала.

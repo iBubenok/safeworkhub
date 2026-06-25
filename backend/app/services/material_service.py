@@ -15,6 +15,7 @@ from app.core.exceptions import AuthorizationError, ConflictError, NotFoundError
 from app.db.repositories import CategoryRepository, MaterialRepository
 from app.models import Category, Material, MaterialAttachment
 from app.models.material import MaterialStatus, MaterialType, MaterialVisibility
+from app.models.material_version import MaterialVersion
 from app.models.news import News
 from app.models.notification import Notification
 from app.models.npa import Npa
@@ -27,6 +28,7 @@ from app.schemas.material import (
     MaterialListResponse,
     MaterialResponse,
     MaterialUpdate,
+    MaterialVersionResponse,
     NewsCreate,
     NewsDetail,
     NpaCreate,
@@ -53,6 +55,27 @@ class MaterialService:
         """Упрощённая нормализация slug."""
         base = slug or name
         return base.strip().lower().replace(" ", "-")
+
+    # Поля, попадающие в снимок версии. Добавление нового редактируемого поля —
+    # только сюда (таблица версий менять не нужно, снимок в JSON).
+    _VERSIONED_FIELDS = ("title", "summary", "content", "content_format")
+
+    @classmethod
+    def _snapshot(cls, material: Material) -> dict[str, object]:
+        """Снимок версионируемых полей материала."""
+        return {field: getattr(material, field) for field in cls._VERSIONED_FIELDS}
+
+    async def _add_version(self, material: Material, *, editor_id: UUID, change_note: str | None) -> None:
+        """Создать новую версию-снимок материала."""
+        version = MaterialVersion(
+            material_id=material.id,
+            version_no=await self.repository.next_version_no(material.id),
+            editor_id=editor_id,
+            change_note=change_note,
+            snapshot=self._snapshot(material),
+        )
+        self.session.add(version)
+        await self.session.flush()
 
     @staticmethod
     def _to_list_item(material: Material) -> MaterialListItem:
@@ -86,6 +109,7 @@ class MaterialService:
             category_id=data.category_id,
             published_at=utcnow() if data.status == MaterialStatus.PUBLISHED else None,
         )
+        await self._add_version(material, editor_id=author_id, change_note=None)
         await log_audit(
             self.session,
             action="material_created",
@@ -124,6 +148,7 @@ class MaterialService:
             category_id=data.category_id,
             published_at=utcnow() if data.status == MaterialStatus.PUBLISHED else None,
         )
+        await self._add_version(material, editor_id=author_id, change_note=None)
         await log_audit(
             self.session,
             action="article_created",
@@ -168,6 +193,7 @@ class MaterialService:
         self.session.add(detail)
         await self.session.flush()
 
+        await self._add_version(material, editor_id=author_id, change_note=None)
         await log_audit(
             self.session,
             action="news_created",
@@ -220,6 +246,7 @@ class MaterialService:
         self.session.add(detail)
         await self.session.flush()
 
+        await self._add_version(material, editor_id=author_id, change_note=None)
         await log_audit(
             self.session,
             action="npa_created",
@@ -256,6 +283,7 @@ class MaterialService:
             category_id=data.category_id,
             published_at=utcnow() if data.status == MaterialStatus.PUBLISHED else None,
         )
+        await self._add_version(material, editor_id=author_id, change_note=None)
         await log_audit(
             self.session,
             action="template_created",
@@ -285,6 +313,8 @@ class MaterialService:
             raise AuthorizationError("Редактировать материал может только его автор")
 
         update_data = data.model_dump(exclude_unset=True)
+        # change_note — поле версии, не материала: убираем до диффа.
+        change_note = update_data.pop("change_note", None)
         # Оставляем только реально изменившиеся поля. Если изменений нет — не пишем,
         # чтобы не двигать дату изменения и автора правки на пустом сохранении.
         changed = {key: value for key, value in update_data.items() if getattr(material, key) != value}
@@ -296,6 +326,10 @@ class MaterialService:
         changed["updated_by_id"] = editor_id
 
         updated = await self.repository.update(material_id, **changed)
+        # Новую версию создаём только при изменении версионируемого поля
+        # (правка контента), а не при смене статуса/видимости.
+        if updated is not None and any(field in changed for field in self._VERSIONED_FIELDS):
+            await self._add_version(updated, editor_id=editor_id, change_note=change_note)
         await log_audit(
             self.session,
             action="material_updated",
@@ -624,6 +658,32 @@ class MaterialService:
         if attachment is None or attachment.material_id != material_id:
             raise NotFoundError("Вложение", str(attachment_id))
         return attachment, self.storage.open_stream(attachment.storage_key)
+
+    async def get_versions(
+        self,
+        material_id: UUID,
+        *,
+        organization_id: int,
+        requester_id: UUID,
+        is_superuser: bool = False,
+    ) -> list[MaterialVersionResponse]:
+        """История версий материала (с проверкой приватности материала)."""
+        material = await self.repository.get_by_id(material_id)
+        if material is None:
+            raise NotFoundError("Материал", str(material_id))
+        self._ensure_visible(
+            material,
+            organization_id=organization_id,
+            requester_id=requester_id,
+            is_superuser=is_superuser,
+        )
+        versions = await self.repository.list_versions(material_id)
+        items: list[MaterialVersionResponse] = []
+        for version in versions:
+            item = MaterialVersionResponse.model_validate(version)
+            item.editor_name = version.editor.name if version.editor else None
+            items.append(item)
+        return items
 
     async def get_materials(
         self,

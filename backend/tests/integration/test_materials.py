@@ -1077,3 +1077,95 @@ async def test_npa_rejects_javascript_source_url(client: AsyncClient, unique_ema
         cookies=cookies,
     )
     assert resp.status_code == 422, resp.text
+
+
+async def get_versions(client: AsyncClient, tokens, cookies, material_id):
+    resp = await client.get(
+        f"/api/v1/materials/{material_id}/versions",
+        headers=auth_headers(tokens),
+        cookies=cookies,
+    )
+    return resp
+
+
+@pytest.mark.asyncio
+async def test_create_makes_first_version(client: AsyncClient, unique_email: str):
+    """При создании материала появляется версия v1 со снимком."""
+    tokens, cookies = await register_and_login(client, unique_email)
+    article = await create_article(client, tokens, cookies, title="Версия один", content="первый текст")
+    resp = await get_versions(client, tokens, cookies, article["id"])
+    assert resp.status_code == 200, resp.text
+    versions = resp.json()
+    assert len(versions) == 1
+    assert versions[0]["version_no"] == 1
+    assert versions[0]["snapshot"]["content"] == "первый текст"
+    assert versions[0]["editor_name"] == "Материаловед"
+
+
+@pytest.mark.asyncio
+async def test_edit_creates_new_version_with_note(client: AsyncClient, unique_email: str):
+    """Правка контента создаёт v2 с примечанием; история по убыванию версий."""
+    tokens, cookies = await register_and_login(client, unique_email)
+    article = await create_article(client, tokens, cookies, content="старый")
+    patch = await client.patch(
+        f"/api/v1/materials/{article['id']}",
+        json={"content": "новый", "change_note": "обновил текст"},
+        headers=auth_headers(tokens),
+        cookies=cookies,
+    )
+    assert patch.status_code == 200, patch.text
+
+    versions = (await get_versions(client, tokens, cookies, article["id"])).json()
+    assert [v["version_no"] for v in versions] == [2, 1]
+    assert versions[0]["snapshot"]["content"] == "новый"
+    assert versions[0]["change_note"] == "обновил текст"
+    assert versions[1]["snapshot"]["content"] == "старый"
+
+
+@pytest.mark.asyncio
+async def test_noop_edit_creates_no_version(client: AsyncClient, unique_email: str):
+    """Пустая правка не создаёт новую версию."""
+    tokens, cookies = await register_and_login(client, unique_email)
+    article = await create_article(client, tokens, cookies, content="текст")
+    await client.patch(
+        f"/api/v1/materials/{article['id']}",
+        json={"content": "текст"},
+        headers=auth_headers(tokens),
+        cookies=cookies,
+    )
+    versions = (await get_versions(client, tokens, cookies, article["id"])).json()
+    assert len(versions) == 1
+
+
+@pytest.mark.asyncio
+async def test_status_only_change_creates_no_version(client: AsyncClient, unique_email: str):
+    """Архивация (смена статуса) не создаёт версию."""
+    tokens, cookies = await register_and_login(client, unique_email)
+    article = await create_article(client, tokens, cookies, status="published")
+    archived = await client.post(
+        f"/api/v1/materials/{article['id']}/archive",
+        headers=auth_headers(tokens),
+        cookies=cookies,
+    )
+    assert archived.status_code == 200, archived.text
+    versions = (await get_versions(client, tokens, cookies, article["id"])).json()
+    assert len(versions) == 1
+
+
+@pytest.mark.asyncio
+async def test_version_history_is_private(client: AsyncClient, db_session, unique_email: str):
+    """Историю чужого черновика не видит участник, но видит суперпользователь."""
+    owner_tokens, owner_cookies = await register_and_login(client, unique_email)
+    article = await create_article(client, owner_tokens, owner_cookies, status="draft")
+
+    member_email = f"member_{unique_email}"
+    member_tokens, member_cookies = await create_member_and_login(client, owner_tokens, owner_cookies, member_email)
+    denied = await get_versions(client, member_tokens, member_cookies, article["id"])
+    assert denied.status_code == 404, denied.text
+
+    await db_session.execute(update(User).where(User.email == member_email).values(is_superuser=True))
+    await db_session.commit()
+    login = await client.post("/api/v1/auth/login", json={"email": member_email, "password": "MemberPass123!"})
+    allowed = await get_versions(client, login.json(), login.cookies, article["id"])
+    assert allowed.status_code == 200, allowed.text
+    assert len(allowed.json()) == 1

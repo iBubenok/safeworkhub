@@ -18,6 +18,7 @@ from app.models.material import (
     NpaLevel,
     NpaStatus,
 )
+from app.models.material_version import MaterialVersion
 from app.models.news import News
 from app.models.notification import Notification, NotificationSettings
 from app.models.npa import Npa
@@ -38,6 +39,7 @@ __all__ = [
     "MaterialContentFormat",
     "MaterialStatus",
     "MaterialType",
+    "MaterialVersion",
     "MaterialVisibility",
     "News",
     "Notification",

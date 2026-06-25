@@ -26,6 +26,7 @@ from app.db.base import Base, IntegerPKMixin, TimestampMixin, UUIDMixin
 
 if TYPE_CHECKING:
     from app.models.attachment import MaterialAttachment
+    from app.models.material_version import MaterialVersion
     from app.models.news import News
     from app.models.npa import Npa
     from app.models.organization import Organization
@@ -241,6 +242,12 @@ class Material(Base, UUIDMixin, TimestampMixin):
         back_populates="material",
         uselist=False,
         cascade="all, delete-orphan",
+    )
+    # История версий (1:много). Снимки версионируемых полей.
+    versions: Mapped[list["MaterialVersion"]] = relationship(
+        back_populates="material",
+        cascade="all, delete-orphan",
+        order_by="MaterialVersion.version_no",
     )
 
     __table_args__ = (

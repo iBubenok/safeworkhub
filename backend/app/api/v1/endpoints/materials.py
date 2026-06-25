@@ -25,6 +25,7 @@ from app.schemas.material import (
     MaterialListResponse,
     MaterialResponse,
     MaterialUpdate,
+    MaterialVersionResponse,
     NewsCreate,
     NpaCreate,
     SearchRequest,
@@ -334,6 +335,26 @@ async def get_material(
 ) -> MaterialResponse:
     service = MaterialService(session)
     return await service.get_material(
+        material_id,
+        organization_id=ctx.organization_id,
+        requester_id=ctx.user.id,
+        is_superuser=ctx.user.is_superuser,
+    )
+
+
+@router.get(
+    "/{material_id}/versions",
+    response_model=list[MaterialVersionResponse],
+    summary="История версий материала",
+    description="Список версий-снимков материала (новые сверху) для просмотра изменений.",
+)
+async def get_material_versions(
+    material_id: UUID,
+    ctx: ActiveSubscriptionContext,
+    session: DbSession,
+) -> list[MaterialVersionResponse]:
+    service = MaterialService(session)
+    return await service.get_versions(
         material_id,
         organization_id=ctx.organization_id,
         requester_id=ctx.user.id,

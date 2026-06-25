@@ -1,6 +1,7 @@
 """Схемы для работы с материалами базы знаний."""
 
 from datetime import date, datetime
+from typing import Any
 from urllib.parse import urlparse
 from uuid import UUID
 
@@ -195,6 +196,22 @@ class MaterialUpdate(BaseModel):
     category_id: int | None = None
     status: MaterialStatus | None = None
     visibility: MaterialVisibility | None = None
+    # Примечание к версии (не поле материала). Сохраняется в истории при правке контента.
+    change_note: str | None = Field(None, max_length=500, description="Примечание к изменению")
+
+
+class MaterialVersionResponse(BaseModel):
+    """Версия материала (для истории)."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    version_no: int
+    editor_id: UUID | None = None
+    editor_name: str | None = None
+    change_note: str | None = None
+    created_at: datetime
+    snapshot: dict[str, Any]
 
 
 class MaterialResponse(MaterialBase):
