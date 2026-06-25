@@ -12,7 +12,6 @@ import { useAuth } from '@/hooks/useAuth';
 import { safeHttpUrl } from '@/utils/safeUrl';
 import { formatFileSize } from '@/utils/formatFileSize';
 import { npaActKindLabels, npaLevelLabels, npaStatusLabels } from '@/utils/npaLabels';
-import type { MaterialContentFormat } from '@/types';
 
 const statusLabel: Record<string, string> = {
   published: 'Опубликован',
@@ -30,7 +29,6 @@ export function MaterialDetailPage() {
   const [title, setTitle] = useState('');
   const [summary, setSummary] = useState('');
   const [content, setContent] = useState('');
-  const [format, setFormat] = useState<MaterialContentFormat>('markdown');
   const [changeNote, setChangeNote] = useState('');
   const [error, setError] = useState<string | null>(null);
 
@@ -45,7 +43,6 @@ export function MaterialDetailPage() {
       title?: string;
       summary?: string | null;
       content?: string;
-      content_format?: MaterialContentFormat;
       change_note?: string | null;
     }) => materialsApi.updateMaterial(id as string, payload),
     onSuccess: () => {
@@ -143,7 +140,6 @@ export function MaterialDetailPage() {
     setTitle(data.title);
     setSummary(data.summary ?? '');
     setContent(data.content);
-    setFormat(data.content_format);
     setChangeNote('');
     setEditing(true);
   };
@@ -178,13 +174,11 @@ export function MaterialDetailPage() {
       title?: string;
       summary?: string | null;
       content?: string;
-      content_format?: MaterialContentFormat;
       change_note?: string | null;
     } = {};
     if (title !== data.title) payload.title = title;
     if ((summary || '') !== (data.summary ?? '')) payload.summary = summary || null;
     if (content !== data.content) payload.content = content;
-    if (format !== data.content_format) payload.content_format = format;
 
     if (Object.keys(payload).length === 0) {
       setEditing(false);
@@ -208,11 +202,6 @@ export function MaterialDetailPage() {
           <span className="rounded-full bg-gray-100 px-2 py-1 uppercase tracking-wide">
             {statusLabel[data.status] ?? data.status}
           </span>
-          {isAuthor && (
-            <span className="rounded-full bg-gray-100 px-2 py-1 uppercase tracking-wide">
-              {data.content_format === 'html' ? 'HTML' : 'Markdown'}
-            </span>
-          )}
           {data.published_at && <span>{new Date(data.published_at).toLocaleDateString('ru-RU')}</span>}
           <span>{data.views_count} просмотров</span>
           {(data.organization_name || data.author_name) && (
@@ -339,13 +328,7 @@ export function MaterialDetailPage() {
               <label className="label" htmlFor="edit-content">
                 Текст
               </label>
-              <ContentEditor
-                id="edit-content"
-                value={content}
-                onChange={setContent}
-                format={format}
-                onFormatChange={setFormat}
-              />
+              <ContentEditor id="edit-content" value={content} onChange={setContent} />
             </div>
             <div>
               <label className="label" htmlFor="edit-note">

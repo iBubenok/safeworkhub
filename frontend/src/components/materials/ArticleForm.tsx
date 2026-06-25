@@ -5,7 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import * as materialsApi from '@/api/materials';
 import { getErrorMessage } from '@/api/client';
 import { ContentEditor } from '@/components/ContentEditor';
-import type { Category, MaterialContentFormat, MaterialStatus } from '@/types';
+import type { Category, MaterialStatus } from '@/types';
 
 /**
  * Форма создания статьи (Markdown). Самодостаточный per-type компонент:
@@ -15,7 +15,6 @@ export function ArticleForm({ categories }: { categories: Category[] }) {
   const [title, setTitle] = useState('');
   const [summary, setSummary] = useState('');
   const [content, setContent] = useState('');
-  const [format, setFormat] = useState<MaterialContentFormat>('markdown');
   const [categoryId, setCategoryId] = useState<number | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
 
@@ -41,7 +40,6 @@ export function ArticleForm({ categories }: { categories: Category[] }) {
       title,
       summary: summary || null,
       content,
-      content_format: format,
       category_id: categoryId,
       status,
     });
@@ -106,13 +104,7 @@ export function ArticleForm({ categories }: { categories: Category[] }) {
         <label className="label" htmlFor="article-content">
           Текст
         </label>
-        <ContentEditor
-          id="article-content"
-          value={content}
-          onChange={setContent}
-          format={format}
-          onFormatChange={setFormat}
-        />
+        <ContentEditor id="article-content" value={content} onChange={setContent} />
       </div>
 
       <div className="flex justify-end gap-2">

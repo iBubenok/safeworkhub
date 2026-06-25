@@ -8,7 +8,7 @@ import { getErrorMessage } from '@/api/client';
 import { ContentEditor } from '@/components/ContentEditor';
 import { formatFileSize } from '@/utils/formatFileSize';
 import { npaActKindLabels, npaLevelLabels, npaStatusLabels } from '@/utils/npaLabels';
-import type { Category, MaterialContentFormat, MaterialStatus, NpaActKind, NpaLevel, NpaStatus } from '@/types';
+import type { Category, MaterialStatus, NpaActKind, NpaLevel, NpaStatus } from '@/types';
 
 const ALLOWED_EXTENSIONS = ['doc', 'docx', 'xls', 'xlsx', 'pdf', 'odt', 'ods', 'rtf', 'txt', 'csv'];
 const MAX_SIZE_MB = 25;
@@ -18,7 +18,6 @@ export function NpaForm({ categories }: { categories: Category[] }) {
   const [title, setTitle] = useState('');
   const [summary, setSummary] = useState('');
   const [content, setContent] = useState('');
-  const [format, setFormat] = useState<MaterialContentFormat>('markdown');
   const [categoryId, setCategoryId] = useState<number | undefined>(undefined);
 
   const [actKind, setActKind] = useState<NpaActKind>('federal_law');
@@ -81,7 +80,6 @@ export function NpaForm({ categories }: { categories: Category[] }) {
         title,
         summary: summary || null,
         content,
-        content_format: format,
         category_id: categoryId,
         status,
         act_kind: actKind,
@@ -305,7 +303,7 @@ export function NpaForm({ categories }: { categories: Category[] }) {
         <label className="label" htmlFor="npa-content">
           Комментарий/применение в ОТ (необязательно)
         </label>
-        <ContentEditor id="npa-content" value={content} onChange={setContent} format={format} onFormatChange={setFormat} />
+        <ContentEditor id="npa-content" value={content} onChange={setContent} />
       </div>
 
       <div>

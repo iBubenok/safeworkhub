@@ -7,7 +7,7 @@ import * as materialsApi from '@/api/materials';
 import { getErrorMessage } from '@/api/client';
 import { ContentEditor } from '@/components/ContentEditor';
 import { formatFileSize } from '@/utils/formatFileSize';
-import type { Category, MaterialContentFormat, MaterialStatus } from '@/types';
+import type { Category, MaterialStatus } from '@/types';
 
 const ALLOWED_EXTENSIONS = ['doc', 'docx', 'xls', 'xlsx', 'pdf', 'odt', 'ods', 'rtf', 'txt', 'csv'];
 const MAX_SIZE_MB = 25;
@@ -17,7 +17,6 @@ export function TemplateForm({ categories }: { categories: Category[] }) {
   const [title, setTitle] = useState('');
   const [summary, setSummary] = useState('');
   const [content, setContent] = useState('');
-  const [format, setFormat] = useState<MaterialContentFormat>('markdown');
   const [categoryId, setCategoryId] = useState<number | undefined>(undefined);
   const [files, setFiles] = useState<File[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -68,7 +67,6 @@ export function TemplateForm({ categories }: { categories: Category[] }) {
         title,
         summary: summary || null,
         content,
-        content_format: format,
         category_id: categoryId,
         status,
       });
@@ -132,7 +130,7 @@ export function TemplateForm({ categories }: { categories: Category[] }) {
         <label className="label" htmlFor="tpl-content">
           Инструкция по заполнению (необязательно)
         </label>
-        <ContentEditor id="tpl-content" value={content} onChange={setContent} format={format} onFormatChange={setFormat} />
+        <ContentEditor id="tpl-content" value={content} onChange={setContent} />
       </div>
 
       <div>

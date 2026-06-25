@@ -5,14 +5,13 @@ import { useNavigate } from 'react-router-dom';
 import * as materialsApi from '@/api/materials';
 import { getErrorMessage } from '@/api/client';
 import { ContentEditor } from '@/components/ContentEditor';
-import type { Category, MaterialContentFormat, MaterialStatus } from '@/types';
+import type { Category, MaterialStatus } from '@/types';
 
 /** Форма создания новости: базовые поля + новостные (источник, дата, обложка, теги). */
 export function NewsForm({ categories }: { categories: Category[] }) {
   const [title, setTitle] = useState('');
   const [summary, setSummary] = useState('');
   const [content, setContent] = useState('');
-  const [format, setFormat] = useState<MaterialContentFormat>('markdown');
   const [categoryId, setCategoryId] = useState<number | undefined>(undefined);
   const [sourceUrl, setSourceUrl] = useState('');
   const [eventDate, setEventDate] = useState('');
@@ -46,7 +45,6 @@ export function NewsForm({ categories }: { categories: Category[] }) {
       title,
       summary: summary || null,
       content,
-      content_format: format,
       category_id: categoryId,
       status,
       source_url: sourceUrl.trim() || null,
@@ -158,13 +156,7 @@ export function NewsForm({ categories }: { categories: Category[] }) {
         <label className="label" htmlFor="news-content">
           Текст
         </label>
-        <ContentEditor
-          id="news-content"
-          value={content}
-          onChange={setContent}
-          format={format}
-          onFormatChange={setFormat}
-        />
+        <ContentEditor id="news-content" value={content} onChange={setContent} />
       </div>
 
       <div className="flex justify-end gap-2">
