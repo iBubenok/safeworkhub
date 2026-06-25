@@ -1,4 +1,4 @@
-import { diffLines, diffWords, type Change } from 'diff';
+import { diffWords, type Change } from 'diff';
 
 export interface DiffSegment {
   value: string;
@@ -10,12 +10,7 @@ function normalize(changes: Change[]): DiffSegment[] {
   return changes.map((c) => ({ value: c.value, added: !!c.added, removed: !!c.removed }));
 }
 
-/** Пословный diff — для коротких строк (заголовок, описание). */
+/** Пословный diff — подсвечивает изменённые слова (для заголовка, описания, текста). */
 export function wordDiff(oldStr: string | null | undefined, newStr: string | null | undefined): DiffSegment[] {
   return normalize(diffWords(oldStr ?? '', newStr ?? ''));
-}
-
-/** Построчный diff — для тела материала. */
-export function lineDiff(oldStr: string | null | undefined, newStr: string | null | undefined): DiffSegment[] {
-  return normalize(diffLines(oldStr ?? '', newStr ?? ''));
 }

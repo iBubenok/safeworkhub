@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { History, X } from 'lucide-react';
 
 import * as materialsApi from '@/api/materials';
-import { lineDiff, wordDiff, type DiffSegment } from '@/utils/diffText';
+import { wordDiff, type DiffSegment } from '@/utils/diffText';
 
 function Segments({ segments }: { segments: DiffSegment[] }) {
   return (
@@ -153,7 +153,7 @@ export function MaterialHistory({ materialId }: { materialId: string }) {
                     <div>
                       <h3 className="mb-1 text-xs font-semibold uppercase tracking-wide text-gray-400">Текст</h3>
                       <pre className="whitespace-pre-wrap break-words font-sans">
-                        <Segments segments={lineDiff(previous?.snapshot.content, current.snapshot.content)} />
+                        <Segments segments={wordDiff(previous?.snapshot.content, current.snapshot.content)} />
                       </pre>
                     </div>
                   </>
