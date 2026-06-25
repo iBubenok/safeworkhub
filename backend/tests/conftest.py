@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import tempfile
 from collections.abc import AsyncGenerator, Generator
 from uuid import uuid4
 
@@ -27,6 +28,9 @@ os.environ["DATABASE_URL"] = os.getenv(
 )
 os.environ["APP_ENV"] = "testing"
 os.environ["REDIS_URL"] = os.getenv("TEST_REDIS_URL", "redis://localhost:6379/1")
+# Хранилище вложений — во временный каталог: дефолт /app/media есть только в
+# контейнере, а в CI бэкенд запускается на голом раннере (каталога /app нет).
+os.environ.setdefault("STORAGE_LOCAL_PATH", tempfile.mkdtemp(prefix="swh-test-media-"))
 
 from app.core.config import get_settings
 from app.db.base import Base
