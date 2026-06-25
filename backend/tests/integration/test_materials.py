@@ -988,3 +988,92 @@ async def test_delete_material_removes_attachments(client: AsyncClient, unique_e
         cookies=cookies,
     )
     assert gone.status_code == 404, gone.text
+
+
+@pytest.mark.asyncio
+async def test_create_npa_with_detail_fields(client: AsyncClient, unique_email: str):
+    """НПА создаётся с метаданными и возвращает блок npa; деталь видна при чтении."""
+    tokens, cookies = await register_and_login(client, unique_email)
+    created = await client.post(
+        "/api/v1/materials/npa",
+        json={
+            "title": "Трудовой кодекс Российской Федерации",
+            "summary": "Раздел X. Охрана труда",
+            "status": "published",
+            "act_kind": "code",
+            "level": "federal",
+            "act_status": "in_force",
+            "document_number": "197-ФЗ",
+            "adoption_date": "2001-12-30",
+            "effective_date": "2002-02-01",
+            "issuing_authority": "Государственная Дума",
+            "official_source_url": "https://pravo.gov.ru/tk",
+        },
+        headers=auth_headers(tokens),
+        cookies=cookies,
+    )
+    assert created.status_code == 201, created.text
+    body = created.json()
+    assert body["type"] == "npa"
+    assert body["npa"]["act_kind"] == "code"
+    assert body["npa"]["level"] == "federal"
+    assert body["npa"]["act_status"] == "in_force"
+    assert body["npa"]["document_number"] == "197-ФЗ"
+
+    fetched = await client.get(
+        f"/api/v1/materials/{body['id']}",
+        headers=auth_headers(tokens),
+        cookies=cookies,
+    )
+    assert fetched.status_code == 200, fetched.text
+    npa = fetched.json()["npa"]
+    assert npa["issuing_authority"] == "Государственная Дума"
+    assert npa["official_source_url"] == "https://pravo.gov.ru/tk"
+
+
+@pytest.mark.asyncio
+async def test_create_npa_minimal(client: AsyncClient, unique_email: str):
+    """Минимальный НПА — только название и вид акта."""
+    tokens, cookies = await register_and_login(client, unique_email)
+    created = await client.post(
+        "/api/v1/materials/npa",
+        json={"title": "Локальная инструкция по ОТ", "status": "published", "act_kind": "local_act"},
+        headers=auth_headers(tokens),
+        cookies=cookies,
+    )
+    assert created.status_code == 201, created.text
+    body = created.json()
+    assert body["npa"]["act_kind"] == "local_act"
+    assert body["npa"]["level"] is None
+    assert body["npa"]["document_number"] is None
+
+
+@pytest.mark.asyncio
+async def test_create_npa_requires_act_kind(client: AsyncClient, unique_email: str):
+    """Без вида акта создание НПА отклоняется (422)."""
+    tokens, cookies = await register_and_login(client, unique_email)
+    resp = await client.post(
+        "/api/v1/materials/npa",
+        json={"title": "Без вида", "status": "published"},
+        headers=auth_headers(tokens),
+        cookies=cookies,
+    )
+    assert resp.status_code == 422, resp.text
+
+
+@pytest.mark.asyncio
+async def test_npa_rejects_javascript_source_url(client: AsyncClient, unique_email: str):
+    """official_source_url с опасной схемой отклоняется."""
+    tokens, cookies = await register_and_login(client, unique_email)
+    resp = await client.post(
+        "/api/v1/materials/npa",
+        json={
+            "title": "Вредоносный НПА",
+            "status": "published",
+            "act_kind": "federal_law",
+            "official_source_url": "javascript:alert(1)",
+        },
+        headers=auth_headers(tokens),
+        cookies=cookies,
+    )
+    assert resp.status_code == 422, resp.text

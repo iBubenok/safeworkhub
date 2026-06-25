@@ -29,6 +29,7 @@ class MaterialRepository(BaseRepository[Material]):
                 joinedload(Material.organization),
                 joinedload(Material.updated_by),
                 joinedload(Material.news),
+                joinedload(Material.npa),
                 # Коллекция 1:много — selectinload (отдельный запрос), чтобы не
                 # размножать строки в LEFT JOIN с остальными связями.
                 selectinload(Material.attachments),

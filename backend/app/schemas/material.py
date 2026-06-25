@@ -6,7 +6,15 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from app.models.material import MaterialContentFormat, MaterialStatus, MaterialType, MaterialVisibility
+from app.models.material import (
+    MaterialContentFormat,
+    MaterialStatus,
+    MaterialType,
+    MaterialVisibility,
+    NpaActKind,
+    NpaLevel,
+    NpaStatus,
+)
 
 
 def _validate_http_url(value: str | None) -> str | None:
@@ -131,6 +139,51 @@ class NewsCreate(BaseModel):
         return _validate_http_url(value)
 
 
+class NpaDetail(BaseModel):
+    """Поля, специфичные для НПА (в ответе)."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    act_kind: NpaActKind
+    level: NpaLevel | None = None
+    act_status: NpaStatus | None = None
+    document_number: str | None = None
+    adoption_date: date | None = None
+    effective_date: date | None = None
+    revision_date: date | None = None
+    issuing_authority: str | None = None
+    region: str | None = None
+    official_source_url: str | None = None
+
+
+class NpaCreate(BaseModel):
+    """Схема создания НПА (per-type контракт)."""
+
+    title: str = Field(min_length=1, max_length=500, description="Название акта")
+    summary: str | None = Field(None, max_length=1000, description="Краткая суть")
+    content: str = Field(default="", description="Комментарий/применение в ОТ (необязательно)")
+    content_format: MaterialContentFormat = Field(default=MaterialContentFormat.MARKDOWN, description="Формат тела")
+    category_id: int | None = Field(None, description="ID категории")
+    status: MaterialStatus = Field(default=MaterialStatus.DRAFT, description="Статус")
+    visibility: MaterialVisibility = Field(default=MaterialVisibility.ORG, description="Видимость")
+    # Поля, специфичные для НПА.
+    act_kind: NpaActKind = Field(description="Вид акта")
+    level: NpaLevel | None = Field(None, description="Уровень (юрисдикция)")
+    act_status: NpaStatus | None = Field(None, description="Статус действия")
+    document_number: str | None = Field(None, max_length=100, description="Номер документа")
+    adoption_date: date | None = Field(None, description="Дата принятия/подписания")
+    effective_date: date | None = Field(None, description="Дата вступления в силу")
+    revision_date: date | None = Field(None, description="Дата последней редакции")
+    issuing_authority: str | None = Field(None, max_length=500, description="Орган, принявший акт")
+    region: str | None = Field(None, max_length=255, description="Регион/юрисдикция")
+    official_source_url: str | None = Field(None, max_length=2000, description="Ссылка на офиц. публикацию")
+
+    @field_validator("official_source_url")
+    @classmethod
+    def _check_url_scheme(cls, value: str | None) -> str | None:
+        return _validate_http_url(value)
+
+
 class MaterialUpdate(BaseModel):
     """Схема обновления материала."""
 
@@ -167,6 +220,9 @@ class MaterialResponse(MaterialBase):
     # в сервисе; validation_alias не даёт model_validate(material) читать ленивую
     # связь material.news (иначе MissingGreenlet в async-контексте).
     news: NewsDetail | None = Field(default=None, validation_alias="news_detail")
+    # Деталь НПА (для остальных типов — None). Alias не совпадает с именем связи Material.npa,
+    # чтобы model_validate(material) не читал ленивую связь; заполняется вручную в сервисе.
+    npa: NpaDetail | None = Field(default=None, validation_alias="npa_detail")
     # Прикреплённые файлы. Alias не совпадает с именем связи Material.attachments,
     # чтобы model_validate(material) не читал ленивую коллекцию (MissingGreenlet);
     # заполняется вручную в сервисе.

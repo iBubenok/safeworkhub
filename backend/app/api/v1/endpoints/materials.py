@@ -26,6 +26,7 @@ from app.schemas.material import (
     MaterialResponse,
     MaterialUpdate,
     NewsCreate,
+    NpaCreate,
     SearchRequest,
     SearchResponse,
     TemplateCreate,
@@ -134,6 +135,29 @@ async def create_news(
 ) -> MaterialResponse:
     service = MaterialService(session)
     return await service.create_news(
+        organization_id=ctx.organization_id,
+        author_id=ctx.user.id,
+        data=data,
+        request_id=getattr(request.state, "request_id", None),
+    )
+
+
+@router.post(
+    "/npa",
+    response_model=MaterialResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Создать НПА",
+    description="Создание материала типа «НПА». Требуются права владельца организации.",
+    dependencies=[Depends(require_roles(OrgRole.ORG_OWNER))],
+)
+async def create_npa(
+    request: Request,
+    data: NpaCreate,
+    ctx: CurrentContext,
+    session: DbSession,
+) -> MaterialResponse:
+    service = MaterialService(session)
+    return await service.create_npa(
         organization_id=ctx.organization_id,
         author_id=ctx.user.id,
         data=data,

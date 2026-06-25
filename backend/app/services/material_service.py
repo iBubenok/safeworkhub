@@ -17,6 +17,7 @@ from app.models import Category, Material, MaterialAttachment
 from app.models.material import MaterialStatus, MaterialType, MaterialVisibility
 from app.models.news import News
 from app.models.notification import Notification
+from app.models.npa import Npa
 from app.schemas.material import (
     ArticleCreate,
     AttachmentResponse,
@@ -28,6 +29,8 @@ from app.schemas.material import (
     MaterialUpdate,
     NewsCreate,
     NewsDetail,
+    NpaCreate,
+    NpaDetail,
     SearchRequest,
     SearchResponse,
     SearchResult,
@@ -177,6 +180,58 @@ class MaterialService:
         )
         response = MaterialResponse.model_validate(material)
         response.news = NewsDetail.model_validate(detail)
+        return response
+
+    async def create_npa(
+        self,
+        *,
+        organization_id: int,
+        author_id: UUID,
+        data: NpaCreate,
+        request_id: str | None = None,
+    ) -> MaterialResponse:
+        """Создать НПА: базовый материал (type=NPA) + деталь-строку npa."""
+        material = await self.repository.create(
+            organization_id=organization_id,
+            author_id=author_id,
+            title=data.title,
+            content=data.content,
+            content_format=data.content_format,
+            summary=data.summary,
+            type=MaterialType.NPA,
+            status=data.status,
+            visibility=data.visibility,
+            category_id=data.category_id,
+            published_at=utcnow() if data.status == MaterialStatus.PUBLISHED else None,
+        )
+        detail = Npa(
+            material_id=material.id,
+            act_kind=data.act_kind,
+            level=data.level,
+            act_status=data.act_status,
+            document_number=data.document_number,
+            adoption_date=data.adoption_date,
+            effective_date=data.effective_date,
+            revision_date=data.revision_date,
+            issuing_authority=data.issuing_authority,
+            region=data.region,
+            official_source_url=data.official_source_url,
+        )
+        self.session.add(detail)
+        await self.session.flush()
+
+        await log_audit(
+            self.session,
+            action="npa_created",
+            entity_type="material",
+            entity_id=str(material.id),
+            organization_id=organization_id,
+            user_id=str(author_id),
+            request_id=request_id,
+            details={"status": material.status, "type": MaterialType.NPA},
+        )
+        response = MaterialResponse.model_validate(material)
+        response.npa = NpaDetail.model_validate(detail)
         return response
 
     async def create_template(
@@ -421,6 +476,8 @@ class MaterialService:
         response.updated_by_name = material.updated_by.name if material.updated_by else None
         # Деталь новости (joinedload в get_with_relations) — если это новость.
         response.news = NewsDetail.model_validate(material.news) if material.news else None
+        # Деталь НПА (joinedload) — если это НПА.
+        response.npa = NpaDetail.model_validate(material.npa) if material.npa else None
         # Прикреплённые файлы (selectinload) — для шаблонов и пр.
         response.attachments = [AttachmentResponse.model_validate(a) for a in material.attachments]
 

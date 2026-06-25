@@ -14,9 +14,13 @@ from app.models.material import (
     MaterialStatus,
     MaterialType,
     MaterialVisibility,
+    NpaActKind,
+    NpaLevel,
+    NpaStatus,
 )
 from app.models.news import News
 from app.models.notification import Notification, NotificationSettings
+from app.models.npa import Npa
 from app.models.organization import Organization, OrganizationUser, OrgRole
 from app.models.refresh_session import RefreshSession
 from app.models.subscription import Subscription, SubscriptionStatus, Tariff
@@ -38,6 +42,10 @@ __all__ = [
     "News",
     "Notification",
     "NotificationSettings",
+    "Npa",
+    "NpaActKind",
+    "NpaLevel",
+    "NpaStatus",
     "OrgRole",
     "Organization",
     "OrganizationUser",

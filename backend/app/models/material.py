@@ -27,6 +27,7 @@ from app.db.base import Base, IntegerPKMixin, TimestampMixin, UUIDMixin
 if TYPE_CHECKING:
     from app.models.attachment import MaterialAttachment
     from app.models.news import News
+    from app.models.npa import Npa
     from app.models.organization import Organization
     from app.models.user import User
 
@@ -61,6 +62,43 @@ class MaterialContentFormat(StrEnum):
 
     MARKDOWN = "markdown"
     HTML = "html"
+
+
+class NpaActKind(StrEnum):
+    """Вид нормативно-правового акта."""
+
+    FEDERAL_LAW = "federal_law"
+    CONSTITUTIONAL_LAW = "constitutional_law"
+    CODE = "code"
+    PRESIDENTIAL_DECREE = "presidential_decree"
+    GOVERNMENT_DECREE = "government_decree"
+    MINISTRY_ORDER = "ministry_order"
+    GOST = "gost"
+    SANPIN = "sanpin"
+    SP = "sp"
+    REGIONAL_LAW = "regional_law"
+    MUNICIPAL_ACT = "municipal_act"
+    LOCAL_ACT = "local_act"
+    OTHER = "other"
+
+
+class NpaLevel(StrEnum):
+    """Уровень (юрисдикция) акта."""
+
+    FEDERAL = "federal"
+    REGIONAL = "regional"
+    MUNICIPAL = "municipal"
+    LOCAL = "local"
+
+
+class NpaStatus(StrEnum):
+    """Статус действия акта."""
+
+    IN_FORCE = "in_force"
+    NOT_IN_FORCE = "not_in_force"
+    REPEALED = "repealed"
+    AMENDED = "amended"
+    SUSPENDED = "suspended"
 
 
 class Category(Base, IntegerPKMixin, TimestampMixin):
@@ -197,6 +235,12 @@ class Material(Base, UUIDMixin, TimestampMixin):
         back_populates="material",
         cascade="all, delete-orphan",
         order_by="MaterialAttachment.created_at",
+    )
+    # Деталь для типа «НПА» (1:1). Для остальных типов — None.
+    npa: Mapped["Npa | None"] = relationship(
+        back_populates="material",
+        uselist=False,
+        cascade="all, delete-orphan",
     )
 
     __table_args__ = (
