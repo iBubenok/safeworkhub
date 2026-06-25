@@ -4,10 +4,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Search, FileText, Book, Newspaper, File } from 'lucide-react';
 
 import * as materialsApi from '@/api/materials';
-import { getErrorMessage } from '@/api/client';
 import { useAuth } from '@/hooks/useAuth';
-import { ArticleForm } from '@/components/materials/ArticleForm';
-import { NewsForm } from '@/components/materials/NewsForm';
+import { CreateMaterialDialog } from '@/components/materials/CreateMaterialDialog';
 import type { MaterialListItem, MaterialStatus, MaterialType } from '@/types';
 
 const materialTypes: { value: MaterialType | ''; label: string; icon: typeof FileText }[] = [
@@ -112,14 +110,6 @@ export function MaterialsPage() {
   const [selectedType, setSelectedType] = useState<MaterialType | ''>('');
   const [selectedStatus, setSelectedStatus] = useState<MaterialStatus>('published');
   const [page, setPage] = useState(1);
-  const [formError, setFormError] = useState<string | null>(null);
-  const [createType, setCreateType] = useState<MaterialType>('article');
-  const [newMaterial, setNewMaterial] = useState({
-    title: '',
-    summary: '',
-    content: '',
-    category_id: undefined as number | undefined,
-  });
   const pageSize = 12;
 
   const queryClient = useQueryClient();
@@ -153,27 +143,6 @@ export function MaterialsPage() {
     },
   });
 
-  const categoriesQuery = useQuery({
-    queryKey: ['categories'],
-    queryFn: materialsApi.getCategories,
-    enabled: isOwner,
-    staleTime: 5 * 60 * 1000,
-  });
-
-  const createMaterial = useMutation({
-    mutationFn: materialsApi.createMaterial,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['materials'] });
-      setNewMaterial({
-        title: '',
-        summary: '',
-        content: '',
-        category_id: undefined,
-      });
-    },
-    onError: (error) => setFormError(getErrorMessage(error)),
-  });
-
   const publishMaterial = useMutation({
     mutationFn: materialsApi.publishMaterial,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['materials'] }),
@@ -189,17 +158,6 @@ export function MaterialsPage() {
     setPage(1);
   };
 
-  const handleCreate = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setFormError(null);
-    await createMaterial.mutateAsync({
-      ...newMaterial,
-      type: createType,
-      summary: newMaterial.summary || null,
-      status: 'draft',
-    });
-  };
-
   return (
     <div className="space-y-6">
       <div>
@@ -209,118 +167,13 @@ export function MaterialsPage() {
         </p>
       </div>
 
-      {isOwner && (
-        <div className="card">
-          <h3 className="card-title mb-3 text-lg">Создать материал</h3>
-
-          <div className="mb-4 max-w-xs">
-            <label className="label" htmlFor="create-type">
-              Тип материала
-            </label>
-            <select
-              id="create-type"
-              className="input"
-              value={createType}
-              onChange={(e) => {
-                setCreateType(e.target.value as MaterialType);
-                setFormError(null);
-              }}
-            >
-              {materialTypes
-                .filter((item) => item.value)
-                .map((item) => (
-                  <option key={item.value} value={item.value}>
-                    {item.label}
-                  </option>
-                ))}
-            </select>
-          </div>
-
-          {createType === 'article' ? (
-            <ArticleForm categories={categoriesQuery.data ?? []} />
-          ) : createType === 'news' ? (
-            <NewsForm categories={categoriesQuery.data ?? []} />
-          ) : (
-            <>
-              {formError && (
-                <div className="mb-3 rounded-md bg-red-50 p-3 text-sm text-red-600">{formError}</div>
-              )}
-              <form className="space-y-3" onSubmit={handleCreate}>
-                <div className="grid gap-3 md:grid-cols-2">
-                  <div>
-                    <label className="label" htmlFor="title">
-                      Заголовок
-                    </label>
-                    <input
-                      id="title"
-                      className="input"
-                      value={newMaterial.title}
-                      onChange={(e) => setNewMaterial((prev) => ({ ...prev, title: e.target.value }))}
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="label" htmlFor="category">
-                      Категория
-                    </label>
-                    <select
-                      id="category"
-                      className="input"
-                      value={newMaterial.category_id ?? ''}
-                      onChange={(e) =>
-                        setNewMaterial((prev) => ({
-                          ...prev,
-                          category_id: e.target.value ? Number(e.target.value) : undefined,
-                        }))
-                      }
-                    >
-                      <option value="">Без категории</option>
-                      {categoriesQuery.data?.map((category) => (
-                        <option key={category.id} value={category.id}>
-                          {category.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="label" htmlFor="summary">
-                    Краткое описание
-                  </label>
-                  <input
-                    id="summary"
-                    className="input"
-                    value={newMaterial.summary}
-                    onChange={(e) => setNewMaterial((prev) => ({ ...prev, summary: e.target.value }))}
-                  />
-                </div>
-
-                <div>
-                  <label className="label" htmlFor="content">
-                    Содержимое
-                  </label>
-                  <textarea
-                    id="content"
-                    className="input min-h-[120px]"
-                    value={newMaterial.content}
-                    onChange={(e) => setNewMaterial((prev) => ({ ...prev, content: e.target.value }))}
-                    required
-                  />
-                </div>
-
-                <div className="flex justify-end">
-                  <button type="submit" className="btn-primary" disabled={createMaterial.isPending}>
-                    {createMaterial.isPending ? 'Сохранение...' : 'Сохранить черновик'}
-                  </button>
-                </div>
-              </form>
-            </>
-          )}
-        </div>
-      )}
-
       <div className="card">
+        {isOwner && (
+          <div className="mb-4 flex justify-end">
+            <CreateMaterialDialog />
+          </div>
+        )}
+
         {isOwner && (
           <div className="mb-4 flex flex-wrap gap-2">
             {statusFilters.map((s) => (
