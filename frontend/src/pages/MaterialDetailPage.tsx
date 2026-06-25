@@ -8,6 +8,7 @@ import { getErrorMessage } from '@/api/client';
 import { Markdown } from '@/components/Markdown';
 import { ContentEditor } from '@/components/ContentEditor';
 import { useAuth } from '@/hooks/useAuth';
+import { safeHttpUrl } from '@/utils/safeUrl';
 import type { MaterialContentFormat } from '@/types';
 
 const statusLabel: Record<string, string> = {
@@ -304,9 +305,9 @@ export function MaterialDetailPage() {
 
             {data.news && (
               <div className="mt-3 space-y-2">
-                {data.news.cover_image_url && (
+                {safeHttpUrl(data.news.cover_image_url) && (
                   <img
-                    src={data.news.cover_image_url}
+                    src={safeHttpUrl(data.news.cover_image_url)}
                     alt=""
                     referrerPolicy="no-referrer"
                     className="max-h-64 w-full rounded-lg border border-gray-200 object-cover"
@@ -316,9 +317,9 @@ export function MaterialDetailPage() {
                   {data.news.event_date && (
                     <span>Дата новости: {new Date(data.news.event_date).toLocaleDateString('ru-RU')}</span>
                   )}
-                  {data.news.source_url && (
+                  {safeHttpUrl(data.news.source_url) && (
                     <a
-                      href={data.news.source_url}
+                      href={safeHttpUrl(data.news.source_url)}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-primary-600 underline"

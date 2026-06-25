@@ -1,11 +1,29 @@
 """Схемы для работы с материалами базы знаний."""
 
 from datetime import date, datetime
+from urllib.parse import urlparse
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.models.material import MaterialContentFormat, MaterialStatus, MaterialType, MaterialVisibility
+
+
+def _validate_http_url(value: str | None) -> str | None:
+    """Разрешать только http/https URL — защита от XSS через схему javascript:.
+
+    Поле попадает в href/src на фронте, поэтому опасные схемы (`javascript:`,
+    `data:`, `vbscript:` и т. п.) должны отсекаться на бэкенде.
+    """
+    if value is None:
+        return None
+    value = value.strip()
+    if not value:
+        return None
+    parsed = urlparse(value)
+    if parsed.scheme.lower() not in ("http", "https") or not parsed.netloc:
+        raise ValueError("URL должен начинаться с http:// или https://")
+    return value
 
 
 class MaterialBase(BaseModel):
@@ -75,6 +93,11 @@ class NewsCreate(BaseModel):
     event_date: date | None = Field(None, description="Дата события/новости")
     cover_image_url: str | None = Field(None, max_length=2000, description="Обложка-превью (URL)")
     tags: list[str] = Field(default_factory=list, description="Теги")
+
+    @field_validator("source_url", "cover_image_url")
+    @classmethod
+    def _check_url_scheme(cls, value: str | None) -> str | None:
+        return _validate_http_url(value)
 
 
 class MaterialUpdate(BaseModel):

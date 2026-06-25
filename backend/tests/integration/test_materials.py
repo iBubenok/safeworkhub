@@ -693,6 +693,48 @@ async def test_create_news_with_detail_fields(
 
 
 @pytest.mark.asyncio
+async def test_create_news_rejects_javascript_source_url(
+    client: AsyncClient,
+    unique_email: str,
+):
+    """source_url с опасной схемой (javascript:) отклоняется — защита от XSS."""
+    tokens, cookies = await register_and_login(client, unique_email)
+    created = await client.post(
+        "/api/v1/materials/news",
+        json={
+            "title": "Вредоносная новость",
+            "content": "Текст",
+            "status": "published",
+            "source_url": "javascript:alert(document.cookie)",
+        },
+        headers=auth_headers(tokens),
+        cookies=cookies,
+    )
+    assert created.status_code == 422, created.text
+
+
+@pytest.mark.asyncio
+async def test_create_news_rejects_javascript_cover_image_url(
+    client: AsyncClient,
+    unique_email: str,
+):
+    """cover_image_url с опасной схемой тоже отклоняется."""
+    tokens, cookies = await register_and_login(client, unique_email)
+    created = await client.post(
+        "/api/v1/materials/news",
+        json={
+            "title": "Вредоносная обложка",
+            "content": "Текст",
+            "status": "published",
+            "cover_image_url": "javascript:alert(1)",
+        },
+        headers=auth_headers(tokens),
+        cookies=cookies,
+    )
+    assert created.status_code == 422, created.text
+
+
+@pytest.mark.asyncio
 async def test_create_minimal_news(
     client: AsyncClient,
     unique_email: str,
