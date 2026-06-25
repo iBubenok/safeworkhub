@@ -178,6 +178,40 @@ class MaterialService:
         response.news = NewsDetail.model_validate(detail)
         return response
 
+    async def create_template(
+        self,
+        *,
+        organization_id: int,
+        author_id: UUID,
+        data: TemplateCreate,
+        request_id: str | None = None,
+    ) -> MaterialResponse:
+        """Создать шаблон (тип фиксирован TEMPLATE). Файлы грузятся отдельно."""
+        material = await self.repository.create(
+            organization_id=organization_id,
+            author_id=author_id,
+            title=data.title,
+            content=data.content,
+            content_format=data.content_format,
+            summary=data.summary,
+            type=MaterialType.TEMPLATE,
+            status=data.status,
+            visibility=data.visibility,
+            category_id=data.category_id,
+            published_at=utcnow() if data.status == MaterialStatus.PUBLISHED else None,
+        )
+        await log_audit(
+            self.session,
+            action="template_created",
+            entity_type="material",
+            entity_id=str(material.id),
+            organization_id=organization_id,
+            user_id=str(author_id),
+            request_id=request_id,
+            details={"status": material.status, "type": MaterialType.TEMPLATE},
+        )
+        return MaterialResponse.model_validate(material)
+
     async def update_material(
         self,
         material_id: UUID,

@@ -141,6 +141,29 @@ async def create_news(
     )
 
 
+@router.post(
+    "/templates",
+    response_model=MaterialResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Создать шаблон",
+    description="Создание материала типа «шаблон». Файлы загружаются отдельно. Требуются права владельца.",
+    dependencies=[Depends(require_roles(OrgRole.ORG_OWNER))],
+)
+async def create_template(
+    request: Request,
+    data: TemplateCreate,
+    ctx: CurrentContext,
+    session: DbSession,
+) -> MaterialResponse:
+    service = MaterialService(session)
+    return await service.create_template(
+        organization_id=ctx.organization_id,
+        author_id=ctx.user.id,
+        data=data,
+        request_id=getattr(request.state, "request_id", None),
+    )
+
+
 @router.patch(
     "/{material_id}",
     response_model=MaterialResponse,

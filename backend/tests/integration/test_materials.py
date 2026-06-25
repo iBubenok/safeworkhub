@@ -761,9 +761,7 @@ async def test_search_in_drafts_returns_own_and_excludes_published(
 ):
     """Поиск с status=draft находит свой черновик и не возвращает опубликованные."""
     tokens, cookies = await register_and_login(client, unique_email)
-    await create_article(
-        client, tokens, cookies, title="Черновик про молотки", content="молоток", status="draft"
-    )
+    await create_article(client, tokens, cookies, title="Черновик про молотки", content="молоток", status="draft")
     await create_article(
         client, tokens, cookies, title="Опубликовано про молотки", content="молоток", status="published"
     )
@@ -788,14 +786,10 @@ async def test_search_drafts_is_private(
 ):
     """Чужой черновик не находится поиском у участника, но находится у суперпользователя."""
     owner_tokens, owner_cookies = await register_and_login(client, unique_email)
-    await create_article(
-        client, owner_tokens, owner_cookies, title="Секрет про каски", content="каска", status="draft"
-    )
+    await create_article(client, owner_tokens, owner_cookies, title="Секрет про каски", content="каска", status="draft")
 
     member_email = f"member_{unique_email}"
-    member_tokens, member_cookies = await create_member_and_login(
-        client, owner_tokens, owner_cookies, member_email
-    )
+    member_tokens, member_cookies = await create_member_and_login(client, owner_tokens, owner_cookies, member_email)
 
     # участник (не автор) — не находит
     resp = await client.get(
@@ -824,3 +818,173 @@ async def test_search_drafts_is_private(
     assert resp2.status_code == 200, resp2.text
     titles = [item["title"] for item in resp2.json()["items"]]
     assert "Секрет про каски" in titles
+
+
+async def create_template(client: AsyncClient, tokens, cookies, **overrides) -> dict:
+    payload = {"title": "Шаблон акта", "status": "published"}
+    payload.update(overrides)
+    resp = await client.post(
+        "/api/v1/materials/templates",
+        json=payload,
+        headers=auth_headers(tokens),
+        cookies=cookies,
+    )
+    assert resp.status_code == 201, resp.text
+    return resp.json()
+
+
+async def upload_file(
+    client: AsyncClient, tokens, cookies, material_id, name="form.txt", data=b"hello", ctype="text/plain"
+):
+    return await client.post(
+        f"/api/v1/materials/{material_id}/attachments",
+        files={"file": (name, data, ctype)},
+        headers=auth_headers(tokens),
+        cookies=cookies,
+    )
+
+
+@pytest.mark.asyncio
+async def test_create_template(client: AsyncClient, unique_email: str):
+    """Шаблон создаётся с типом template и пустым списком вложений."""
+    tokens, cookies = await register_and_login(client, unique_email)
+    body = await create_template(client, tokens, cookies, title="Шаблон приказа", summary="Бланк")
+    assert body["type"] == "template"
+    assert body["attachments"] == []
+
+
+@pytest.mark.asyncio
+async def test_upload_and_download_attachment(client: AsyncClient, unique_email: str):
+    """Файл прикрепляется, виден в материале и скачивается как attachment."""
+    tokens, cookies = await register_and_login(client, unique_email)
+    template = await create_template(client, tokens, cookies)
+
+    uploaded = await upload_file(client, tokens, cookies, template["id"], name="бланк.txt", data=b"fill me")
+    assert uploaded.status_code == 201, uploaded.text
+    att = uploaded.json()
+    assert att["filename"] == "бланк.txt"
+    assert att["size_bytes"] == len(b"fill me")
+
+    fetched = await client.get(
+        f"/api/v1/materials/{template['id']}",
+        headers=auth_headers(tokens),
+        cookies=cookies,
+    )
+    assert fetched.status_code == 200, fetched.text
+    assert [a["id"] for a in fetched.json()["attachments"]] == [att["id"]]
+
+    download = await client.get(
+        f"/api/v1/materials/{template['id']}/attachments/{att['id']}",
+        headers=auth_headers(tokens),
+        cookies=cookies,
+    )
+    assert download.status_code == 200, download.text
+    assert download.content == b"fill me"
+    assert "attachment" in download.headers["content-disposition"]
+
+
+@pytest.mark.asyncio
+async def test_upload_rejects_disallowed_extension(client: AsyncClient, unique_email: str):
+    """Файл с неразрешённым расширением отклоняется."""
+    tokens, cookies = await register_and_login(client, unique_email)
+    template = await create_template(client, tokens, cookies)
+    resp = await upload_file(
+        client, tokens, cookies, template["id"], name="evil.exe", data=b"MZ", ctype="application/octet-stream"
+    )
+    assert resp.status_code == 422, resp.text
+
+
+@pytest.mark.asyncio
+async def test_upload_rejects_oversize(client: AsyncClient, unique_email: str, monkeypatch):
+    """Файл больше лимита отклоняется (лимит занижен через настройки)."""
+    monkeypatch.setattr("app.core.config.settings.max_upload_size_mb", 0)
+    tokens, cookies = await register_and_login(client, unique_email)
+    template = await create_template(client, tokens, cookies)
+    resp = await upload_file(client, tokens, cookies, template["id"], data=b"not empty")
+    assert resp.status_code == 422, resp.text
+
+
+@pytest.mark.asyncio
+async def test_attachment_upload_requires_owner_role(client: AsyncClient, unique_email: str):
+    """Участник (не владелец) не может прикреплять файлы."""
+    owner_tokens, owner_cookies = await register_and_login(client, unique_email)
+    template = await create_template(client, owner_tokens, owner_cookies)
+    member_tokens, member_cookies = await create_member_and_login(
+        client, owner_tokens, owner_cookies, f"member_{unique_email}"
+    )
+    resp = await upload_file(client, member_tokens, member_cookies, template["id"])
+    assert resp.status_code == 403, resp.text
+
+
+@pytest.mark.asyncio
+async def test_attachment_download_privacy(client: AsyncClient, db_session, unique_email: str):
+    """Вложение черновика не качается участником, но качается суперпользователем."""
+    owner_tokens, owner_cookies = await register_and_login(client, unique_email)
+    template = await create_template(client, owner_tokens, owner_cookies, status="draft")
+    uploaded = await upload_file(client, owner_tokens, owner_cookies, template["id"])
+    att_id = uploaded.json()["id"]
+
+    member_email = f"member_{unique_email}"
+    member_tokens, member_cookies = await create_member_and_login(client, owner_tokens, owner_cookies, member_email)
+    denied = await client.get(
+        f"/api/v1/materials/{template['id']}/attachments/{att_id}",
+        headers=auth_headers(member_tokens),
+        cookies=member_cookies,
+    )
+    assert denied.status_code == 404, denied.text
+
+    await db_session.execute(update(User).where(User.email == member_email).values(is_superuser=True))
+    await db_session.commit()
+    login = await client.post(
+        "/api/v1/auth/login",
+        json={"email": member_email, "password": "MemberPass123!"},
+    )
+    allowed = await client.get(
+        f"/api/v1/materials/{template['id']}/attachments/{att_id}",
+        headers=auth_headers(login.json()),
+        cookies=login.cookies,
+    )
+    assert allowed.status_code == 200, allowed.text
+
+
+@pytest.mark.asyncio
+async def test_published_attachment_downloadable_by_member(client: AsyncClient, unique_email: str):
+    """Вложение опубликованного шаблона доступно участнику организации."""
+    owner_tokens, owner_cookies = await register_and_login(client, unique_email)
+    template = await create_template(client, owner_tokens, owner_cookies, status="published")
+    uploaded = await upload_file(client, owner_tokens, owner_cookies, template["id"])
+    att_id = uploaded.json()["id"]
+
+    member_tokens, member_cookies = await create_member_and_login(
+        client, owner_tokens, owner_cookies, f"member_{unique_email}"
+    )
+    resp = await client.get(
+        f"/api/v1/materials/{template['id']}/attachments/{att_id}",
+        headers=auth_headers(member_tokens),
+        cookies=member_cookies,
+    )
+    assert resp.status_code == 200, resp.text
+
+
+@pytest.mark.asyncio
+async def test_delete_material_removes_attachments(client: AsyncClient, unique_email: str):
+    """Удаление материала убирает и вложения (скачивание становится 404)."""
+    tokens, cookies = await register_and_login(client, unique_email)
+    template = await create_template(client, tokens, cookies)
+    uploaded = await upload_file(client, tokens, cookies, template["id"])
+    att_id = uploaded.json()["id"]
+
+    deleted = await client.request(
+        "DELETE",
+        f"/api/v1/materials/{template['id']}",
+        headers=auth_headers(tokens),
+        cookies=cookies,
+    )
+    assert deleted.status_code == 204, deleted.text
+
+    gone = await client.get(
+        f"/api/v1/materials/{template['id']}/attachments/{att_id}",
+        headers=auth_headers(tokens),
+        cookies=cookies,
+    )
+    assert gone.status_code == 404, gone.text

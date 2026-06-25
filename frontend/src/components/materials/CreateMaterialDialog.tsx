@@ -7,6 +7,7 @@ import * as materialsApi from '@/api/materials';
 import { getErrorMessage } from '@/api/client';
 import { ArticleForm } from '@/components/materials/ArticleForm';
 import { NewsForm } from '@/components/materials/NewsForm';
+import { TemplateForm } from '@/components/materials/TemplateForm';
 import type { MaterialType } from '@/types';
 
 const createTypes: { value: MaterialType; label: string }[] = [
@@ -112,6 +113,8 @@ export function CreateMaterialDialog() {
             <ArticleForm categories={categories} />
           ) : createType === 'news' ? (
             <NewsForm categories={categories} />
+          ) : createType === 'template' ? (
+            <TemplateForm categories={categories} />
           ) : (
             <>
               {formError && (
