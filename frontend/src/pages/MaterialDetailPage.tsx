@@ -379,79 +379,80 @@ export function MaterialDetailPage() {
             <div className="mt-4 border-t pt-4">
               <Markdown>{data.content}</Markdown>
             </div>
+          </>
+        )}
 
-            {((data.attachments && data.attachments.length > 0) || isAuthor) && (
-              <div className="mt-6 border-t pt-4">
-                <div className="mb-3 flex items-center justify-between gap-3">
-                  <h2 className="flex items-center gap-2 text-sm font-semibold text-gray-900">
-                    <Paperclip className="h-4 w-4" /> Файлы
-                    {data.attachments && data.attachments.length > 0 && (
-                      <span className="text-gray-400">({data.attachments.length})</span>
-                    )}
-                  </h2>
-                  {isAuthor && (
-                    <>
+        {/* Файлы доступны и в просмотре, и в редактировании (для шаблонов — всегда). */}
+        {(data.type === 'template' || (data.attachments && data.attachments.length > 0)) && (
+          <div className="mt-6 border-t pt-4">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <h2 className="flex items-center gap-2 text-sm font-semibold text-gray-900">
+                <Paperclip className="h-4 w-4" /> Файлы
+                {data.attachments && data.attachments.length > 0 && (
+                  <span className="text-gray-400">({data.attachments.length})</span>
+                )}
+              </h2>
+              {isAuthor && (
+                <>
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    disabled={uploading}
+                    onClick={() => attachInputRef.current?.click()}
+                  >
+                    {uploading ? 'Загрузка...' : 'Добавить файлы'}
+                  </button>
+                  <input
+                    ref={attachInputRef}
+                    type="file"
+                    multiple
+                    className="hidden"
+                    onChange={(e) => void uploadFiles(e.target.files)}
+                  />
+                </>
+              )}
+            </div>
+
+            {attachError && (
+              <div className="mb-2 rounded-md bg-red-50 p-2 text-sm text-red-600">{attachError}</div>
+            )}
+
+            {data.attachments && data.attachments.length > 0 ? (
+              <ul className="space-y-2">
+                {data.attachments.map((att) => (
+                  <li
+                    key={att.id}
+                    className="flex items-center gap-3 rounded-md border border-gray-200 px-3 py-2 text-sm"
+                  >
+                    <Paperclip className="h-4 w-4 shrink-0 text-gray-400" />
+                    <span className="min-w-0 flex-1 truncate" title={att.filename}>
+                      {att.filename} <span className="text-gray-400">({formatFileSize(att.size_bytes)})</span>
+                    </span>
+                    <button
+                      type="button"
+                      className="inline-flex items-center gap-1 text-primary-600 hover:text-primary-700"
+                      onClick={() => void handleDownload(att)}
+                    >
+                      <Download className="h-4 w-4" /> Скачать
+                    </button>
+                    {isAuthor && (
                       <button
                         type="button"
-                        className="btn-secondary"
-                        disabled={uploading}
-                        onClick={() => attachInputRef.current?.click()}
+                        aria-label="Удалить файл"
+                        className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-red-600"
+                        disabled={deleteAttachment.isPending}
+                        onClick={() => deleteAttachment.mutate(att.id)}
                       >
-                        {uploading ? 'Загрузка...' : 'Добавить файлы'}
+                        <Trash2 className="h-4 w-4" />
                       </button>
-                      <input
-                        ref={attachInputRef}
-                        type="file"
-                        multiple
-                        className="hidden"
-                        onChange={(e) => void uploadFiles(e.target.files)}
-                      />
-                    </>
-                  )}
-                </div>
-
-                {attachError && (
-                  <div className="mb-2 rounded-md bg-red-50 p-2 text-sm text-red-600">{attachError}</div>
-                )}
-
-                {data.attachments && data.attachments.length > 0 ? (
-                  <ul className="space-y-2">
-                    {data.attachments.map((att) => (
-                      <li
-                        key={att.id}
-                        className="flex items-center gap-3 rounded-md border border-gray-200 px-3 py-2 text-sm"
-                      >
-                        <Paperclip className="h-4 w-4 shrink-0 text-gray-400" />
-                        <span className="min-w-0 flex-1 truncate" title={att.filename}>
-                          {att.filename} <span className="text-gray-400">({formatFileSize(att.size_bytes)})</span>
-                        </span>
-                        <button
-                          type="button"
-                          className="inline-flex items-center gap-1 text-primary-600 hover:text-primary-700"
-                          onClick={() => void handleDownload(att)}
-                        >
-                          <Download className="h-4 w-4" /> Скачать
-                        </button>
-                        {isAuthor && (
-                          <button
-                            type="button"
-                            aria-label="Удалить файл"
-                            className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-red-600"
-                            disabled={deleteAttachment.isPending}
-                            onClick={() => deleteAttachment.mutate(att.id)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="text-sm text-gray-400">Файлы ещё не прикреплены.</p>
-                )}
-              </div>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-sm text-gray-400">Файлы ещё не прикреплены.</p>
             )}
-          </>
+          </div>
         )}
       </article>
     </div>
