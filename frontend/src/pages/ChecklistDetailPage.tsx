@@ -77,7 +77,9 @@ export function ChecklistDetailPage() {
             {checklistStatusLabels[data.status]}
           </span>
           <span>{data.items.length} пунктов</span>
-          {data.author_name && <span>Автор: {data.author_name}</span>}
+          {(data.organization_name || data.author_name) && (
+            <span>Автор: {[data.organization_name, data.author_name].filter(Boolean).join(' · ')}</span>
+          )}
 
           <div className="ml-auto flex items-center gap-2">
             <button

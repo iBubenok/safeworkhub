@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { ClipboardList, ListChecks } from 'lucide-react';
+import { Building2, ClipboardList, ListChecks } from 'lucide-react';
 
 import * as checklistsApi from '@/api/checklists';
 import { useAuth } from '@/hooks/useAuth';
@@ -40,12 +40,20 @@ function ChecklistCard({ checklist }: { checklist: ChecklistListItem }) {
       </div>
       <button
         type="button"
-        className="btn-secondary mt-auto self-start"
+        className="btn-secondary self-start"
         disabled
         title="Скоро: проведение проверки по чек-листу"
       >
         Использовать
       </button>
+      {checklist.organization_name && (
+        <div className="mt-auto flex items-center gap-1.5 border-t border-gray-100 pt-2 text-xs text-gray-400">
+          <Building2 className="h-3.5 w-3.5 shrink-0" />
+          <span className="truncate" title={checklist.organization_name}>
+            {checklist.organization_name}
+          </span>
+        </div>
+      )}
     </div>
   );
 }

@@ -60,6 +60,7 @@ class ChecklistResponse(BaseModel):
 
     id: UUID
     organization_id: int
+    organization_name: str | None = None
     author_id: UUID
     author_name: str | None = None
     title: str
@@ -80,6 +81,7 @@ class ChecklistListItem(BaseModel):
     title: str
     description: str | None
     status: ChecklistStatus
+    organization_name: str | None = None
     item_count: int = 0
     created_at: datetime
 

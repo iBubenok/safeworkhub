@@ -35,7 +35,7 @@ class ChecklistRepository(BaseRepository[Checklist]):
         query = (
             select(Checklist)
             .where(*conditions)
-            .options(selectinload(Checklist.items))
+            .options(selectinload(Checklist.items), joinedload(Checklist.organization))
             .order_by(desc(Checklist.created_at))
             .limit(limit)
             .offset(offset)
@@ -51,6 +51,7 @@ class ChecklistRepository(BaseRepository[Checklist]):
                 selectinload(Checklist.items).joinedload(ChecklistItem.reference_material),
                 joinedload(Checklist.author),
                 joinedload(Checklist.updated_by),
+                joinedload(Checklist.organization),
             )
             .where(Checklist.id == checklist_id)
         )

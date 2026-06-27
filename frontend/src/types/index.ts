@@ -249,6 +249,7 @@ export interface ChecklistItem {
 export interface Checklist {
   id: string;
   organization_id: number;
+  organization_name: string | null;
   author_id: string;
   author_name: string | null;
   title: string;
@@ -265,6 +266,7 @@ export interface ChecklistListItem {
   title: string;
   description: string | null;
   status: ChecklistStatus;
+  organization_name: string | null;
   item_count: number;
   created_at: string;
 }

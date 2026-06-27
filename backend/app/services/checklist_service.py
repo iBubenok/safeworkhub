@@ -56,6 +56,7 @@ class ChecklistService:
     @staticmethod
     def _to_response(checklist: Checklist) -> ChecklistResponse:
         response = ChecklistResponse.model_validate(checklist)
+        response.organization_name = checklist.organization.name if checklist.organization else None
         response.author_name = checklist.author.name if checklist.author else None
         response.updated_by_name = checklist.updated_by.name if checklist.updated_by else None
         items: list[ChecklistItemResponse] = []
@@ -94,6 +95,7 @@ class ChecklistService:
         for checklist in checklists:
             list_item = ChecklistListItem.model_validate(checklist)
             list_item.item_count = len(checklist.items)
+            list_item.organization_name = checklist.organization.name if checklist.organization else None
             items.append(list_item)
         pages = (total + page_size - 1) // page_size if page_size > 0 else 0
         return ChecklistListResponse(items=items, total=total, page=page, page_size=page_size, pages=pages)
