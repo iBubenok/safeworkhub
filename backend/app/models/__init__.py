@@ -6,6 +6,7 @@
 
 from app.models.attachment import MaterialAttachment
 from app.models.audit_log import AuditLog
+from app.models.checklist import Checklist, ChecklistAnswerType, ChecklistItem, ChecklistStatus
 from app.models.course import AssignmentStatus, Course, CourseAssignment, CourseModule
 from app.models.material import (
     Category,
@@ -31,6 +32,10 @@ __all__ = [
     "AssignmentStatus",
     "AuditLog",
     "Category",
+    "Checklist",
+    "ChecklistAnswerType",
+    "ChecklistItem",
+    "ChecklistStatus",
     "Course",
     "CourseAssignment",
     "CourseModule",

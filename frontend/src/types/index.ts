@@ -231,6 +231,67 @@ export interface MaterialVersion {
   };
 }
 
+export type ChecklistStatus = 'draft' | 'published' | 'archived';
+export type ChecklistAnswerType = 'compliance' | 'yes_no' | 'text' | 'number';
+
+export interface ChecklistItem {
+  id: string;
+  sort_order: number;
+  text: string;
+  answer_type: ChecklistAnswerType;
+  required: boolean;
+  help_text: string | null;
+  reference_material_id: string | null;
+  reference_material_title: string | null;
+  reference_note: string | null;
+}
+
+export interface Checklist {
+  id: string;
+  organization_id: number;
+  author_id: string;
+  author_name: string | null;
+  title: string;
+  description: string | null;
+  status: ChecklistStatus;
+  created_at: string;
+  updated_at: string;
+  updated_by_name: string | null;
+  items: ChecklistItem[];
+}
+
+export interface ChecklistListItem {
+  id: string;
+  title: string;
+  description: string | null;
+  status: ChecklistStatus;
+  item_count: number;
+  created_at: string;
+}
+
+export interface ChecklistItemInput {
+  text: string;
+  answer_type: ChecklistAnswerType;
+  required: boolean;
+  help_text?: string | null;
+  reference_material_id?: string | null;
+  reference_note?: string | null;
+}
+
+export interface ChecklistCreateInput {
+  title: string;
+  description?: string | null;
+  status?: ChecklistStatus;
+  items: ChecklistItemInput[];
+}
+
+export interface ChecklistUpdateInput {
+  title?: string;
+  description?: string | null;
+  status?: ChecklistStatus;
+  items?: ChecklistItemInput[];
+}
+
 export interface PaginatedResponse<T> {
   items: T[];
   total: number;

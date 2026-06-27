@@ -1,19 +1,51 @@
-export function ChecksPage() {
-    return (
-        <div className="space-y-6">
-            <div>
-                <h1 className="text-2xl font-bold text-gray-900">Проверки и чек-листы</h1>
-                <p className="mt-1 text-gray-600">
-                    Различные шаблоны проверок и чек-листов для обеспечения безопасности на рабочем месте.
-                </p>
-            </div>
-            
-            <div className="rounded-lg border-2 border-dashed border-gray-300 p-10 shadow-sm">
-                <h2 className="text-lg font-semibold text-gray-900">
-                    В разработке
-                </h2>
-            </div>
+import * as Tabs from '@radix-ui/react-tabs';
 
-        </div>
+import { ChecklistsTab } from '@/components/checklists/ChecklistsTab';
+
+const tabs = [
+  { value: 'all', label: 'Все вместе' },
+  { value: 'runs', label: 'Проверки' },
+  { value: 'checklists', label: 'Чек-листы' },
+];
+
+export function ChecksPage() {
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900">Проверки и чек-листы</h1>
+        <p className="mt-1 text-gray-600">
+          Конструктор чек-листов и проведение проверок для обеспечения безопасности на рабочем месте.
+        </p>
+      </div>
+
+      <Tabs.Root defaultValue="checklists">
+        <Tabs.List className="-mb-px flex gap-1 overflow-x-auto border-b border-gray-200">
+          {tabs.map((tab) => (
+            <Tabs.Trigger
+              key={tab.value}
+              value={tab.value}
+              className="whitespace-nowrap border-b-2 border-transparent px-4 py-2.5 text-sm font-medium text-gray-500 transition-colors hover:border-gray-300 hover:text-gray-700 data-[state=active]:border-primary-600 data-[state=active]:text-primary-700"
+            >
+              {tab.label}
+            </Tabs.Trigger>
+          ))}
+        </Tabs.List>
+
+        <Tabs.Content value="all" className="pt-6 focus:outline-none">
+          <ChecklistsTab />
+        </Tabs.Content>
+        <Tabs.Content value="runs" className="pt-6 focus:outline-none">
+          <div className="rounded-lg border-2 border-dashed border-gray-300 p-10 text-center">
+            <h2 className="text-lg font-semibold text-gray-900">Проверки</h2>
+            <p className="mt-1 text-sm text-gray-500">
+              Проведение проверок по чек-листам — в разработке (следующий этап).
+            </p>
+          </div>
+        </Tabs.Content>
+        <Tabs.Content value="checklists" className="pt-6 focus:outline-none">
+          <ChecklistsTab />
+        </Tabs.Content>
+      </Tabs.Root>
+    </div>
   );
 }

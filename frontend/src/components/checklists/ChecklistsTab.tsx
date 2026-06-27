@@ -1,0 +1,107 @@
+import { useState } from 'react';
+import { Link } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
+import { ClipboardList, ListChecks } from 'lucide-react';
+
+import * as checklistsApi from '@/api/checklists';
+import { useAuth } from '@/hooks/useAuth';
+import { CreateCheckDialog } from '@/components/checklists/CreateCheckDialog';
+import { checklistStatusLabels } from '@/utils/checklistLabels';
+import type { ChecklistListItem, ChecklistStatus } from '@/types';
+
+const statusFilters: { value: ChecklistStatus; label: string }[] = [
+  { value: 'published', label: 'Опубликованные' },
+  { value: 'draft', label: 'Черновики' },
+  { value: 'archived', label: 'Архив' },
+];
+
+function ChecklistCard({ checklist }: { checklist: ChecklistListItem }) {
+  return (
+    <div className="card flex flex-col gap-3 transition-shadow hover:shadow-md">
+      <div className="flex items-start gap-3">
+        <ListChecks className="h-5 w-5 shrink-0 text-primary-500" />
+        <div className="min-w-0 flex-1">
+          <Link
+            to={`/checks/checklists/${checklist.id}`}
+            className="block font-medium text-gray-900 line-clamp-2 hover:text-primary-600"
+          >
+            {checklist.title}
+          </Link>
+          {checklist.description && (
+            <p className="mt-1 text-sm text-gray-500 line-clamp-2">{checklist.description}</p>
+          )}
+          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-gray-500">
+            <span className="rounded-full bg-gray-100 px-2 py-1 uppercase tracking-wide">
+              {checklistStatusLabels[checklist.status]}
+            </span>
+            <span>{checklist.item_count} пунктов</span>
+          </div>
+        </div>
+      </div>
+      <button
+        type="button"
+        className="btn-secondary mt-auto self-start"
+        disabled
+        title="Скоро: проведение проверки по чек-листу"
+      >
+        Использовать
+      </button>
+    </div>
+  );
+}
+
+export function ChecklistsTab() {
+  const { role } = useAuth();
+  const isOwner = role === 'org_owner';
+  const [status, setStatus] = useState<ChecklistStatus>('published');
+
+  const query = useQuery({
+    queryKey: ['checklists', isOwner ? status : 'published'],
+    queryFn: () => checklistsApi.getChecklists({ status: isOwner ? status : 'published' }),
+  });
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        {isOwner ? (
+          <div className="inline-flex shrink-0 overflow-x-auto rounded-lg border border-gray-200 bg-gray-50 p-0.5">
+            {statusFilters.map((s) => (
+              <button
+                key={s.value}
+                type="button"
+                onClick={() => setStatus(s.value)}
+                className={`whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                  status === s.value ? 'bg-white text-primary-700 shadow-sm' : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                {s.label}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <span />
+        )}
+        {isOwner && <CreateCheckDialog />}
+      </div>
+
+      {query.isLoading ? (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {[...Array(3)].map((_, i) => (
+            <div key={i} className="card h-28 animate-pulse" />
+          ))}
+        </div>
+      ) : !query.data || query.data.items.length === 0 ? (
+        <div className="card flex flex-col items-center gap-2 py-10 text-center">
+          <ClipboardList className="h-8 w-8 text-gray-300" />
+          <p className="text-gray-500">Чек-листы не найдены</p>
+        </div>
+      ) : (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {query.data.items.map((checklist) => (
+            <ChecklistCard key={checklist.id} checklist={checklist} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}

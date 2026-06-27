@@ -9,6 +9,7 @@ import { DashboardPage } from '@/pages/DashboardPage';
 import { MaterialsPage } from '@/pages/MaterialsPage';
 import { MaterialDetailPage } from '@/pages/MaterialDetailPage';
 import { ChecksPage } from '@/pages/ChecksPage';
+import { ChecklistDetailPage } from '@/pages/ChecklistDetailPage';
 import { CoursesPage } from '@/pages/CoursesPage';
 import { UsersPage } from '@/pages/UsersPage';
 import { SettingsPage } from '@/pages/SettingsPage';
@@ -99,6 +100,7 @@ export default function App() {
         <Route path="materials" element={<MaterialsPage />} />
         <Route path="materials/:id" element={<MaterialDetailPage />} />
         <Route path="checks" element={<ChecksPage />} />
+        <Route path="checks/checklists/:id" element={<ChecklistDetailPage />} />
         <Route path="courses" element={<CoursesPage />} />
         <Route path="reports" element={<ReportsPage />} />
         <Route path="users" element={<UsersPage />} />
