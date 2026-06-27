@@ -233,17 +233,30 @@ export interface MaterialVersion {
 
 export type ChecklistStatus = 'draft' | 'published' | 'archived';
 export type ChecklistAnswerType = 'compliance' | 'yes_no' | 'text' | 'number';
+export type ChecklistNodeType = 'group' | 'item';
 
-export interface ChecklistItem {
+export interface ChecklistNode {
   id: string;
-  sort_order: number;
+  node_type: ChecklistNodeType;
   text: string;
-  answer_type: ChecklistAnswerType;
+  answer_type: ChecklistAnswerType | null;
   required: boolean;
   help_text: string | null;
   reference_material_id: string | null;
   reference_material_title: string | null;
   reference_note: string | null;
+  children: ChecklistNode[];
+}
+
+export interface ChecklistNodeInput {
+  node_type: ChecklistNodeType;
+  text: string;
+  answer_type?: ChecklistAnswerType | null;
+  required?: boolean;
+  help_text?: string | null;
+  reference_material_id?: string | null;
+  reference_note?: string | null;
+  children?: ChecklistNodeInput[];
 }
 
 export interface Checklist {
@@ -259,7 +272,7 @@ export interface Checklist {
   created_at: string;
   updated_at: string;
   updated_by_name: string | null;
-  items: ChecklistItem[];
+  items: ChecklistNode[];
 }
 
 export interface ChecklistListItem {
@@ -273,27 +286,18 @@ export interface ChecklistListItem {
   created_at: string;
 }
 
-export interface ChecklistItemInput {
-  text: string;
-  answer_type: ChecklistAnswerType;
-  required: boolean;
-  help_text?: string | null;
-  reference_material_id?: string | null;
-  reference_note?: string | null;
-}
-
 export interface ChecklistCreateInput {
   title: string;
   description?: string | null;
   status?: ChecklistStatus;
-  items: ChecklistItemInput[];
+  items: ChecklistNodeInput[];
 }
 
 export interface ChecklistUpdateInput {
   title?: string;
   description?: string | null;
   status?: ChecklistStatus;
-  items?: ChecklistItemInput[];
+  items?: ChecklistNodeInput[];
 }
 
 export interface PaginatedResponse<T> {

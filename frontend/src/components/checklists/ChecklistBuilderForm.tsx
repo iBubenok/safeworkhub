@@ -1,15 +1,16 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowDown, ArrowUp, Plus, Search, Trash2, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, Plus, Search, Trash2, X } from 'lucide-react';
 
 import * as checklistsApi from '@/api/checklists';
 import { searchMaterials } from '@/api/materials';
 import { getErrorMessage } from '@/api/client';
 import { checklistAnswerTypeLabels } from '@/utils/checklistLabels';
-import type { Checklist, ChecklistAnswerType, ChecklistStatus } from '@/types';
+import type { Checklist, ChecklistAnswerType, ChecklistNode, ChecklistNodeInput, ChecklistStatus } from '@/types';
 
-interface BuilderItem {
+interface BuilderNode {
   key: string;
+  node_type: 'group' | 'item';
   text: string;
   answer_type: ChecklistAnswerType;
   required: boolean;
@@ -17,11 +18,13 @@ interface BuilderItem {
   reference_material_id: string | null;
   reference_material_title: string | null;
   reference_note: string;
+  children: BuilderNode[];
 }
 
-function newItem(): BuilderItem {
+function makeNode(node_type: 'group' | 'item'): BuilderNode {
   return {
     key: crypto.randomUUID(),
+    node_type,
     text: '',
     answer_type: 'compliance',
     required: true,
@@ -29,20 +32,63 @@ function newItem(): BuilderItem {
     reference_material_id: null,
     reference_material_title: null,
     reference_note: '',
+    children: [],
   };
 }
 
-function fromChecklist(checklist: Checklist): BuilderItem[] {
-  return checklist.items.map((it) => ({
+function fromNodes(nodes: ChecklistNode[]): BuilderNode[] {
+  return nodes.map((n) => ({
     key: crypto.randomUUID(),
-    text: it.text,
-    answer_type: it.answer_type,
-    required: it.required,
-    help_text: it.help_text ?? '',
-    reference_material_id: it.reference_material_id,
-    reference_material_title: it.reference_material_title,
-    reference_note: it.reference_note ?? '',
+    node_type: n.node_type,
+    text: n.text,
+    answer_type: n.answer_type ?? 'compliance',
+    required: n.required,
+    help_text: n.help_text ?? '',
+    reference_material_id: n.reference_material_id,
+    reference_material_title: n.reference_material_title,
+    reference_note: n.reference_note ?? '',
+    children: fromNodes(n.children),
   }));
+}
+
+function toInput(nodes: BuilderNode[]): ChecklistNodeInput[] {
+  return nodes
+    .filter((n) => n.text.trim())
+    .map((n) =>
+      n.node_type === 'group'
+        ? { node_type: 'group' as const, text: n.text.trim(), required: false, children: toInput(n.children) }
+        : {
+            node_type: 'item' as const,
+            text: n.text.trim(),
+            answer_type: n.answer_type,
+            required: n.required,
+            help_text: n.help_text.trim() || null,
+            reference_material_id: n.reference_material_id,
+            reference_note: n.reference_note.trim() || null,
+          },
+    );
+}
+
+function countItems(nodes: ChecklistNodeInput[]): number {
+  return nodes.reduce((acc, n) => acc + (n.node_type === 'item' ? 1 : countItems(n.children ?? [])), 0);
+}
+
+/** Контекст узла в дереве: список соседей, индекс и родитель. */
+interface NodeCtx {
+  siblings: BuilderNode[];
+  index: number;
+  parent: BuilderNode | null;
+}
+
+function locate(tree: BuilderNode[], key: string, parent: BuilderNode | null = null): NodeCtx | null {
+  for (let i = 0; i < tree.length; i += 1) {
+    const node = tree[i];
+    if (!node) continue;
+    if (node.key === key) return { siblings: tree, index: i, parent };
+    const found = locate(node.children, key, node);
+    if (found) return found;
+  }
+  return null;
 }
 
 /** Поиск-выбор материала-ссылки для пункта. */
@@ -108,53 +154,240 @@ function MaterialPicker({
   );
 }
 
+interface NodeHandlers {
+  patch: (key: string, patch: Partial<BuilderNode>) => void;
+  move: (key: string, delta: number) => void;
+  indent: (key: string) => void;
+  outdent: (key: string) => void;
+  remove: (key: string) => void;
+  addChild: (parentKey: string, node_type: 'group' | 'item') => void;
+}
+
+function NodeEditor({
+  node,
+  depth,
+  index,
+  siblings,
+  handlers,
+}: {
+  node: BuilderNode;
+  depth: number;
+  index: number;
+  siblings: BuilderNode[];
+  handlers: NodeHandlers;
+}) {
+  const prev = index > 0 ? siblings[index - 1] : null;
+  const canIndent = prev?.node_type === 'group';
+
+  return (
+    <div style={{ marginLeft: depth * 16 }} className="space-y-2">
+      <div className={`space-y-2 rounded-lg border p-3 ${node.node_type === 'group' ? 'border-primary-200 bg-primary-50/40' : 'border-gray-200'}`}>
+        <div className="flex items-start gap-2">
+          <span className="mt-2 shrink-0 text-xs font-medium uppercase text-gray-400">
+            {node.node_type === 'group' ? 'Раздел' : 'Пункт'}
+          </span>
+          <textarea
+            className="input min-h-[40px] flex-1"
+            placeholder={node.node_type === 'group' ? 'Название раздела' : 'Текст вопроса/проверки'}
+            value={node.text}
+            onChange={(e) => handlers.patch(node.key, { text: e.target.value })}
+          />
+          <div className="flex shrink-0 flex-col gap-1">
+            <button
+              type="button"
+              className="rounded p-1 text-gray-400 hover:bg-gray-100 disabled:opacity-30"
+              disabled={index === 0}
+              onClick={() => handlers.move(node.key, -1)}
+              aria-label="Вверх"
+            >
+              <ArrowUp className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              className="rounded p-1 text-gray-400 hover:bg-gray-100 disabled:opacity-30"
+              disabled={index === siblings.length - 1}
+              onClick={() => handlers.move(node.key, 1)}
+              aria-label="Вниз"
+            >
+              <ArrowDown className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              className="rounded p-1 text-gray-400 hover:bg-gray-100 disabled:opacity-30"
+              disabled={!canIndent}
+              onClick={() => handlers.indent(node.key)}
+              aria-label="Вложить"
+              title="Вложить в предыдущий раздел"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              className="rounded p-1 text-gray-400 hover:bg-gray-100 disabled:opacity-30"
+              disabled={depth === 0}
+              onClick={() => handlers.outdent(node.key)}
+              aria-label="Выдвинуть"
+              title="Выдвинуть на уровень выше"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-red-600"
+              onClick={() => handlers.remove(node.key)}
+              aria-label="Удалить"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+
+        {node.node_type === 'item' ? (
+          <>
+            <select
+              className="input"
+              value={node.answer_type}
+              onChange={(e) => handlers.patch(node.key, { answer_type: e.target.value as ChecklistAnswerType })}
+            >
+              {(Object.keys(checklistAnswerTypeLabels) as ChecklistAnswerType[]).map((t) => (
+                <option key={t} value={t}>
+                  {checklistAnswerTypeLabels[t]}
+                </option>
+              ))}
+            </select>
+            <input
+              className="input"
+              placeholder="Подсказка (необязательно)"
+              value={node.help_text}
+              onChange={(e) => handlers.patch(node.key, { help_text: e.target.value })}
+            />
+            <div className="rounded-md bg-gray-50 p-2">
+              <span className="mb-1 block text-xs text-gray-500">Ссылка на закон/статью (необязательно)</span>
+              <MaterialPicker
+                value={
+                  node.reference_material_id
+                    ? { id: node.reference_material_id, title: node.reference_material_title ?? 'Материал' }
+                    : null
+                }
+                onSelect={(m) =>
+                  handlers.patch(node.key, { reference_material_id: m.id, reference_material_title: m.title })
+                }
+                onClear={() => handlers.patch(node.key, { reference_material_id: null, reference_material_title: null })}
+              />
+              <input
+                className="input mt-2"
+                placeholder="Заметка (напр. пункт закона)"
+                value={node.reference_note}
+                onChange={(e) => handlers.patch(node.key, { reference_note: e.target.value })}
+              />
+            </div>
+          </>
+        ) : (
+          <div className="flex gap-2">
+            <button
+              type="button"
+              className="btn-secondary flex items-center gap-1 px-2 py-1 text-xs"
+              onClick={() => handlers.addChild(node.key, 'group')}
+            >
+              <Plus size={12} /> Подраздел
+            </button>
+            <button
+              type="button"
+              className="btn-secondary flex items-center gap-1 px-2 py-1 text-xs"
+              onClick={() => handlers.addChild(node.key, 'item')}
+            >
+              <Plus size={12} /> Пункт
+            </button>
+          </div>
+        )}
+      </div>
+
+      {node.children.map((child, i) => (
+        <NodeEditor
+          key={child.key}
+          node={child}
+          depth={depth + 1}
+          index={i}
+          siblings={node.children}
+          handlers={handlers}
+        />
+      ))}
+    </div>
+  );
+}
+
 /**
- * Тело конструктора чек-листа (без диалога). Без `checklist` — создание, с ним — правка.
+ * Тело конструктора чек-листа (без диалога). Поддерживает дерево разделов/пунктов.
  * `onSaved` вызывается после успешного сохранения (родитель закрывает окно).
  */
-export function ChecklistBuilderForm({
-  checklist,
-  onSaved,
-}: {
-  checklist?: Checklist;
-  onSaved: () => void;
-}) {
+export function ChecklistBuilderForm({ checklist, onSaved }: { checklist?: Checklist; onSaved: () => void }) {
   const [title, setTitle] = useState(checklist?.title ?? '');
   const [description, setDescription] = useState(checklist?.description ?? '');
-  const [items, setItems] = useState<BuilderItem[]>(() => (checklist ? fromChecklist(checklist) : [newItem()]));
+  const [tree, setTree] = useState<BuilderNode[]>(() =>
+    checklist ? fromNodes(checklist.items) : [makeNode('item')],
+  );
   const [error, setError] = useState<string | null>(null);
 
   const queryClient = useQueryClient();
 
-  const patchItem = (key: string, patch: Partial<BuilderItem>) =>
-    setItems((prev) => prev.map((it) => (it.key === key ? { ...it, ...patch } : it)));
-
-  const move = (index: number, delta: number) =>
-    setItems((prev) => {
-      const target = index + delta;
-      if (target < 0 || target >= prev.length) return prev;
-      const next = [...prev];
-      const current = next[index];
-      const swapWith = next[target];
-      if (!current || !swapWith) return prev;
-      next[index] = swapWith;
-      next[target] = current;
-      return next;
+  const mutate = (fn: (clone: BuilderNode[]) => void) =>
+    setTree((prev) => {
+      const clone = structuredClone(prev) as BuilderNode[];
+      fn(clone);
+      return clone;
     });
+
+  const handlers: NodeHandlers = {
+    patch: (key, patch) =>
+      mutate((clone) => {
+        const ctx = locate(clone, key);
+        if (ctx) Object.assign(ctx.siblings[ctx.index] as BuilderNode, patch);
+      }),
+    move: (key, delta) =>
+      mutate((clone) => {
+        const ctx = locate(clone, key);
+        if (!ctx) return;
+        const target = ctx.index + delta;
+        if (target < 0 || target >= ctx.siblings.length) return;
+        const [n] = ctx.siblings.splice(ctx.index, 1);
+        if (n) ctx.siblings.splice(target, 0, n);
+      }),
+    indent: (key) =>
+      mutate((clone) => {
+        const ctx = locate(clone, key);
+        if (!ctx || ctx.index === 0) return;
+        const prev = ctx.siblings[ctx.index - 1];
+        if (!prev || prev.node_type !== 'group') return;
+        const [n] = ctx.siblings.splice(ctx.index, 1);
+        if (n) prev.children.push(n);
+      }),
+    outdent: (key) =>
+      mutate((clone) => {
+        const ctx = locate(clone, key);
+        if (!ctx || !ctx.parent) return;
+        const parentCtx = locate(clone, ctx.parent.key);
+        if (!parentCtx) return;
+        const [n] = ctx.siblings.splice(ctx.index, 1);
+        if (n) parentCtx.siblings.splice(parentCtx.index + 1, 0, n);
+      }),
+    remove: (key) =>
+      mutate((clone) => {
+        const ctx = locate(clone, key);
+        if (ctx) ctx.siblings.splice(ctx.index, 1);
+      }),
+    addChild: (parentKey, node_type) =>
+      mutate((clone) => {
+        const ctx = locate(clone, parentKey);
+        if (ctx) (ctx.siblings[ctx.index] as BuilderNode).children.push(makeNode(node_type));
+      }),
+  };
+
+  const addRoot = (node_type: 'group' | 'item') => setTree((prev) => [...prev, makeNode(node_type)]);
 
   const save = useMutation({
     mutationFn: (nextStatus: ChecklistStatus) => {
-      const payloadItems = items
-        .filter((it) => it.text.trim())
-        .map((it) => ({
-          text: it.text.trim(),
-          answer_type: it.answer_type,
-          required: it.required,
-          help_text: it.help_text.trim() || null,
-          reference_material_id: it.reference_material_id,
-          reference_note: it.reference_note.trim() || null,
-        }));
-      const payload = { title, description: description || null, status: nextStatus, items: payloadItems };
+      const items = toInput(tree);
+      const payload = { title, description: description || null, status: nextStatus, items };
       return checklist ? checklistsApi.updateChecklist(checklist.id, payload) : checklistsApi.createChecklist(payload);
     },
     onSuccess: (saved) => {
@@ -171,7 +404,7 @@ export function ChecklistBuilderForm({
       setError('Укажите название чек-листа');
       return;
     }
-    if (!items.some((it) => it.text.trim())) {
+    if (countItems(toInput(tree)) === 0) {
       setError('Добавьте хотя бы один пункт');
       return;
     }
@@ -209,94 +442,27 @@ export function ChecklistBuilderForm({
 
       <div className="space-y-3">
         <div className="flex items-center justify-between">
-          <span className="label mb-0">Пункты проверки</span>
-          <button
-            type="button"
-            className="btn-secondary flex items-center gap-1 px-3 py-1 text-xs"
-            onClick={() => setItems((prev) => [...prev, newItem()])}
-          >
-            <Plus size={14} /> Добавить пункт
-          </button>
+          <span className="label mb-0">Структура чек-листа</span>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              className="btn-secondary flex items-center gap-1 px-3 py-1 text-xs"
+              onClick={() => addRoot('group')}
+            >
+              <Plus size={14} /> Раздел
+            </button>
+            <button
+              type="button"
+              className="btn-secondary flex items-center gap-1 px-3 py-1 text-xs"
+              onClick={() => addRoot('item')}
+            >
+              <Plus size={14} /> Пункт
+            </button>
+          </div>
         </div>
 
-        {items.map((item, index) => (
-          <div key={item.key} className="space-y-2 rounded-lg border border-gray-200 p-3">
-            <div className="flex items-start gap-2">
-              <span className="mt-2 text-xs font-medium text-gray-400">{index + 1}</span>
-              <textarea
-                className="input min-h-[44px] flex-1"
-                placeholder="Текст вопроса/проверки"
-                value={item.text}
-                onChange={(e) => patchItem(item.key, { text: e.target.value })}
-              />
-              <div className="flex flex-col gap-1">
-                <button
-                  type="button"
-                  className="rounded p-1 text-gray-400 hover:bg-gray-100 disabled:opacity-30"
-                  disabled={index === 0}
-                  onClick={() => move(index, -1)}
-                  aria-label="Вверх"
-                >
-                  <ArrowUp className="h-4 w-4" />
-                </button>
-                <button
-                  type="button"
-                  className="rounded p-1 text-gray-400 hover:bg-gray-100 disabled:opacity-30"
-                  disabled={index === items.length - 1}
-                  onClick={() => move(index, 1)}
-                  aria-label="Вниз"
-                >
-                  <ArrowDown className="h-4 w-4" />
-                </button>
-                <button
-                  type="button"
-                  className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-red-600"
-                  onClick={() => setItems((prev) => prev.filter((it) => it.key !== item.key))}
-                  aria-label="Удалить пункт"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
-              </div>
-            </div>
-
-            <select
-              className="input"
-              value={item.answer_type}
-              onChange={(e) => patchItem(item.key, { answer_type: e.target.value as ChecklistAnswerType })}
-            >
-              {(Object.keys(checklistAnswerTypeLabels) as ChecklistAnswerType[]).map((t) => (
-                <option key={t} value={t}>
-                  {checklistAnswerTypeLabels[t]}
-                </option>
-              ))}
-            </select>
-
-            <input
-              className="input"
-              placeholder="Подсказка (необязательно)"
-              value={item.help_text}
-              onChange={(e) => patchItem(item.key, { help_text: e.target.value })}
-            />
-
-            <div className="rounded-md bg-gray-50 p-2">
-              <span className="mb-1 block text-xs text-gray-500">Ссылка на закон/статью (необязательно)</span>
-              <MaterialPicker
-                value={
-                  item.reference_material_id
-                    ? { id: item.reference_material_id, title: item.reference_material_title ?? 'Материал' }
-                    : null
-                }
-                onSelect={(m) => patchItem(item.key, { reference_material_id: m.id, reference_material_title: m.title })}
-                onClear={() => patchItem(item.key, { reference_material_id: null, reference_material_title: null })}
-              />
-              <input
-                className="input mt-2"
-                placeholder="Заметка (напр. пункт закона)"
-                value={item.reference_note}
-                onChange={(e) => patchItem(item.key, { reference_note: e.target.value })}
-              />
-            </div>
-          </div>
+        {tree.map((node, i) => (
+          <NodeEditor key={node.key} node={node} depth={0} index={i} siblings={tree} handlers={handlers} />
         ))}
       </div>
 

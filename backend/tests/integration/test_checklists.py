@@ -65,7 +65,81 @@ async def test_create_checklist(client: AsyncClient, unique_email: str):
     assert body["status"] == "published"
     assert len(body["items"]) == 2
     assert body["items"][0]["answer_type"] == "compliance"
-    assert body["items"][0]["sort_order"] == 0
+    assert body["items"][0]["node_type"] == "item"
+    assert body["items"][0]["children"] == []
+
+
+@pytest.mark.asyncio
+async def test_create_tree_and_read_nested(client: AsyncClient, unique_email: str):
+    """Дерево (раздел → подраздел → пункты) создаётся и читается вложенным; item_count считает пункты."""
+    tokens, cookies = await register_and_login(client, unique_email)
+    payload = {
+        "title": "Работа на высоте",
+        "status": "published",
+        "items": [
+            {
+                "node_type": "group",
+                "text": "Главное",
+                "children": [
+                    {
+                        "node_type": "group",
+                        "text": "Охрана труда",
+                        "children": [
+                            {"node_type": "item", "text": "Наряд-допуск", "answer_type": "compliance"},
+                            {"node_type": "item", "text": "СИЗ", "answer_type": "yes_no"},
+                        ],
+                    },
+                ],
+            },
+            {"node_type": "item", "text": "Прочее", "answer_type": "text"},
+        ],
+    }
+    created = await client.post("/api/v1/checklists", json=payload, headers=auth_headers(tokens), cookies=cookies)
+    assert created.status_code == 201, created.text
+    body = created.json()
+    # Верхний уровень: группа «Главное» + пункт «Прочее».
+    assert [n["node_type"] for n in body["items"]] == ["group", "item"]
+    glavnoe = body["items"][0]
+    assert glavnoe["text"] == "Главное"
+    ot = glavnoe["children"][0]
+    assert ot["node_type"] == "group" and ot["text"] == "Охрана труда"
+    assert [c["text"] for c in ot["children"]] == ["Наряд-допуск", "СИЗ"]
+
+    # В списке item_count — только пункты (3), группы не считаются.
+    lst = await client.get("/api/v1/checklists", headers=auth_headers(tokens), cookies=cookies)
+    card = next(c for c in lst.json()["items"] if c["id"] == body["id"])
+    assert card["item_count"] == 3
+
+
+@pytest.mark.asyncio
+async def test_group_without_answer_type_ok_item_without_rejected(client: AsyncClient, unique_email: str):
+    """Группа без типа ответа валидна; пункт без типа ответа — 422."""
+    tokens, cookies = await register_and_login(client, unique_email)
+    ok = await client.post(
+        "/api/v1/checklists",
+        json={
+            "title": "С разделом",
+            "status": "draft",
+            "items": [
+                {
+                    "node_type": "group",
+                    "text": "Раздел",
+                    "children": [{"node_type": "item", "text": "П", "answer_type": "yes_no"}],
+                }
+            ],
+        },
+        headers=auth_headers(tokens),
+        cookies=cookies,
+    )
+    assert ok.status_code == 201, ok.text
+
+    bad = await client.post(
+        "/api/v1/checklists",
+        json={"title": "Битый пункт", "status": "draft", "items": [{"node_type": "item", "text": "Без типа"}]},
+        headers=auth_headers(tokens),
+        cookies=cookies,
+    )
+    assert bad.status_code == 422, bad.text
 
 
 @pytest.mark.asyncio

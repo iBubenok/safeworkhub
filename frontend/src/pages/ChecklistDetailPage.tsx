@@ -1,12 +1,89 @@
+import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Archive, ArrowLeft, BookText, CheckCircle2, Pencil, Trash2 } from 'lucide-react';
+import {
+  Archive,
+  ArrowLeft,
+  BookText,
+  CheckCircle2,
+  ChevronDown,
+  ChevronRight,
+  Pencil,
+  Trash2,
+} from 'lucide-react';
 
 import * as checklistsApi from '@/api/checklists';
 import { getErrorMessage } from '@/api/client';
 import { useAuth } from '@/hooks/useAuth';
 import { ChecklistBuilderDialog } from '@/components/checklists/ChecklistBuilderDialog';
 import { checklistAnswerTypeShort, checklistStatusLabels } from '@/utils/checklistLabels';
+import type { ChecklistNode } from '@/types';
+
+/** Рекурсивно считает разделы (group) и пункты (item) по всему дереву. */
+function countTree(nodes: ChecklistNode[]): { groups: number; items: number } {
+  let groups = 0;
+  let items = 0;
+  for (const node of nodes) {
+    if (node.node_type === 'group') groups += 1;
+    else items += 1;
+    const inner = countTree(node.children);
+    groups += inner.groups;
+    items += inner.items;
+  }
+  return { groups, items };
+}
+
+function ChecklistNodeView({ node, depth }: { node: ChecklistNode; depth: number }) {
+  const [open, setOpen] = useState(true);
+
+  if (node.node_type === 'group') {
+    return (
+      <div style={{ marginLeft: depth * 16 }} className="space-y-2">
+        <button
+          type="button"
+          onClick={() => setOpen((o) => !o)}
+          className="flex w-full items-center gap-1.5 rounded-md bg-gray-50 px-2 py-1.5 text-left text-sm font-semibold text-gray-800 hover:bg-gray-100"
+        >
+          {open ? <ChevronDown className="h-4 w-4 shrink-0" /> : <ChevronRight className="h-4 w-4 shrink-0" />}
+          {node.text}
+        </button>
+        {open && node.children.map((child) => <ChecklistNodeView key={child.id} node={child} depth={depth + 1} />)}
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ marginLeft: depth * 16 }} className="rounded-lg border border-gray-200 p-3">
+      <p className="text-gray-900">
+        {node.text}
+        {node.required && (
+          <span className="ml-1 text-red-500" title="Обязательный">
+            *
+          </span>
+        )}
+      </p>
+      <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-gray-500">
+        {node.answer_type && (
+          <span className="rounded-full bg-primary-50 px-2 py-0.5 font-medium text-primary-700">
+            {checklistAnswerTypeShort[node.answer_type]}
+          </span>
+        )}
+        {node.help_text && <span className="text-gray-400">{node.help_text}</span>}
+      </div>
+      {(node.reference_material_id || node.reference_note) && (
+        <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-gray-500">
+          <BookText className="h-3.5 w-3.5 shrink-0 text-gray-400" />
+          {node.reference_material_id && (
+            <Link to={`/materials/${node.reference_material_id}`} className="text-primary-600 underline">
+              {node.reference_material_title ?? 'Материал'}
+            </Link>
+          )}
+          {node.reference_note && <span>{node.reference_note}</span>}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function ChecklistDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -76,7 +153,9 @@ export function ChecklistDetailPage() {
           <span className="rounded-full bg-gray-100 px-2 py-1 uppercase tracking-wide">
             {checklistStatusLabels[data.status]}
           </span>
-          <span>{data.items.length} пунктов</span>
+          <span>
+            {countTree(data.items).groups} разделов · {countTree(data.items).items} пунктов
+          </span>
           <span>{data.views_count} просмотров</span>
           {(data.organization_name || data.author_name) && (
             <span>Автор: {[data.organization_name, data.author_name].filter(Boolean).join(' · ')}</span>
@@ -148,41 +227,11 @@ export function ChecklistDetailPage() {
         <h1 className="mt-2 text-2xl font-bold text-gray-900">{data.title}</h1>
         {data.description && <p className="mt-1 text-gray-600">{data.description}</p>}
 
-        <ol className="mt-5 space-y-3">
-          {data.items.map((item, index) => (
-            <li key={item.id} className="rounded-lg border border-gray-200 p-3">
-              <div className="flex items-start gap-3">
-                <span className="mt-0.5 text-sm font-medium text-gray-400">{index + 1}</span>
-                <div className="min-w-0 flex-1">
-                  <p className="text-gray-900">
-                    {item.text}
-                    {item.required && <span className="ml-1 text-red-500" title="Обязательный">*</span>}
-                  </p>
-                  <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-gray-500">
-                    <span className="rounded-full bg-primary-50 px-2 py-0.5 font-medium text-primary-700">
-                      {checklistAnswerTypeShort[item.answer_type]}
-                    </span>
-                    {item.help_text && <span className="text-gray-400">{item.help_text}</span>}
-                  </div>
-                  {(item.reference_material_id || item.reference_note) && (
-                    <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-gray-500">
-                      <BookText className="h-3.5 w-3.5 shrink-0 text-gray-400" />
-                      {item.reference_material_id && (
-                        <Link
-                          to={`/materials/${item.reference_material_id}`}
-                          className="text-primary-600 underline"
-                        >
-                          {item.reference_material_title ?? 'Материал'}
-                        </Link>
-                      )}
-                      {item.reference_note && <span>{item.reference_note}</span>}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </li>
+        <div className="mt-5 space-y-2">
+          {data.items.map((node) => (
+            <ChecklistNodeView key={node.id} node={node} depth={0} />
           ))}
-        </ol>
+        </div>
       </article>
     </div>
   );

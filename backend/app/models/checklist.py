@@ -35,6 +35,13 @@ class ChecklistAnswerType(StrEnum):
     NUMBER = "number"
 
 
+class ChecklistNodeType(StrEnum):
+    """Тип узла чек-листа: раздел (группа) или пункт (вопрос)."""
+
+    GROUP = "group"
+    ITEM = "item"
+
+
 def _enum(enum_cls: type, name: str) -> Enum:
     """PG-enum со значениями по value (как в остальных моделях)."""
     return Enum(enum_cls, name=name, values_callable=lambda e: [m.value for m in e])
@@ -95,12 +102,20 @@ class ChecklistItem(Base, UUIDMixin, TimestampMixin):
         ForeignKey("checklists.id", ondelete="CASCADE"),
         nullable=False,
     )
+    parent_id: Mapped[UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("checklist_items.id", ondelete="CASCADE"),
+        index=True,
+    )
+    node_type: Mapped[ChecklistNodeType] = mapped_column(
+        _enum(ChecklistNodeType, "checklist_node_type"),
+        nullable=False,
+        default=ChecklistNodeType.ITEM,
+    )
     sort_order: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     text: Mapped[str] = mapped_column(Text, nullable=False)
-    answer_type: Mapped[ChecklistAnswerType] = mapped_column(
-        _enum(ChecklistAnswerType, "checklist_answer_type"),
-        nullable=False,
-    )
+    # У групп (разделов) типа ответа нет → nullable.
+    answer_type: Mapped[ChecklistAnswerType | None] = mapped_column(_enum(ChecklistAnswerType, "checklist_answer_type"))
     required: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     help_text: Mapped[str | None] = mapped_column(Text)
     reference_material_id: Mapped[UUID | None] = mapped_column(

@@ -1,38 +1,54 @@
-"""Схемы подмодуля «Чек-листы»."""
+"""Схемы подмодуля «Чек-листы» (древовидные пункты)."""
 
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from app.models.checklist import ChecklistAnswerType, ChecklistStatus
+from app.models.checklist import ChecklistAnswerType, ChecklistNodeType, ChecklistStatus
 
 
-class ChecklistItemInput(BaseModel):
-    """Пункт чек-листа при создании/правке."""
+class ChecklistNodeInput(BaseModel):
+    """Узел чек-листа при создании/правке (рекурсивно: группа с детьми или пункт-лист)."""
 
-    text: str = Field(min_length=1, description="Текст вопроса")
-    answer_type: ChecklistAnswerType = Field(description="Тип ответа")
+    node_type: ChecklistNodeType = ChecklistNodeType.ITEM
+    text: str = Field(min_length=1, description="Заголовок раздела или текст пункта")
+    answer_type: ChecklistAnswerType | None = Field(None, description="Тип ответа (только у пункта)")
     required: bool = Field(default=True, description="Обязательный пункт")
     help_text: str | None = Field(None, description="Подсказка")
     reference_material_id: UUID | None = Field(None, description="Ссылка на материал (НПА/статью)")
-    reference_note: str | None = Field(None, max_length=500, description="Заметка к ссылке (пункт закона)")
+    reference_note: str | None = Field(None, max_length=500, description="Заметка к ссылке")
+    children: list["ChecklistNodeInput"] = Field(default_factory=list, description="Вложенные узлы")
+
+    @model_validator(mode="after")
+    def _validate_node(self) -> "ChecklistNodeInput":
+        if self.node_type == ChecklistNodeType.ITEM:
+            if self.answer_type is None:
+                raise ValueError("У пункта должен быть указан тип ответа")
+            if self.children:
+                raise ValueError("Пункт не может содержать вложенные узлы")
+        return self
 
 
-class ChecklistItemResponse(BaseModel):
-    """Пункт чек-листа в ответе."""
+class ChecklistNodeResponse(BaseModel):
+    """Узел чек-листа в ответе (рекурсивно)."""
 
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
-    sort_order: int
+    node_type: ChecklistNodeType
     text: str
-    answer_type: ChecklistAnswerType
+    answer_type: ChecklistAnswerType | None = None
     required: bool
     help_text: str | None = None
     reference_material_id: UUID | None = None
     reference_material_title: str | None = None
     reference_note: str | None = None
+    children: list["ChecklistNodeResponse"] = Field(default_factory=list)
+
+
+ChecklistNodeInput.model_rebuild()
+ChecklistNodeResponse.model_rebuild()
 
 
 class ChecklistCreate(BaseModel):
@@ -41,20 +57,20 @@ class ChecklistCreate(BaseModel):
     title: str = Field(min_length=1, max_length=500, description="Название")
     description: str | None = Field(None, description="Описание")
     status: ChecklistStatus = Field(default=ChecklistStatus.DRAFT, description="Статус")
-    items: list[ChecklistItemInput] = Field(default_factory=list, description="Пункты чек-листа")
+    items: list[ChecklistNodeInput] = Field(default_factory=list, description="Дерево пунктов/разделов")
 
 
 class ChecklistUpdate(BaseModel):
-    """Правка чек-листа. Если items переданы — заменяют все пункты."""
+    """Правка чек-листа. Если items переданы — заменяют всё дерево."""
 
     title: str | None = Field(None, min_length=1, max_length=500)
     description: str | None = None
     status: ChecklistStatus | None = None
-    items: list[ChecklistItemInput] | None = None
+    items: list[ChecklistNodeInput] | None = None
 
 
 class ChecklistResponse(BaseModel):
-    """Полный чек-лист с пунктами."""
+    """Полный чек-лист с деревом пунктов."""
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -70,7 +86,7 @@ class ChecklistResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
     updated_by_name: str | None = None
-    items: list[ChecklistItemResponse] = Field(default_factory=list)
+    items: list[ChecklistNodeResponse] = Field(default_factory=list)
 
 
 class ChecklistListItem(BaseModel):

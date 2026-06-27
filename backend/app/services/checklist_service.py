@@ -2,19 +2,20 @@
 
 from __future__ import annotations
 
-from uuid import UUID
+from uuid import UUID, uuid4
 
+from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import NotFoundError, ValidationError
 from app.db.repositories import ChecklistRepository, MaterialRepository
-from app.models.checklist import Checklist, ChecklistItem, ChecklistStatus
+from app.models.checklist import Checklist, ChecklistItem, ChecklistNodeType, ChecklistStatus
 from app.schemas.checklist import (
     ChecklistCreate,
-    ChecklistItemInput,
-    ChecklistItemResponse,
     ChecklistListItem,
     ChecklistListResponse,
+    ChecklistNodeInput,
+    ChecklistNodeResponse,
     ChecklistResponse,
     ChecklistUpdate,
 )
@@ -29,42 +30,68 @@ class ChecklistService:
         self.repository = ChecklistRepository(session)
         self.material_repo = MaterialRepository(session)
 
-    async def _validate_references(self, items: list[ChecklistItemInput], *, organization_id: int) -> None:
-        """Ссылки пунктов должны вести на материалы своей организации."""
-        for item in items:
-            if item.reference_material_id is None:
-                continue
-            material = await self.material_repo.get_by_id(item.reference_material_id)
-            if material is None or material.organization_id != organization_id:
-                raise ValidationError("Ссылка на материал недоступна или из другой организации")
+    async def _validate_references(self, nodes: list[ChecklistNodeInput], *, organization_id: int) -> None:
+        """Ссылки пунктов (рекурсивно) должны вести на материалы своей организации."""
+        for node in nodes:
+            if node.reference_material_id is not None:
+                material = await self.material_repo.get_by_id(node.reference_material_id)
+                if material is None or material.organization_id != organization_id:
+                    raise ValidationError("Ссылка на материал недоступна или из другой организации")
+            await self._validate_references(node.children, organization_id=organization_id)
 
-    @staticmethod
-    def _build_items(items: list[ChecklistItemInput]) -> list[ChecklistItem]:
-        return [
-            ChecklistItem(
-                sort_order=index,
-                text=item.text,
-                answer_type=item.answer_type,
-                required=item.required,
-                help_text=item.help_text,
-                reference_material_id=item.reference_material_id,
-                reference_note=item.reference_note,
+    def _insert_tree(
+        self, checklist_id: UUID, nodes: list[ChecklistNodeInput], *, parent_id: UUID | None = None
+    ) -> int:
+        """Рекурсивно создать узлы дерева. Возвращает число узлов-пунктов (item)."""
+        item_count = 0
+        for index, node in enumerate(nodes):
+            node_id = uuid4()
+            self.session.add(
+                ChecklistItem(
+                    id=node_id,
+                    checklist_id=checklist_id,
+                    parent_id=parent_id,
+                    node_type=node.node_type,
+                    sort_order=index,
+                    text=node.text,
+                    answer_type=node.answer_type if node.node_type == ChecklistNodeType.ITEM else None,
+                    required=node.required,
+                    help_text=node.help_text,
+                    reference_material_id=node.reference_material_id,
+                    reference_note=node.reference_note,
+                )
             )
-            for index, item in enumerate(items)
-        ]
+            if node.node_type == ChecklistNodeType.ITEM:
+                item_count += 1
+            else:
+                item_count += self._insert_tree(checklist_id, node.children, parent_id=node_id)
+        return item_count
 
     @staticmethod
-    def _to_response(checklist: Checklist) -> ChecklistResponse:
+    def _build_tree(flat_items: list[ChecklistItem]) -> list[ChecklistNodeResponse]:
+        """Собрать вложенное дерево ответов из плоского списка узлов."""
+        children_by_parent: dict[UUID | None, list[ChecklistItem]] = {}
+        for item in flat_items:
+            children_by_parent.setdefault(item.parent_id, []).append(item)
+
+        def build(parent_id: UUID | None) -> list[ChecklistNodeResponse]:
+            nodes = sorted(children_by_parent.get(parent_id, []), key=lambda i: i.sort_order)
+            result: list[ChecklistNodeResponse] = []
+            for item in nodes:
+                node = ChecklistNodeResponse.model_validate(item)
+                node.reference_material_title = item.reference_material.title if item.reference_material else None
+                node.children = build(item.id)
+                result.append(node)
+            return result
+
+        return build(None)
+
+    def _to_response(self, checklist: Checklist) -> ChecklistResponse:
         response = ChecklistResponse.model_validate(checklist)
         response.organization_name = checklist.organization.name if checklist.organization else None
         response.author_name = checklist.author.name if checklist.author else None
         response.updated_by_name = checklist.updated_by.name if checklist.updated_by else None
-        items: list[ChecklistItemResponse] = []
-        for item in checklist.items:
-            item_response = ChecklistItemResponse.model_validate(item)
-            item_response.reference_material_title = item.reference_material.title if item.reference_material else None
-            items.append(item_response)
-        response.items = items
+        response.items = self._build_tree(list(checklist.items))
         return response
 
     async def list_checklists(
@@ -94,7 +121,7 @@ class ChecklistService:
         items = []
         for checklist in checklists:
             list_item = ChecklistListItem.model_validate(checklist)
-            list_item.item_count = len(checklist.items)
+            list_item.item_count = sum(1 for it in checklist.items if it.node_type == ChecklistNodeType.ITEM)
             list_item.organization_name = checklist.organization.name if checklist.organization else None
             items.append(list_item)
         pages = (total + page_size - 1) // page_size if page_size > 0 else 0
@@ -134,9 +161,10 @@ class ChecklistService:
             title=data.title,
             description=data.description,
             status=data.status,
-            items=self._build_items(data.items),
         )
         self.session.add(checklist)
+        await self.session.flush()
+        item_count = self._insert_tree(checklist.id, data.items)
         await self.session.flush()
 
         await log_audit(
@@ -147,7 +175,7 @@ class ChecklistService:
             organization_id=organization_id,
             user_id=str(author_id),
             request_id=request_id,
-            details={"status": checklist.status, "items": len(data.items)},
+            details={"status": checklist.status, "items": item_count},
         )
         loaded = await self.repository.get_with_items(checklist.id)
         assert loaded is not None
@@ -174,7 +202,10 @@ class ChecklistService:
             checklist.status = data.status
         if data.items is not None:
             await self._validate_references(data.items, organization_id=organization_id)
-            checklist.items = self._build_items(data.items)
+            # Заменяем всё дерево: удаляем старые узлы, вставляем новые.
+            await self.session.execute(delete(ChecklistItem).where(ChecklistItem.checklist_id == checklist_id))
+            await self.session.flush()
+            self._insert_tree(checklist_id, data.items)
         checklist.updated_by_id = editor_id
         await self.session.flush()
 
@@ -188,6 +219,9 @@ class ChecklistService:
             request_id=request_id,
             details={"status": checklist.status},
         )
+        # Коллекция items была загружена ранее; после Core-delete/insert сбрасываем кэш,
+        # чтобы перечитать актуальное дерево.
+        self.session.expire(checklist)
         loaded = await self.repository.get_with_items(checklist_id)
         assert loaded is not None
         return self._to_response(loaded)
