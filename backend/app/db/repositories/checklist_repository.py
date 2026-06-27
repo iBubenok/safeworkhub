@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from sqlalchemy import desc, func, select
+from sqlalchemy import desc, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload, selectinload
 
@@ -57,3 +57,12 @@ class ChecklistRepository(BaseRepository[Checklist]):
         )
         result = await self.session.execute(query)
         return result.scalar_one_or_none()
+
+    async def increment_views(self, checklist_id: UUID) -> None:
+        """Увеличить счётчик просмотров, не сдвигая updated_at (просмотр ≠ правка)."""
+        stmt = (
+            update(Checklist)
+            .where(Checklist.id == checklist_id)
+            .values(views_count=Checklist.views_count + 1, updated_at=Checklist.updated_at)
+        )
+        await self.session.execute(stmt)

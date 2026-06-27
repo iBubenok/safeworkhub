@@ -113,7 +113,11 @@ class ChecklistService:
         # Черновики и архив видит только владелец организации.
         if checklist.status != ChecklistStatus.PUBLISHED and not is_owner:
             raise NotFoundError("Чек-лист", str(checklist_id))
-        return self._to_response(checklist)
+        # Сериализуем до инкремента; считаем просмотры только у опубликованных.
+        response = self._to_response(checklist)
+        if checklist.status == ChecklistStatus.PUBLISHED:
+            await self.repository.increment_views(checklist_id)
+        return response
 
     async def create_checklist(
         self,

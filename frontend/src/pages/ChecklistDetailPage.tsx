@@ -77,6 +77,7 @@ export function ChecklistDetailPage() {
             {checklistStatusLabels[data.status]}
           </span>
           <span>{data.items.length} пунктов</span>
+          <span>{data.views_count} просмотров</span>
           {(data.organization_name || data.author_name) && (
             <span>Автор: {[data.organization_name, data.author_name].filter(Boolean).join(' · ')}</span>
           )}

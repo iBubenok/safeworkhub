@@ -255,6 +255,7 @@ export interface Checklist {
   title: string;
   description: string | null;
   status: ChecklistStatus;
+  views_count: number;
   created_at: string;
   updated_at: string;
   updated_by_name: string | null;
@@ -268,6 +269,7 @@ export interface ChecklistListItem {
   status: ChecklistStatus;
   organization_name: string | null;
   item_count: number;
+  views_count: number;
   created_at: string;
 }
 

@@ -65,6 +65,7 @@ class Checklist(Base, UUIDMixin, TimestampMixin):
         PG_UUID(as_uuid=True),
         ForeignKey("users.id", ondelete="SET NULL"),
     )
+    views_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
     organization: Mapped["Organization"] = relationship()
     author: Mapped["User"] = relationship(foreign_keys=[author_id])

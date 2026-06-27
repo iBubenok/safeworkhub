@@ -66,6 +66,7 @@ class ChecklistResponse(BaseModel):
     title: str
     description: str | None
     status: ChecklistStatus
+    views_count: int = 0
     created_at: datetime
     updated_at: datetime
     updated_by_name: str | None = None
@@ -83,6 +84,7 @@ class ChecklistListItem(BaseModel):
     status: ChecklistStatus
     organization_name: str | None = None
     item_count: int = 0
+    views_count: int = 0
     created_at: datetime
 
 

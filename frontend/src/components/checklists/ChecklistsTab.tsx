@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { Building2, ClipboardList, ListChecks } from 'lucide-react';
+import { Building2, ClipboardList, Eye, ListChecks } from 'lucide-react';
 
 import * as checklistsApi from '@/api/checklists';
 import { useAuth } from '@/hooks/useAuth';
@@ -35,6 +35,10 @@ function ChecklistCard({ checklist }: { checklist: ChecklistListItem }) {
               {checklistStatusLabels[checklist.status]}
             </span>
             <span>{checklist.item_count} пунктов</span>
+            <span className="inline-flex items-center gap-1">
+              <Eye className="h-3.5 w-3.5" />
+              {checklist.views_count}
+            </span>
           </div>
         </div>
       </div>
