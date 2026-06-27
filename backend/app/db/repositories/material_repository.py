@@ -11,6 +11,7 @@ from sqlalchemy.orm import joinedload, selectinload
 from app.db.repositories.base import BaseRepository
 from app.models import Material, MaterialStatus, MaterialType, MaterialVisibility
 from app.models.material_version import MaterialVersion
+from app.models.npa import Npa
 
 
 class MaterialRepository(BaseRepository[Material]):
@@ -30,7 +31,7 @@ class MaterialRepository(BaseRepository[Material]):
                 joinedload(Material.organization),
                 joinedload(Material.updated_by),
                 joinedload(Material.news),
-                joinedload(Material.npa),
+                joinedload(Material.npa).joinedload(Npa.replaced_by),
                 # Коллекция 1:много — selectinload (отдельный запрос), чтобы не
                 # размножать строки в LEFT JOIN с остальными связями.
                 selectinload(Material.attachments),
@@ -178,6 +179,17 @@ class MaterialRepository(BaseRepository[Material]):
         materials = [row[0] for row in result.all()]
 
         return materials, total
+
+    async def list_replacing(self, material_id: UUID) -> list[Material]:
+        """НПА, которые пришли на смену данному (их npa.replaced_by_id == material_id)."""
+        query = (
+            select(Material)
+            .join(Npa, Npa.material_id == Material.id)
+            .where(Npa.replaced_by_id == material_id)
+            .order_by(desc(Material.published_at))
+        )
+        result = await self.session.execute(query)
+        return list(result.scalars().all())
 
     async def next_version_no(self, material_id: UUID) -> int:
         """Следующий номер версии материала (1-based)."""

@@ -85,6 +85,11 @@ export type NpaActKind =
 export type NpaLevel = 'federal' | 'regional' | 'municipal' | 'local';
 export type NpaStatus = 'in_force' | 'not_in_force' | 'repealed' | 'amended' | 'suspended';
 
+export interface MaterialRef {
+  id: string;
+  title: string;
+}
+
 export interface NpaDetail {
   act_kind: NpaActKind;
   level: NpaLevel | null;
@@ -96,6 +101,23 @@ export interface NpaDetail {
   issuing_authority: string | null;
   region: string | null;
   official_source_url: string | null;
+  replaced_by_id: string | null;
+  replaced_by: MaterialRef | null;
+  replaces: MaterialRef[];
+}
+
+export interface NpaUpdateInput {
+  act_kind?: NpaActKind;
+  level?: NpaLevel | null;
+  act_status?: NpaStatus | null;
+  document_number?: string | null;
+  adoption_date?: string | null;
+  effective_date?: string | null;
+  revision_date?: string | null;
+  issuing_authority?: string | null;
+  region?: string | null;
+  official_source_url?: string | null;
+  replaced_by_id?: string | null;
 }
 
 export interface NpaCreateInput {

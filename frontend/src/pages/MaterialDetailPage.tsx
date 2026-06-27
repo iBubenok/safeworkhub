@@ -8,6 +8,7 @@ import { getErrorMessage } from '@/api/client';
 import { Markdown } from '@/components/Markdown';
 import { ContentEditor } from '@/components/ContentEditor';
 import { MaterialHistory } from '@/components/materials/MaterialHistory';
+import { NpaEditDialog } from '@/components/materials/NpaEditDialog';
 import { useAuth } from '@/hooks/useAuth';
 import { safeHttpUrl } from '@/utils/safeUrl';
 import { formatFileSize } from '@/utils/formatFileSize';
@@ -223,6 +224,9 @@ export function MaterialDetailPage() {
           {!editing && (
             <div className="ml-auto flex items-center gap-2">
               <MaterialHistory materialId={data.id} />
+              {isAuthor && data.type === 'npa' && data.npa && (
+                <NpaEditDialog materialId={data.id} npa={data.npa} />
+              )}
               {isAuthor && (
                 <>
               <button
@@ -453,6 +457,28 @@ export function MaterialDetailPage() {
                   >
                     Официальный источник
                   </a>
+                )}
+
+                {data.npa.replaced_by && (
+                  <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                    Утратил силу. Действует взамен:{' '}
+                    <Link to={`/materials/${data.npa.replaced_by.id}`} className="font-medium underline">
+                      {data.npa.replaced_by.title}
+                    </Link>
+                  </div>
+                )}
+                {data.npa.replaces.length > 0 && (
+                  <div className="rounded-md border border-gray-200 bg-gray-50 p-3 text-sm text-gray-600">
+                    Пришёл на смену:{' '}
+                    {data.npa.replaces.map((ref, i) => (
+                      <span key={ref.id}>
+                        {i > 0 && ', '}
+                        <Link to={`/materials/${ref.id}`} className="text-primary-600 underline">
+                          {ref.title}
+                        </Link>
+                      </span>
+                    ))}
+                  </div>
                 )}
               </div>
             )}

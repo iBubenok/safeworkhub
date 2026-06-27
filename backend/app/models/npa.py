@@ -42,8 +42,15 @@ class Npa(Base):
     issuing_authority: Mapped[str | None] = mapped_column(String(500))
     region: Mapped[str | None] = mapped_column(String(255))
     official_source_url: Mapped[str | None] = mapped_column(String(2000))
+    # Акт, пришедший на смену этому (когда статус «утратил силу»).
+    replaced_by_id: Mapped[UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("materials.id", ondelete="SET NULL"),
+        index=True,
+    )
 
-    material: Mapped["Material"] = relationship(back_populates="npa")
+    material: Mapped["Material"] = relationship(back_populates="npa", foreign_keys=[material_id])
+    replaced_by: Mapped["Material | None"] = relationship(foreign_keys=[replaced_by_id], lazy="selectin")
 
     def __repr__(self) -> str:
         return f"<Npa material_id={self.material_id}>"

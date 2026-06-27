@@ -28,6 +28,7 @@ from app.schemas.material import (
     MaterialVersionResponse,
     NewsCreate,
     NpaCreate,
+    NpaUpdate,
     SearchRequest,
     SearchResponse,
     TemplateCreate,
@@ -161,6 +162,31 @@ async def create_npa(
     return await service.create_npa(
         organization_id=ctx.organization_id,
         author_id=ctx.user.id,
+        data=data,
+        request_id=getattr(request.state, "request_id", None),
+    )
+
+
+@router.patch(
+    "/{material_id}/npa",
+    response_model=MaterialResponse,
+    summary="Обновить реквизиты НПА",
+    description="Правка реквизитов НПА, включая ссылку на акт-замену. Доступно только автору.",
+    dependencies=[Depends(require_roles(OrgRole.ORG_OWNER))],
+)
+async def update_npa(
+    material_id: UUID,
+    request: Request,
+    data: NpaUpdate,
+    ctx: CurrentContext,
+    session: DbSession,
+) -> MaterialResponse:
+    service = MaterialService(session)
+    return await service.update_npa(
+        material_id,
+        organization_id=ctx.organization_id,
+        editor_id=ctx.user.id,
+        is_superuser=ctx.user.is_superuser,
         data=data,
         request_id=getattr(request.state, "request_id", None),
     )

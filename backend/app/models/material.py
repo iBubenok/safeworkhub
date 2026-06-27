@@ -238,10 +238,12 @@ class Material(Base, UUIDMixin, TimestampMixin):
         order_by="MaterialAttachment.created_at",
     )
     # Деталь для типа «НПА» (1:1). Для остальных типов — None.
+    # foreign_keys явно: у Npa два FK на materials (material_id и replaced_by_id).
     npa: Mapped["Npa | None"] = relationship(
         back_populates="material",
         uselist=False,
         cascade="all, delete-orphan",
+        foreign_keys="Npa.material_id",
     )
     # История версий (1:много). Снимки версионируемых полей.
     versions: Mapped[list["MaterialVersion"]] = relationship(

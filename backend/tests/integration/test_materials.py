@@ -1169,3 +1169,133 @@ async def test_version_history_is_private(client: AsyncClient, db_session, uniqu
     allowed = await get_versions(client, login.json(), login.cookies, article["id"])
     assert allowed.status_code == 200, allowed.text
     assert len(allowed.json()) == 1
+
+
+async def create_npa(client: AsyncClient, tokens, cookies, **overrides) -> dict:
+    payload = {"title": "Акт", "status": "published", "act_kind": "federal_law"}
+    payload.update(overrides)
+    resp = await client.post("/api/v1/materials/npa", json=payload, headers=auth_headers(tokens), cookies=cookies)
+    assert resp.status_code == 201, resp.text
+    return resp.json()
+
+
+@pytest.mark.asyncio
+async def test_update_npa_changes_fields(client: AsyncClient, unique_email: str):
+    """PATCH /npa меняет реквизиты НПА."""
+    tokens, cookies = await register_and_login(client, unique_email)
+    npa = await create_npa(client, tokens, cookies)
+    patch = await client.patch(
+        f"/api/v1/materials/{npa['id']}/npa",
+        json={"act_status": "repealed", "document_number": "426-ФЗ", "issuing_authority": "Госдума"},
+        headers=auth_headers(tokens),
+        cookies=cookies,
+    )
+    assert patch.status_code == 200, patch.text
+    body = patch.json()
+    assert body["npa"]["act_status"] == "repealed"
+    assert body["npa"]["document_number"] == "426-ФЗ"
+    assert body["npa"]["issuing_authority"] == "Госдума"
+
+
+@pytest.mark.asyncio
+async def test_npa_supersedes_link_forward_and_reverse(client: AsyncClient, unique_email: str):
+    """Установка replaced_by даёт прямую ссылку у старого и обратную у нового."""
+    tokens, cookies = await register_and_login(client, unique_email)
+    old = await create_npa(client, tokens, cookies, title="Старый акт")
+    new = await create_npa(client, tokens, cookies, title="Новый акт")
+
+    patch = await client.patch(
+        f"/api/v1/materials/{old['id']}/npa",
+        json={"act_status": "repealed", "replaced_by_id": new["id"]},
+        headers=auth_headers(tokens),
+        cookies=cookies,
+    )
+    assert patch.status_code == 200, patch.text
+    assert patch.json()["npa"]["replaced_by"]["id"] == new["id"]
+    assert patch.json()["npa"]["replaced_by"]["title"] == "Новый акт"
+
+    new_resp = await client.get(f"/api/v1/materials/{new['id']}", headers=auth_headers(tokens), cookies=cookies)
+    replaces = new_resp.json()["npa"]["replaces"]
+    assert [r["id"] for r in replaces] == [old["id"]]
+    assert replaces[0]["title"] == "Старый акт"
+
+
+@pytest.mark.asyncio
+async def test_npa_cannot_replace_self(client: AsyncClient, unique_email: str):
+    """Акт не может ссылаться на самого себя."""
+    tokens, cookies = await register_and_login(client, unique_email)
+    npa = await create_npa(client, tokens, cookies)
+    resp = await client.patch(
+        f"/api/v1/materials/{npa['id']}/npa",
+        json={"replaced_by_id": npa["id"]},
+        headers=auth_headers(tokens),
+        cookies=cookies,
+    )
+    assert resp.status_code == 422, resp.text
+
+
+@pytest.mark.asyncio
+async def test_npa_replacement_must_be_npa(client: AsyncClient, unique_email: str):
+    """Документ-замена должен быть НПА (не статья)."""
+    tokens, cookies = await register_and_login(client, unique_email)
+    npa = await create_npa(client, tokens, cookies)
+    article = await create_article(client, tokens, cookies)
+    resp = await client.patch(
+        f"/api/v1/materials/{npa['id']}/npa",
+        json={"replaced_by_id": article["id"]},
+        headers=auth_headers(tokens),
+        cookies=cookies,
+    )
+    assert resp.status_code == 422, resp.text
+
+
+@pytest.mark.asyncio
+async def test_npa_update_creates_no_version(client: AsyncClient, unique_email: str):
+    """Правка реквизитов НПА не создаёт новую версию."""
+    tokens, cookies = await register_and_login(client, unique_email)
+    npa = await create_npa(client, tokens, cookies)
+    await client.patch(
+        f"/api/v1/materials/{npa['id']}/npa",
+        json={"act_status": "amended"},
+        headers=auth_headers(tokens),
+        cookies=cookies,
+    )
+    versions = (await get_versions(client, tokens, cookies, npa["id"])).json()
+    assert len(versions) == 1
+
+
+@pytest.mark.asyncio
+async def test_npa_update_requires_owner(client: AsyncClient, unique_email: str):
+    """Участник (не владелец) не может править реквизиты НПА."""
+    owner_tokens, owner_cookies = await register_and_login(client, unique_email)
+    npa = await create_npa(client, owner_tokens, owner_cookies)
+    member_tokens, member_cookies = await create_member_and_login(
+        client, owner_tokens, owner_cookies, f"member_{unique_email}"
+    )
+    resp = await client.patch(
+        f"/api/v1/materials/{npa['id']}/npa",
+        json={"act_status": "repealed"},
+        headers=auth_headers(member_tokens),
+        cookies=member_cookies,
+    )
+    assert resp.status_code == 403, resp.text
+
+
+@pytest.mark.asyncio
+async def test_npa_replacement_nulled_on_delete(client: AsyncClient, unique_email: str):
+    """Удаление акта-замены обнуляет ссылку (SET NULL)."""
+    tokens, cookies = await register_and_login(client, unique_email)
+    old = await create_npa(client, tokens, cookies, title="Старый")
+    new = await create_npa(client, tokens, cookies, title="Новый")
+    await client.patch(
+        f"/api/v1/materials/{old['id']}/npa",
+        json={"replaced_by_id": new["id"]},
+        headers=auth_headers(tokens),
+        cookies=cookies,
+    )
+    deleted = await client.request(
+        "DELETE", f"/api/v1/materials/{new['id']}", headers=auth_headers(tokens), cookies=cookies
+    )
+    assert deleted.status_code == 204, deleted.text
+    old_resp = await client.get(f"/api/v1/materials/{old['id']}", headers=auth_headers(tokens), cookies=cookies)
+    assert old_resp.json()["npa"]["replaced_by"] is None

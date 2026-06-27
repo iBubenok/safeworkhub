@@ -140,6 +140,15 @@ class NewsCreate(BaseModel):
         return _validate_http_url(value)
 
 
+class MaterialRef(BaseModel):
+    """Краткая ссылка на материал (id + заголовок)."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    title: str
+
+
 class NpaDetail(BaseModel):
     """Поля, специфичные для НПА (в ответе)."""
 
@@ -155,6 +164,11 @@ class NpaDetail(BaseModel):
     issuing_authority: str | None = None
     region: str | None = None
     official_source_url: str | None = None
+    replaced_by_id: UUID | None = None
+    # Акт-замена (вперёд) и акты, которым этот пришёл на смену (назад) —
+    # заполняются вручную в сервисе с учётом видимости.
+    replaced_by: MaterialRef | None = None
+    replaces: list[MaterialRef] = Field(default_factory=list)
 
 
 class NpaCreate(BaseModel):
@@ -178,6 +192,27 @@ class NpaCreate(BaseModel):
     issuing_authority: str | None = Field(None, max_length=500, description="Орган, принявший акт")
     region: str | None = Field(None, max_length=255, description="Регион/юрисдикция")
     official_source_url: str | None = Field(None, max_length=2000, description="Ссылка на офиц. публикацию")
+
+    @field_validator("official_source_url")
+    @classmethod
+    def _check_url_scheme(cls, value: str | None) -> str | None:
+        return _validate_http_url(value)
+
+
+class NpaUpdate(BaseModel):
+    """Схема правки реквизитов НПА (все поля опциональны)."""
+
+    act_kind: NpaActKind | None = None
+    level: NpaLevel | None = None
+    act_status: NpaStatus | None = None
+    document_number: str | None = Field(None, max_length=100)
+    adoption_date: date | None = None
+    effective_date: date | None = None
+    revision_date: date | None = None
+    issuing_authority: str | None = Field(None, max_length=500)
+    region: str | None = Field(None, max_length=255)
+    official_source_url: str | None = Field(None, max_length=2000)
+    replaced_by_id: UUID | None = None
 
     @field_validator("official_source_url")
     @classmethod

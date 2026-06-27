@@ -26,6 +26,7 @@ from app.schemas.material import (
     MaterialCreate,
     MaterialListItem,
     MaterialListResponse,
+    MaterialRef,
     MaterialResponse,
     MaterialUpdate,
     MaterialVersionResponse,
@@ -33,6 +34,7 @@ from app.schemas.material import (
     NewsDetail,
     NpaCreate,
     NpaDetail,
+    NpaUpdate,
     SearchRequest,
     SearchResponse,
     SearchResult,
@@ -260,6 +262,64 @@ class MaterialService:
         response = MaterialResponse.model_validate(material)
         response.npa = NpaDetail.model_validate(detail)
         return response
+
+    async def update_npa(
+        self,
+        material_id: UUID,
+        *,
+        organization_id: int,
+        editor_id: UUID,
+        is_superuser: bool,
+        data: NpaUpdate,
+        request_id: str | None = None,
+    ) -> MaterialResponse:
+        """Правка реквизитов НПА (включая ссылку-замену). Версию не создаёт."""
+        material = await self.repository.get_with_relations(material_id)
+        if material is None or material.organization_id != organization_id or material.type != MaterialType.NPA:
+            raise NotFoundError("НПА", str(material_id))
+        if material.author_id != editor_id and not is_superuser:
+            raise AuthorizationError("Редактировать НПА может только его автор")
+        if material.npa is None:
+            raise NotFoundError("НПА", str(material_id))
+
+        update_data = data.model_dump(exclude_unset=True)
+        target: Material | None = None
+        target_id = update_data.get("replaced_by_id")
+        if target_id is not None:
+            if target_id == material_id:
+                raise ValidationError("Акт не может ссылаться на самого себя")
+            target = await self.repository.get_by_id(target_id)
+            if target is None or target.type != MaterialType.NPA:
+                raise ValidationError("Документ-замена должен быть НПА")
+            if not self._is_visible(
+                target, organization_id=organization_id, requester_id=editor_id, is_superuser=is_superuser
+            ):
+                raise ValidationError("Документ-замена недоступен")
+
+        for key, value in update_data.items():
+            setattr(material.npa, key, value)
+        # Синхронизируем сам объект связи (не только FK): material.npa уже в сессии
+        # с replaced_by, загруженным ранее, и повторный joinedload его не обновит.
+        if "replaced_by_id" in update_data:
+            material.npa.replaced_by = target
+        await self.session.flush()
+
+        await log_audit(
+            self.session,
+            action="npa_updated",
+            entity_type="material",
+            entity_id=str(material_id),
+            organization_id=organization_id,
+            user_id=str(editor_id),
+            request_id=request_id,
+            details={},
+        )
+        return await self._build_material_response(
+            material,
+            organization_id=organization_id,
+            requester_id=editor_id,
+            is_superuser=is_superuser,
+        )
 
     async def create_template(
         self,
@@ -503,23 +563,47 @@ class MaterialService:
 
         # Сериализуем ДО инкремента: increment_views делает flush и обновляет объект,
         # после чего ленивое чтение атрибутов в async-контексте падает (MissingGreenlet).
-        # Автор и организация подгружены заранее (selectinload) — обращение безопасно.
-        response = MaterialResponse.model_validate(material)
-        response.author_name = material.author.name if material.author else None
-        response.organization_name = material.organization.name if material.organization else None
-        response.updated_by_name = material.updated_by.name if material.updated_by else None
-        # Деталь новости (joinedload в get_with_relations) — если это новость.
-        response.news = NewsDetail.model_validate(material.news) if material.news else None
-        # Деталь НПА (joinedload) — если это НПА.
-        response.npa = NpaDetail.model_validate(material.npa) if material.npa else None
-        # Прикреплённые файлы (selectinload) — для шаблонов и пр.
-        response.attachments = [AttachmentResponse.model_validate(a) for a in material.attachments]
+        response = await self._build_material_response(
+            material,
+            organization_id=organization_id,
+            requester_id=requester_id,
+            is_superuser=is_superuser,
+        )
 
-        # Члены организации видят и черновики своей организации (чтение перед публикацией).
         # Счётчик просмотров увеличиваем только для опубликованных — чтобы не накручивать
         # его на предпросмотре автором.
         if material.status == MaterialStatus.PUBLISHED:
             await self.repository.increment_views(material_id)
+        return response
+
+    async def _build_material_response(
+        self,
+        material: Material,
+        *,
+        organization_id: int,
+        requester_id: UUID | None,
+        is_superuser: bool,
+    ) -> MaterialResponse:
+        """Собрать MaterialResponse из загруженного материала (связи — eager)."""
+        response = MaterialResponse.model_validate(material)
+        response.author_name = material.author.name if material.author else None
+        response.organization_name = material.organization.name if material.organization else None
+        response.updated_by_name = material.updated_by.name if material.updated_by else None
+        response.news = NewsDetail.model_validate(material.news) if material.news else None
+        response.npa = NpaDetail.model_validate(material.npa) if material.npa else None
+        if material.npa is not None and response.npa is not None:
+
+            def _visible(m: Material) -> bool:
+                return self._is_visible(
+                    m, organization_id=organization_id, requester_id=requester_id, is_superuser=is_superuser
+                )
+
+            replacement = material.npa.replaced_by
+            if replacement is not None and _visible(replacement):
+                response.npa.replaced_by = MaterialRef.model_validate(replacement)
+            replacing = await self.repository.list_replacing(material.id)
+            response.npa.replaces = [MaterialRef.model_validate(m) for m in replacing if _visible(m)]
+        response.attachments = [AttachmentResponse.model_validate(a) for a in material.attachments]
         return response
 
     @staticmethod
@@ -536,6 +620,22 @@ class MaterialService:
                 raise NotFoundError("Материал", str(material.id))
         elif not (is_superuser or material.author_id == requester_id):
             raise NotFoundError("Материал", str(material.id))
+
+    @classmethod
+    def _is_visible(
+        cls, material: Material, *, organization_id: int, requester_id: UUID | None, is_superuser: bool
+    ) -> bool:
+        """Видим ли материал запросившему (bool-обёртка над _ensure_visible)."""
+        try:
+            cls._ensure_visible(
+                material,
+                organization_id=organization_id,
+                requester_id=requester_id,
+                is_superuser=is_superuser,
+            )
+        except NotFoundError:
+            return False
+        return True
 
     def _validate_upload(self, upload: UploadFile, current_count: int) -> str:
         """Проверить количество/имя/расширение. Вернуть расширение (без точки)."""
