@@ -12,10 +12,10 @@ import { TemplateForm } from '@/components/materials/TemplateForm';
 import type { MaterialType } from '@/types';
 
 const createTypes: { value: MaterialType; label: string }[] = [
-  { value: 'article', label: 'Статьи' },
+  { value: 'article', label: 'Статья' },
+  { value: 'news', label: 'Новость' },
   { value: 'npa', label: 'НПА' },
-  { value: 'template', label: 'Шаблоны' },
-  { value: 'news', label: 'Новости' },
+  { value: 'template', label: 'Шаблон' },
 ];
 
 /** Кнопка «+ Создать материал» + модальное окно с формой создания. */
@@ -89,26 +89,25 @@ export function CreateMaterialDialog() {
           </div>
 
           <div className="overflow-y-auto px-5 py-4">
-            <div className="mb-4 max-w-xs">
-            <label className="label" htmlFor="create-type">
-              Тип материала
-            </label>
-            <select
-              id="create-type"
-              className="input"
-              value={createType}
-              onChange={(e) => {
-                setCreateType(e.target.value as MaterialType);
-                setFormError(null);
-              }}
-            >
+            <div className="mb-4 flex rounded-lg border border-gray-200 bg-gray-50 p-0.5">
               {createTypes.map((item) => (
-                <option key={item.value} value={item.value}>
+                <button
+                  key={item.value}
+                  type="button"
+                  onClick={() => {
+                    setCreateType(item.value);
+                    setFormError(null);
+                  }}
+                  className={`flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                    createType === item.value
+                      ? 'bg-white text-primary-700 shadow-sm'
+                      : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                >
                   {item.label}
-                </option>
+                </button>
               ))}
-            </select>
-          </div>
+            </div>
 
           {createType === 'article' ? (
             <ArticleForm categories={categories} />
