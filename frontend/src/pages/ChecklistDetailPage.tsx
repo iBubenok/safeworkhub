@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 
 import * as checklistsApi from '@/api/checklists';
+import * as runsApi from '@/api/checklistRuns';
 import { getErrorMessage } from '@/api/client';
 import { useAuth } from '@/hooks/useAuth';
 import { ChecklistBuilderDialog } from '@/components/checklists/ChecklistBuilderDialog';
@@ -125,6 +126,11 @@ export function ChecklistDetailPage() {
     },
     onError: (e) => alert(getErrorMessage(e)),
   });
+  const startRun = useMutation({
+    mutationFn: () => runsApi.startRun({ checklist_id: id as string }),
+    onSuccess: (run) => navigate(`/checks/runs/${run.id}`),
+    onError: (e) => alert(getErrorMessage(e)),
+  });
 
   if (isLoading) {
     return <div className="card h-40 animate-pulse" />;
@@ -140,7 +146,7 @@ export function ChecklistDetailPage() {
     );
   }
 
-  const busy = publish.isPending || archive.isPending || remove.isPending;
+  const busy = publish.isPending || archive.isPending || remove.isPending || startRun.isPending;
 
   const handleDelete = () => {
     if (window.confirm('Удалить чек-лист без возможности восстановления?')) remove.mutate();
@@ -169,8 +175,13 @@ export function ChecklistDetailPage() {
             <button
               type="button"
               className="btn-secondary flex items-center gap-1 px-3 py-1 text-xs"
-              disabled
-              title="Скоро: проведение проверки по чек-листу"
+              disabled={busy || data.status !== 'published'}
+              title={
+                data.status !== 'published'
+                  ? 'Проверку можно проводить только по опубликованному чек-листу'
+                  : 'Провести проверку по чек-листу'
+              }
+              onClick={() => startRun.mutate()}
             >
               <CheckCircle2 size={14} /> Использовать
             </button>

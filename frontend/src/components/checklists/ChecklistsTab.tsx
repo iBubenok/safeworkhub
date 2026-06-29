@@ -1,9 +1,11 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { Link, useNavigate } from 'react-router-dom';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { Building2, ClipboardList, Eye, ListChecks, Search } from 'lucide-react';
 
 import * as checklistsApi from '@/api/checklists';
+import * as runsApi from '@/api/checklistRuns';
+import { getErrorMessage } from '@/api/client';
 import { useAuth } from '@/hooks/useAuth';
 import { checklistStatusLabels } from '@/utils/checklistLabels';
 import type { ChecklistListItem, ChecklistStatus } from '@/types';
@@ -15,6 +17,13 @@ const statusFilters: { value: ChecklistStatus; label: string }[] = [
 ];
 
 function ChecklistCard({ checklist }: { checklist: ChecklistListItem }) {
+  const navigate = useNavigate();
+  const startRun = useMutation({
+    mutationFn: () => runsApi.startRun({ checklist_id: checklist.id }),
+    onSuccess: (run) => navigate(`/checks/runs/${run.id}`),
+    onError: (e) => alert(getErrorMessage(e)),
+  });
+
   return (
     <div className="card flex flex-col gap-3 transition-shadow hover:shadow-md">
       <div className="flex items-start gap-3">
@@ -44,8 +53,13 @@ function ChecklistCard({ checklist }: { checklist: ChecklistListItem }) {
       <button
         type="button"
         className="btn-secondary self-start"
-        disabled
-        title="Скоро: проведение проверки по чек-листу"
+        disabled={startRun.isPending || checklist.status !== 'published'}
+        title={
+          checklist.status !== 'published'
+            ? 'Проверку можно проводить только по опубликованному чек-листу'
+            : 'Провести проверку по чек-листу'
+        }
+        onClick={() => startRun.mutate()}
       >
         Использовать
       </button>

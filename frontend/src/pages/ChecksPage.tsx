@@ -3,6 +3,7 @@ import { ClipboardCheck, Layers, ListChecks } from 'lucide-react';
 
 import { useAuth } from '@/hooks/useAuth';
 import { ChecklistsTab } from '@/components/checklists/ChecklistsTab';
+import { RunsTab } from '@/components/checklists/RunsTab';
 import { CreateCheckDialog } from '@/components/checklists/CreateCheckDialog';
 
 const tabs = [
@@ -27,7 +28,7 @@ export function ChecksPage() {
         {isOwner && <CreateCheckDialog />}
       </div>
 
-      <Tabs.Root defaultValue="checklists">
+      <Tabs.Root defaultValue="all">
         <Tabs.List className="-mb-px flex gap-1 overflow-x-auto border-b border-gray-200">
           {tabs.map((tab) => (
             <Tabs.Trigger
@@ -41,16 +42,18 @@ export function ChecksPage() {
           ))}
         </Tabs.List>
 
-        <Tabs.Content value="all" className="pt-6 focus:outline-none">
-          <ChecklistsTab emptyMessage="Проверки и чек-листы не найдены" />
+        <Tabs.Content value="all" className="space-y-8 pt-6 focus:outline-none">
+          <section className="space-y-3">
+            <h2 className="text-lg font-semibold text-gray-900">Проверки</h2>
+            <RunsTab emptyMessage="Проверки ещё не проводились" />
+          </section>
+          <section className="space-y-3">
+            <h2 className="text-lg font-semibold text-gray-900">Чек-листы</h2>
+            <ChecklistsTab emptyMessage="Чек-листы не найдены" />
+          </section>
         </Tabs.Content>
         <Tabs.Content value="runs" className="pt-6 focus:outline-none">
-          <div className="rounded-lg border-2 border-dashed border-gray-300 p-10 text-center">
-            <h2 className="text-lg font-semibold text-gray-900">Проверки</h2>
-            <p className="mt-1 text-sm text-gray-500">
-              Проведение проверок по чек-листам — в разработке (следующий этап).
-            </p>
-          </div>
+          <RunsTab />
         </Tabs.Content>
         <Tabs.Content value="checklists" className="pt-6 focus:outline-none">
           <ChecklistsTab />

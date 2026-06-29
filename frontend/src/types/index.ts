@@ -310,6 +310,86 @@ export interface ChecklistUpdateInput {
   items?: ChecklistNodeInput[];
 }
 
+// --- Проверки (проведение проверки по чек-листу) ---
+
+export type ChecklistRunStatus = 'in_progress' | 'completed';
+export type ChecklistRunResult = 'passed' | 'has_issues';
+export type ChecklistComplianceValue = 'compliant' | 'non_compliant' | 'not_applicable';
+
+/** Снимок ссылки пункта в проверке (без id — это копия на момент старта). */
+export interface ChecklistRunReference {
+  material_id: string | null;
+  material_title: string | null;
+  note: string | null;
+}
+
+export interface ChecklistRunAnswer {
+  id: string;
+  sort_order: number;
+  group_title: string | null;
+  item_text: string;
+  help_text: string | null;
+  answer_type: ChecklistAnswerType;
+  required: boolean;
+  references: ChecklistRunReference[];
+  value: string | null;
+  comment: string | null;
+}
+
+export interface ChecklistRun {
+  id: string;
+  organization_id: number;
+  checklist_id: string | null;
+  checklist_title: string;
+  title: string | null;
+  conducted_by_id: string;
+  conducted_by_name: string | null;
+  status: ChecklistRunStatus;
+  result: ChecklistRunResult | null;
+  gradable_count: number;
+  compliant_count: number;
+  non_compliant_count: number;
+  not_applicable_count: number;
+  score: number | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+  completed_at: string | null;
+  answers: ChecklistRunAnswer[];
+}
+
+export interface ChecklistRunListItem {
+  id: string;
+  title: string | null;
+  checklist_title: string;
+  status: ChecklistRunStatus;
+  result: ChecklistRunResult | null;
+  gradable_count: number;
+  compliant_count: number;
+  non_compliant_count: number;
+  score: number | null;
+  conducted_by_name: string | null;
+  created_at: string;
+  completed_at: string | null;
+}
+
+export interface ChecklistRunCreateInput {
+  checklist_id: string;
+  title?: string | null;
+}
+
+export interface ChecklistRunAnswerInput {
+  answer_id: string;
+  value?: string | null;
+  comment?: string | null;
+}
+
+export interface ChecklistRunUpdateInput {
+  title?: string | null;
+  notes?: string | null;
+  answers?: ChecklistRunAnswerInput[];
+}
+
 export interface PaginatedResponse<T> {
   items: T[];
   total: number;

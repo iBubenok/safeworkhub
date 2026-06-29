@@ -4,6 +4,7 @@ from fastapi import APIRouter
 
 from app.api.v1.endpoints import (
     auth,
+    checklist_runs,
     checklists,
     courses,
     health,
@@ -22,5 +23,6 @@ api_router.include_router(users.router, prefix="/users", tags=["Пользова
 api_router.include_router(materials.router, prefix="/materials", tags=["База знаний"])
 api_router.include_router(courses.router, prefix="/courses", tags=["Курсы"])
 api_router.include_router(checklists.router, prefix="/checklists", tags=["Чек-листы"])
+api_router.include_router(checklist_runs.router, prefix="/checklist-runs", tags=["Проверки"])
 api_router.include_router(notifications.router, prefix="/notifications", tags=["Уведомления"])
 api_router.include_router(notifications_sse.router, prefix="/notifications", tags=["Уведомления"])

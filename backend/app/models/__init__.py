@@ -14,6 +14,13 @@ from app.models.checklist import (
     ChecklistNodeType,
     ChecklistStatus,
 )
+from app.models.checklist_run import (
+    ChecklistComplianceValue,
+    ChecklistRun,
+    ChecklistRunAnswer,
+    ChecklistRunResult,
+    ChecklistRunStatus,
+)
 from app.models.course import AssignmentStatus, Course, CourseAssignment, CourseModule
 from app.models.material import (
     Category,
@@ -41,9 +48,14 @@ __all__ = [
     "Category",
     "Checklist",
     "ChecklistAnswerType",
+    "ChecklistComplianceValue",
     "ChecklistItem",
     "ChecklistItemReference",
     "ChecklistNodeType",
+    "ChecklistRun",
+    "ChecklistRunAnswer",
+    "ChecklistRunResult",
+    "ChecklistRunStatus",
     "ChecklistStatus",
     "Course",
     "CourseAssignment",
