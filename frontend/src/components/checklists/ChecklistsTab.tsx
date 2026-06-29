@@ -25,16 +25,14 @@ function ChecklistCard({ checklist }: { checklist: ChecklistListItem }) {
   });
 
   return (
-    <div className="card flex flex-col gap-3 transition-shadow hover:shadow-md">
+    <Link
+      to={`/checks/checklists/${checklist.id}`}
+      className="card flex flex-col gap-3 transition-shadow hover:shadow-md"
+    >
       <div className="flex items-start gap-3">
         <ListChecks className="h-5 w-5 shrink-0 text-primary-500" />
         <div className="min-w-0 flex-1">
-          <Link
-            to={`/checks/checklists/${checklist.id}`}
-            className="block font-medium text-gray-900 line-clamp-2 hover:text-primary-600"
-          >
-            {checklist.title}
-          </Link>
+          <p className="block font-medium text-gray-900 line-clamp-2">{checklist.title}</p>
           {checklist.description && (
             <p className="mt-1 text-sm text-gray-500 line-clamp-2">{checklist.description}</p>
           )}
@@ -52,14 +50,18 @@ function ChecklistCard({ checklist }: { checklist: ChecklistListItem }) {
       </div>
       <button
         type="button"
-        className="btn-secondary self-start"
+        className="btn-secondary w-full"
         disabled={startRun.isPending || checklist.status !== 'published'}
         title={
           checklist.status !== 'published'
             ? 'Проверку можно проводить только по опубликованному чек-листу'
             : 'Провести проверку по чек-листу'
         }
-        onClick={() => startRun.mutate()}
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          startRun.mutate();
+        }}
       >
         Использовать
       </button>
@@ -71,7 +73,7 @@ function ChecklistCard({ checklist }: { checklist: ChecklistListItem }) {
           </span>
         </div>
       )}
-    </div>
+    </Link>
   );
 }
 
