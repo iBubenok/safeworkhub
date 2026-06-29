@@ -293,3 +293,29 @@ async def test_superuser_sees_drafts(client: AsyncClient, db_session, unique_ema
     resp = await client.get("/api/v1/checklists", headers=auth_headers(login.json()), cookies=login.cookies)
     titles = [c["title"] for c in resp.json()["items"]]
     assert "Чужой черновик" in titles
+
+
+@pytest.mark.asyncio
+async def test_list_search_by_title_and_description(client: AsyncClient, unique_email: str):
+    """Параметр q фильтрует чек-листы по названию и описанию (на уровне API)."""
+    tokens, cookies = await register_and_login(client, unique_email)
+    await create_checklist(client, tokens, cookies, title="Работа на высоте", status="published")
+    await create_checklist(
+        client, tokens, cookies, title="Электробезопасность", description="допуски и наряды", status="published"
+    )
+
+    # по названию
+    by_title = await client.get(
+        "/api/v1/checklists", params={"q": "высот"}, headers=auth_headers(tokens), cookies=cookies
+    )
+    assert [c["title"] for c in by_title.json()["items"]] == ["Работа на высоте"]
+
+    # по описанию
+    by_desc = await client.get(
+        "/api/v1/checklists", params={"q": "наряд"}, headers=auth_headers(tokens), cookies=cookies
+    )
+    assert [c["title"] for c in by_desc.json()["items"]] == ["Электробезопасность"]
+
+    # пустой запрос — без фильтра
+    all_resp = await client.get("/api/v1/checklists", headers=auth_headers(tokens), cookies=cookies)
+    assert all_resp.json()["total"] == 2

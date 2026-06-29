@@ -38,6 +38,7 @@ async def list_checklists(
     ctx: ActiveSubscriptionContext,
     session: DbSession,
     status_filter: Annotated[ChecklistStatus | None, Query(alias="status", description="Фильтр по статусу")] = None,
+    q: Annotated[str, Query(description="Поиск по названию/описанию")] = "",
     page: Annotated[int, Query(ge=1)] = 1,
     page_size: Annotated[int, Query(ge=1, le=100)] = 20,
 ) -> ChecklistListResponse:
@@ -46,6 +47,7 @@ async def list_checklists(
         organization_id=ctx.organization_id,
         is_owner=_is_owner(ctx),
         status=status_filter,
+        search=q.strip() or None,
         page=page,
         page_size=page_size,
     )

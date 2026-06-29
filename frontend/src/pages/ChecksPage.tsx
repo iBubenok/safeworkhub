@@ -1,6 +1,8 @@
 import * as Tabs from '@radix-ui/react-tabs';
 
+import { useAuth } from '@/hooks/useAuth';
 import { ChecklistsTab } from '@/components/checklists/ChecklistsTab';
+import { CreateCheckDialog } from '@/components/checklists/CreateCheckDialog';
 
 const tabs = [
   { value: 'all', label: 'Все вместе' },
@@ -9,13 +11,19 @@ const tabs = [
 ];
 
 export function ChecksPage() {
+  const { role } = useAuth();
+  const isOwner = role === 'org_owner';
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Проверки и чек-листы</h1>
-        <p className="mt-1 text-gray-600">
-          Конструктор чек-листов и проведение проверок для обеспечения безопасности на рабочем месте.
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Проверки и чек-листы</h1>
+          <p className="mt-1 text-gray-600">
+            Конструктор чек-листов и проведение проверок для обеспечения безопасности на рабочем месте.
+          </p>
+        </div>
+        {isOwner && <CreateCheckDialog />}
       </div>
 
       <Tabs.Root defaultValue="checklists">

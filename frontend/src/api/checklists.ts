@@ -9,11 +9,12 @@ import type {
 } from '@/types';
 
 export async function getChecklists(
-  params: { status?: ChecklistStatus; page?: number; page_size?: number } = {},
+  params: { status?: ChecklistStatus; q?: string; page?: number; page_size?: number } = {},
 ): Promise<PaginatedResponse<ChecklistListItem>> {
   const response = await apiClient.get<PaginatedResponse<ChecklistListItem>>('/checklists', {
     params: {
       status: params.status,
+      q: params.q || undefined,
       page: params.page ?? 1,
       page_size: params.page_size ?? 20,
     },

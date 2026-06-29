@@ -130,6 +130,7 @@ class ChecklistService:
         organization_id: int,
         is_owner: bool,
         status: ChecklistStatus | None = None,
+        search: str | None = None,
         page: int = 1,
         page_size: int = 20,
     ) -> ChecklistListResponse:
@@ -145,6 +146,7 @@ class ChecklistService:
         checklists, total = await self.repository.list_for_org(
             organization_id=organization_id,
             statuses=statuses,
+            search=search,
             limit=page_size,
             offset=offset,
         )

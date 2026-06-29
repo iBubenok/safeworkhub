@@ -1,11 +1,10 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { Building2, ClipboardList, Eye, ListChecks } from 'lucide-react';
+import { Building2, ClipboardList, Eye, ListChecks, Search } from 'lucide-react';
 
 import * as checklistsApi from '@/api/checklists';
 import { useAuth } from '@/hooks/useAuth';
-import { CreateCheckDialog } from '@/components/checklists/CreateCheckDialog';
 import { checklistStatusLabels } from '@/utils/checklistLabels';
 import type { ChecklistListItem, ChecklistStatus } from '@/types';
 
@@ -66,34 +65,51 @@ export function ChecklistsTab({ emptyMessage = 'Чек-листы не найд�
   const { role } = useAuth();
   const isOwner = role === 'org_owner';
   const [status, setStatus] = useState<ChecklistStatus>('published');
+  const [search, setSearch] = useState('');
 
+  const effectiveStatus = isOwner ? status : 'published';
   const query = useQuery({
-    queryKey: ['checklists', isOwner ? status : 'published'],
-    queryFn: () => checklistsApi.getChecklists({ status: isOwner ? status : 'published' }),
+    queryKey: ['checklists', effectiveStatus, search],
+    queryFn: () => checklistsApi.getChecklists({ status: effectiveStatus, q: search || undefined }),
   });
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        {isOwner ? (
-          <div className="inline-flex shrink-0 overflow-x-auto rounded-lg border border-gray-200 bg-gray-50 p-0.5">
-            {statusFilters.map((s) => (
-              <button
-                key={s.value}
-                type="button"
-                onClick={() => setStatus(s.value)}
-                className={`whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
-                  status === s.value ? 'bg-white text-primary-700 shadow-sm' : 'text-gray-600 hover:text-gray-900'
-                }`}
-              >
-                {s.label}
-              </button>
-            ))}
-          </div>
-        ) : (
-          <span />
-        )}
-        {isOwner && <CreateCheckDialog />}
+      <div className="card">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <form onSubmit={(e) => e.preventDefault()} className="flex gap-3 sm:flex-1">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Поиск по названию или описанию..."
+                className="input pl-10"
+              />
+            </div>
+            <button type="submit" className="btn-primary">
+              Найти
+            </button>
+          </form>
+
+          {isOwner && (
+            <div className="inline-flex shrink-0 self-start overflow-x-auto rounded-lg border border-gray-200 bg-gray-50 p-0.5 sm:ml-auto sm:self-auto">
+              {statusFilters.map((s) => (
+                <button
+                  key={s.value}
+                  type="button"
+                  onClick={() => setStatus(s.value)}
+                  className={`whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                    status === s.value ? 'bg-white text-primary-700 shadow-sm' : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                >
+                  {s.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       {query.isLoading ? (

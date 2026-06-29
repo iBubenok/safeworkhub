@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from sqlalchemy import desc, func, select, update
+from sqlalchemy import desc, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload, selectinload
 
@@ -23,11 +23,15 @@ class ChecklistRepository(BaseRepository[Checklist]):
         *,
         organization_id: int,
         statuses: list[ChecklistStatus],
+        search: str | None = None,
         limit: int = 20,
         offset: int = 0,
     ) -> tuple[list[Checklist], int]:
         """Чек-листы организации с фильтром по статусам (с подгрузкой пунктов для счётчика)."""
         conditions = [Checklist.organization_id == organization_id, Checklist.status.in_(statuses)]
+        if search:
+            pattern = f"%{search}%"
+            conditions.append(or_(Checklist.title.ilike(pattern), Checklist.description.ilike(pattern)))
 
         count_query = select(func.count()).select_from(select(Checklist).where(*conditions).subquery())
         total = await self.session.scalar(count_query) or 0
