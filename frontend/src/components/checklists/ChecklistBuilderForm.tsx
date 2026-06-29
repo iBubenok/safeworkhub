@@ -8,6 +8,13 @@ import { getErrorMessage } from '@/api/client';
 import { checklistAnswerTypeLabels } from '@/utils/checklistLabels';
 import type { Checklist, ChecklistAnswerType, ChecklistNode, ChecklistNodeInput, ChecklistStatus } from '@/types';
 
+interface BuilderRef {
+  key: string;
+  material_id: string | null;
+  material_title: string | null;
+  note: string;
+}
+
 interface BuilderNode {
   key: string;
   node_type: 'group' | 'item';
@@ -15,10 +22,12 @@ interface BuilderNode {
   answer_type: ChecklistAnswerType;
   required: boolean;
   help_text: string;
-  reference_material_id: string | null;
-  reference_material_title: string | null;
-  reference_note: string;
+  references: BuilderRef[];
   children: BuilderNode[];
+}
+
+function makeRef(): BuilderRef {
+  return { key: crypto.randomUUID(), material_id: null, material_title: null, note: '' };
 }
 
 function makeNode(node_type: 'group' | 'item'): BuilderNode {
@@ -29,9 +38,7 @@ function makeNode(node_type: 'group' | 'item'): BuilderNode {
     answer_type: 'compliance',
     required: true,
     help_text: '',
-    reference_material_id: null,
-    reference_material_title: null,
-    reference_note: '',
+    references: [],
     children: [],
   };
 }
@@ -44,9 +51,12 @@ function fromNodes(nodes: ChecklistNode[]): BuilderNode[] {
     answer_type: n.answer_type ?? 'compliance',
     required: n.required,
     help_text: n.help_text ?? '',
-    reference_material_id: n.reference_material_id,
-    reference_material_title: n.reference_material_title,
-    reference_note: n.reference_note ?? '',
+    references: n.references.map((r) => ({
+      key: crypto.randomUUID(),
+      material_id: r.material_id,
+      material_title: r.material_title,
+      note: r.note ?? '',
+    })),
     children: fromNodes(n.children),
   }));
 }
@@ -63,8 +73,9 @@ function toInput(nodes: BuilderNode[]): ChecklistNodeInput[] {
             answer_type: n.answer_type,
             required: n.required,
             help_text: n.help_text.trim() || null,
-            reference_material_id: n.reference_material_id,
-            reference_note: n.reference_note.trim() || null,
+            references: n.references
+              .filter((r) => r.material_id || r.note.trim())
+              .map((r) => ({ material_id: r.material_id, note: r.note.trim() || null })),
           },
     );
 }
@@ -161,6 +172,9 @@ interface NodeHandlers {
   outdent: (key: string) => void;
   remove: (key: string) => void;
   addChild: (parentKey: string, node_type: 'group' | 'item') => void;
+  addRef: (itemKey: string) => void;
+  patchRef: (itemKey: string, refKey: string, patch: Partial<BuilderRef>) => void;
+  removeRef: (itemKey: string, refKey: string) => void;
 }
 
 function NodeEditor({
@@ -261,25 +275,48 @@ function NodeEditor({
               value={node.help_text}
               onChange={(e) => handlers.patch(node.key, { help_text: e.target.value })}
             />
-            <div className="rounded-md bg-gray-50 p-2">
-              <span className="mb-1 block text-xs text-gray-500">Ссылка на закон/статью (необязательно)</span>
-              <MaterialPicker
-                value={
-                  node.reference_material_id
-                    ? { id: node.reference_material_id, title: node.reference_material_title ?? 'Материал' }
-                    : null
-                }
-                onSelect={(m) =>
-                  handlers.patch(node.key, { reference_material_id: m.id, reference_material_title: m.title })
-                }
-                onClear={() => handlers.patch(node.key, { reference_material_id: null, reference_material_title: null })}
-              />
-              <input
-                className="input mt-2"
-                placeholder="Заметка (напр. пункт закона)"
-                value={node.reference_note}
-                onChange={(e) => handlers.patch(node.key, { reference_note: e.target.value })}
-              />
+            <div className="space-y-2 rounded-md bg-gray-50 p-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-gray-500">Ссылки на законы/материалы (необязательно)</span>
+                <button
+                  type="button"
+                  className="btn-secondary flex items-center gap-1 px-2 py-0.5 text-xs"
+                  onClick={() => handlers.addRef(node.key)}
+                >
+                  <Plus size={12} /> Добавить ссылку
+                </button>
+              </div>
+              {node.references.map((ref) => (
+                <div key={ref.key} className="rounded-md border border-gray-200 bg-white p-2">
+                  <div className="flex items-start gap-2">
+                    <div className="min-w-0 flex-1 space-y-2">
+                      <MaterialPicker
+                        value={ref.material_id ? { id: ref.material_id, title: ref.material_title ?? 'Материал' } : null}
+                        onSelect={(m) =>
+                          handlers.patchRef(node.key, ref.key, { material_id: m.id, material_title: m.title })
+                        }
+                        onClear={() =>
+                          handlers.patchRef(node.key, ref.key, { material_id: null, material_title: null })
+                        }
+                      />
+                      <input
+                        className="input"
+                        placeholder="Заметка (напр. ст. 217 ТК РФ)"
+                        value={ref.note}
+                        onChange={(e) => handlers.patchRef(node.key, ref.key, { note: e.target.value })}
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      className="mt-1 rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-red-600"
+                      onClick={() => handlers.removeRef(node.key, ref.key)}
+                      aria-label="Удалить ссылку"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+              ))}
             </div>
           </>
         ) : (
@@ -379,6 +416,25 @@ export function ChecklistBuilderForm({ checklist, onSaved }: { checklist?: Check
       mutate((clone) => {
         const ctx = locate(clone, parentKey);
         if (ctx) (ctx.siblings[ctx.index] as BuilderNode).children.push(makeNode(node_type));
+      }),
+    addRef: (itemKey) =>
+      mutate((clone) => {
+        const ctx = locate(clone, itemKey);
+        if (ctx) (ctx.siblings[ctx.index] as BuilderNode).references.push(makeRef());
+      }),
+    patchRef: (itemKey, refKey, patch) =>
+      mutate((clone) => {
+        const ctx = locate(clone, itemKey);
+        if (!ctx) return;
+        const ref = (ctx.siblings[ctx.index] as BuilderNode).references.find((r) => r.key === refKey);
+        if (ref) Object.assign(ref, patch);
+      }),
+    removeRef: (itemKey, refKey) =>
+      mutate((clone) => {
+        const ctx = locate(clone, itemKey);
+        if (!ctx) return;
+        const node = ctx.siblings[ctx.index] as BuilderNode;
+        node.references = node.references.filter((r) => r.key !== refKey);
       }),
   };
 

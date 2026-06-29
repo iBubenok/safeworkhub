@@ -235,6 +235,18 @@ export type ChecklistStatus = 'draft' | 'published' | 'archived';
 export type ChecklistAnswerType = 'compliance' | 'yes_no' | 'text' | 'number';
 export type ChecklistNodeType = 'group' | 'item';
 
+export interface ChecklistReference {
+  id: string;
+  material_id: string | null;
+  material_title: string | null;
+  note: string | null;
+}
+
+export interface ChecklistReferenceInput {
+  material_id?: string | null;
+  note?: string | null;
+}
+
 export interface ChecklistNode {
   id: string;
   node_type: ChecklistNodeType;
@@ -242,9 +254,7 @@ export interface ChecklistNode {
   answer_type: ChecklistAnswerType | null;
   required: boolean;
   help_text: string | null;
-  reference_material_id: string | null;
-  reference_material_title: string | null;
-  reference_note: string | null;
+  references: ChecklistReference[];
   children: ChecklistNode[];
 }
 
@@ -254,8 +264,7 @@ export interface ChecklistNodeInput {
   answer_type?: ChecklistAnswerType | null;
   required?: boolean;
   help_text?: string | null;
-  reference_material_id?: string | null;
-  reference_note?: string | null;
+  references?: ChecklistReferenceInput[];
   children?: ChecklistNodeInput[];
 }
 

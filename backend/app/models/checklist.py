@@ -118,16 +118,41 @@ class ChecklistItem(Base, UUIDMixin, TimestampMixin):
     answer_type: Mapped[ChecklistAnswerType | None] = mapped_column(_enum(ChecklistAnswerType, "checklist_answer_type"))
     required: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     help_text: Mapped[str | None] = mapped_column(Text)
-    reference_material_id: Mapped[UUID | None] = mapped_column(
-        PG_UUID(as_uuid=True),
-        ForeignKey("materials.id", ondelete="SET NULL"),
-    )
-    reference_note: Mapped[str | None] = mapped_column(String(500))
 
     checklist: Mapped["Checklist"] = relationship(back_populates="items")
-    reference_material: Mapped["Material | None"] = relationship(lazy="selectin")
+    references: Mapped[list["ChecklistItemReference"]] = relationship(
+        back_populates="item",
+        cascade="all, delete-orphan",
+        order_by="ChecklistItemReference.sort_order",
+    )
 
     __table_args__ = (Index("ix_checklist_items_checklist_id", "checklist_id"),)
 
     def __repr__(self) -> str:
         return f"<ChecklistItem {self.text[:40]}>"
+
+
+class ChecklistItemReference(Base, UUIDMixin):
+    """Ссылка пункта чек-листа: материал из базы знаний и/или заметка (1:много)."""
+
+    __tablename__ = "checklist_item_references"
+
+    item_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("checklist_items.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    sort_order: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    material_id: Mapped[UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("materials.id", ondelete="SET NULL"),
+    )
+    note: Mapped[str | None] = mapped_column(String(500))
+
+    item: Mapped["ChecklistItem"] = relationship(back_populates="references")
+    material: Mapped["Material | None"] = relationship(lazy="selectin")
+
+    __table_args__ = (Index("ix_checklist_item_references_item_id", "item_id"),)
+
+    def __repr__(self) -> str:
+        return f"<ChecklistItemReference item={self.item_id}>"

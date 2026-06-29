@@ -246,14 +246,22 @@ async def test_item_reference_to_material(client: AsyncClient, unique_email: str
             {
                 "text": "Соблюдены правила",
                 "answer_type": "compliance",
-                "reference_material_id": material_id,
-                "reference_note": "п. 5",
+                "references": [
+                    {"material_id": material_id, "note": "п. 5"},
+                    {"note": "ст. 217 ТК РФ"},
+                    {"note": "ст. 5.27.1 КоАП РФ"},
+                    {"material_id": None, "note": "   "},  # пустая — отбрасывается
+                ],
             }
         ],
     )
-    assert body["items"][0]["reference_material_id"] == material_id
-    assert body["items"][0]["reference_material_title"] == "Правила работы на высоте"
-    assert body["items"][0]["reference_note"] == "п. 5"
+    refs = body["items"][0]["references"]
+    assert len(refs) == 3
+    assert refs[0]["material_id"] == material_id
+    assert refs[0]["material_title"] == "Правила работы на высоте"
+    assert refs[0]["note"] == "п. 5"
+    assert [r["note"] for r in refs[1:]] == ["ст. 217 ТК РФ", "ст. 5.27.1 КоАП РФ"]
+    assert refs[1]["material_id"] is None
 
 
 @pytest.mark.asyncio
@@ -264,7 +272,7 @@ async def test_item_reference_unknown_material_rejected(client: AsyncClient, uni
         json={
             "title": "Битая ссылка",
             "status": "draft",
-            "items": [{"text": "Вопрос", "answer_type": "text", "reference_material_id": str(uuid.uuid4())}],
+            "items": [{"text": "Вопрос", "answer_type": "text", "references": [{"material_id": str(uuid.uuid4())}]}],
         },
         headers=auth_headers(tokens),
         cookies=cookies,

@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload, selectinload
 
 from app.db.repositories.base import BaseRepository
-from app.models.checklist import Checklist, ChecklistItem, ChecklistStatus
+from app.models.checklist import Checklist, ChecklistItem, ChecklistItemReference, ChecklistStatus
 
 
 class ChecklistRepository(BaseRepository[Checklist]):
@@ -48,7 +48,9 @@ class ChecklistRepository(BaseRepository[Checklist]):
         query = (
             select(Checklist)
             .options(
-                selectinload(Checklist.items).joinedload(ChecklistItem.reference_material),
+                selectinload(Checklist.items)
+                .selectinload(ChecklistItem.references)
+                .joinedload(ChecklistItemReference.material),
                 joinedload(Checklist.author),
                 joinedload(Checklist.updated_by),
                 joinedload(Checklist.organization),

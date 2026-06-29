@@ -70,16 +70,20 @@ function ChecklistNodeView({ node, depth }: { node: ChecklistNode; depth: number
         )}
         {node.help_text && <span className="text-gray-400">{node.help_text}</span>}
       </div>
-      {(node.reference_material_id || node.reference_note) && (
-        <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-gray-500">
-          <BookText className="h-3.5 w-3.5 shrink-0 text-gray-400" />
-          {node.reference_material_id && (
-            <Link to={`/materials/${node.reference_material_id}`} className="text-primary-600 underline">
-              {node.reference_material_title ?? 'Материал'}
-            </Link>
-          )}
-          {node.reference_note && <span>{node.reference_note}</span>}
-        </div>
+      {node.references.length > 0 && (
+        <ul className="mt-2 space-y-1">
+          {node.references.map((ref) => (
+            <li key={ref.id} className="flex flex-wrap items-center gap-1.5 text-xs text-gray-500">
+              <BookText className="h-3.5 w-3.5 shrink-0 text-gray-400" />
+              {ref.material_id && (
+                <Link to={`/materials/${ref.material_id}`} className="text-primary-600 underline">
+                  {ref.material_title ?? 'Материал'}
+                </Link>
+              )}
+              {ref.note && <span>{ref.note}</span>}
+            </li>
+          ))}
+        </ul>
       )}
     </div>
   );

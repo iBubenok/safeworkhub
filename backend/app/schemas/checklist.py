@@ -8,6 +8,13 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from app.models.checklist import ChecklistAnswerType, ChecklistNodeType, ChecklistStatus
 
 
+class ChecklistReferenceInput(BaseModel):
+    """Ссылка пункта при создании/правке (материал и/или заметка)."""
+
+    material_id: UUID | None = Field(None, description="Ссылка на материал (НПА/статью)")
+    note: str | None = Field(None, max_length=500, description="Заметка (напр. пункт закона)")
+
+
 class ChecklistNodeInput(BaseModel):
     """Узел чек-листа при создании/правке (рекурсивно: группа с детьми или пункт-лист)."""
 
@@ -16,8 +23,7 @@ class ChecklistNodeInput(BaseModel):
     answer_type: ChecklistAnswerType | None = Field(None, description="Тип ответа (только у пункта)")
     required: bool = Field(default=True, description="Обязательный пункт")
     help_text: str | None = Field(None, description="Подсказка")
-    reference_material_id: UUID | None = Field(None, description="Ссылка на материал (НПА/статью)")
-    reference_note: str | None = Field(None, max_length=500, description="Заметка к ссылке")
+    references: list[ChecklistReferenceInput] = Field(default_factory=list, description="Ссылки пункта")
     children: list["ChecklistNodeInput"] = Field(default_factory=list, description="Вложенные узлы")
 
     @model_validator(mode="after")
@@ -28,6 +34,17 @@ class ChecklistNodeInput(BaseModel):
             if self.children:
                 raise ValueError("Пункт не может содержать вложенные узлы")
         return self
+
+
+class ChecklistReferenceResponse(BaseModel):
+    """Ссылка пункта в ответе."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    material_id: UUID | None = None
+    material_title: str | None = None
+    note: str | None = None
 
 
 class ChecklistNodeResponse(BaseModel):
@@ -41,9 +58,7 @@ class ChecklistNodeResponse(BaseModel):
     answer_type: ChecklistAnswerType | None = None
     required: bool
     help_text: str | None = None
-    reference_material_id: UUID | None = None
-    reference_material_title: str | None = None
-    reference_note: str | None = None
+    references: list[ChecklistReferenceResponse] = Field(default_factory=list)
     children: list["ChecklistNodeResponse"] = Field(default_factory=list)
 
 

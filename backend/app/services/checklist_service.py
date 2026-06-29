@@ -9,13 +9,20 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import NotFoundError, ValidationError
 from app.db.repositories import ChecklistRepository, MaterialRepository
-from app.models.checklist import Checklist, ChecklistItem, ChecklistNodeType, ChecklistStatus
+from app.models.checklist import (
+    Checklist,
+    ChecklistItem,
+    ChecklistItemReference,
+    ChecklistNodeType,
+    ChecklistStatus,
+)
 from app.schemas.checklist import (
     ChecklistCreate,
     ChecklistListItem,
     ChecklistListResponse,
     ChecklistNodeInput,
     ChecklistNodeResponse,
+    ChecklistReferenceResponse,
     ChecklistResponse,
     ChecklistUpdate,
 )
@@ -33,8 +40,10 @@ class ChecklistService:
     async def _validate_references(self, nodes: list[ChecklistNodeInput], *, organization_id: int) -> None:
         """Ссылки пунктов (рекурсивно) должны вести на материалы своей организации."""
         for node in nodes:
-            if node.reference_material_id is not None:
-                material = await self.material_repo.get_by_id(node.reference_material_id)
+            for ref in node.references:
+                if ref.material_id is None:
+                    continue
+                material = await self.material_repo.get_by_id(ref.material_id)
                 if material is None or material.organization_id != organization_id:
                     raise ValidationError("Ссылка на материал недоступна или из другой организации")
             await self._validate_references(node.children, organization_id=organization_id)
@@ -46,6 +55,7 @@ class ChecklistService:
         item_count = 0
         for index, node in enumerate(nodes):
             node_id = uuid4()
+            is_item = node.node_type == ChecklistNodeType.ITEM
             self.session.add(
                 ChecklistItem(
                     id=node_id,
@@ -54,15 +64,27 @@ class ChecklistService:
                     node_type=node.node_type,
                     sort_order=index,
                     text=node.text,
-                    answer_type=node.answer_type if node.node_type == ChecklistNodeType.ITEM else None,
+                    answer_type=node.answer_type if is_item else None,
                     required=node.required,
                     help_text=node.help_text,
-                    reference_material_id=node.reference_material_id,
-                    reference_note=node.reference_note,
                 )
             )
-            if node.node_type == ChecklistNodeType.ITEM:
+            if is_item:
                 item_count += 1
+                ref_order = 0
+                for ref in node.references:
+                    # Отбрасываем пустые ссылки (без материала и без заметки).
+                    if ref.material_id is None and not (ref.note and ref.note.strip()):
+                        continue
+                    self.session.add(
+                        ChecklistItemReference(
+                            item_id=node_id,
+                            sort_order=ref_order,
+                            material_id=ref.material_id,
+                            note=ref.note.strip() if ref.note else None,
+                        )
+                    )
+                    ref_order += 1
             else:
                 item_count += self._insert_tree(checklist_id, node.children, parent_id=node_id)
         return item_count
@@ -79,7 +101,15 @@ class ChecklistService:
             result: list[ChecklistNodeResponse] = []
             for item in nodes:
                 node = ChecklistNodeResponse.model_validate(item)
-                node.reference_material_title = item.reference_material.title if item.reference_material else None
+                node.references = [
+                    ChecklistReferenceResponse(
+                        id=ref.id,
+                        material_id=ref.material_id,
+                        material_title=ref.material.title if ref.material else None,
+                        note=ref.note,
+                    )
+                    for ref in sorted(item.references, key=lambda r: r.sort_order)
+                ]
                 node.children = build(item.id)
                 result.append(node)
             return result

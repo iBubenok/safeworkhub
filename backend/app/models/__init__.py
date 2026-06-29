@@ -10,6 +10,7 @@ from app.models.checklist import (
     Checklist,
     ChecklistAnswerType,
     ChecklistItem,
+    ChecklistItemReference,
     ChecklistNodeType,
     ChecklistStatus,
 )
@@ -41,6 +42,7 @@ __all__ = [
     "Checklist",
     "ChecklistAnswerType",
     "ChecklistItem",
+    "ChecklistItemReference",
     "ChecklistNodeType",
     "ChecklistStatus",
     "Course",
