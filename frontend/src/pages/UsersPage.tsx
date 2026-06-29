@@ -40,6 +40,11 @@ export function UsersPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['users'] }),
   });
 
+  const activateUser = useMutation({
+    mutationFn: usersApi.activateUser,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['users'] }),
+  });
+
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError(null);
@@ -175,15 +180,24 @@ export function UsersPage() {
                   Статус: {user.is_active ? 'активен' : 'заблокирован'}
                 </p>
               </div>
-              {isOwner && user.is_active && (
-                <button
-                  className="btn-secondary"
-                  onClick={() => deactivateUser.mutate(user.id)}
-                  disabled={deactivateUser.isPending}
-                >
-                  Деактивировать
-                </button>
-              )}
+              {isOwner &&
+                (user.is_active ? (
+                  <button
+                    className="btn-secondary"
+                    onClick={() => deactivateUser.mutate(user.id)}
+                    disabled={deactivateUser.isPending}
+                  >
+                    Деактивировать
+                  </button>
+                ) : (
+                  <button
+                    className="btn-primary"
+                    onClick={() => activateUser.mutate(user.id)}
+                    disabled={activateUser.isPending}
+                  >
+                    Активировать
+                  </button>
+                ))}
             </div>
           ))
         )}

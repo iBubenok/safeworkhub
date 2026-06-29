@@ -163,6 +163,26 @@ class UserService:
             request_id=request_id,
         )
 
+    async def activate_user(
+        self,
+        user_id: UUID,
+        organization_id: int,
+        *,
+        actor_id: UUID | None = None,
+        request_id: str | None = None,
+    ) -> None:
+        await self.repository.activate_membership(user_id, organization_id)
+        await self.repository.update(user_id, is_active=True)
+        await log_audit(
+            self.session,
+            action="user_activated",
+            entity_type="user",
+            entity_id=str(user_id),
+            organization_id=organization_id,
+            user_id=str(actor_id) if actor_id else str(user_id),
+            request_id=request_id,
+        )
+
     async def search_users(
         self,
         organization_id: int,

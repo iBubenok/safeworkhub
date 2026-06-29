@@ -66,14 +66,11 @@ class UserRepository(BaseRepository[User]):
         limit: int = 100,
         offset: int = 0,
     ) -> list[tuple[User, OrgRole]]:
-        """Получить пользователей организации вместе с их ролью в ней."""
+        """Получить пользователей организации (включая деактивированных) с их ролью."""
         query = (
             select(User, OrganizationUser.role)
             .join(OrganizationUser, OrganizationUser.user_id == User.id)
-            .where(
-                OrganizationUser.organization_id == organization_id,
-                OrganizationUser.is_active.is_(True),
-            )
+            .where(OrganizationUser.organization_id == organization_id)
             .limit(limit)
             .offset(offset)
         )
@@ -131,6 +128,17 @@ class UserRepository(BaseRepository[User]):
         membership = await self.get_membership(user_id, organization_id)
         if membership:
             membership.is_active = False
+            await self.session.flush()
+
+    async def activate_membership(
+        self,
+        user_id: UUID,
+        organization_id: int,
+    ) -> None:
+        """Активировать (восстановить) членство пользователя."""
+        membership = await self.get_membership(user_id, organization_id)
+        if membership:
+            membership.is_active = True
             await self.session.flush()
 
     async def update_membership_role(

@@ -121,6 +121,28 @@ async def deactivate_user(
     )
 
 
+@router.post(
+    "/{user_id}/activate",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Активировать пользователя",
+    description="Восстановление ранее деактивированного пользователя. Требуются права владельца организации.",
+    dependencies=[Depends(require_roles(OrgRole.ORG_OWNER))],
+)
+async def activate_user(
+    user_id: UUID,
+    request: Request,
+    ctx: CurrentContext,
+    session: DbSession,
+) -> None:
+    service = UserService(session)
+    await service.activate_user(
+        user_id,
+        ctx.organization_id,
+        actor_id=ctx.user.id,
+        request_id=getattr(request.state, "request_id", None),
+    )
+
+
 @router.get(
     "",
     response_model=list[UserResponse],
