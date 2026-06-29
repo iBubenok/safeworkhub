@@ -57,16 +57,14 @@ function MaterialCard({
   isBusy: boolean;
 }) {
   return (
-    <div className="card flex flex-col gap-3 transition-shadow hover:shadow-md">
+    <Link
+      to={`/materials/${material.id}`}
+      className="card flex flex-col gap-3 transition-shadow hover:shadow-md"
+    >
       <div className="flex items-start gap-3">
         <MaterialTypeIcon type={material.type} />
         <div className="min-w-0 flex-1">
-          <Link
-            to={`/materials/${material.id}`}
-            className="block font-medium text-gray-900 line-clamp-2 hover:text-primary-600"
-          >
-            {material.title}
-          </Link>
+          <p className="block font-medium text-gray-900 line-clamp-2">{material.title}</p>
           {material.summary && (
             <p className="mt-1 text-sm text-gray-500 line-clamp-2">{material.summary}</p>
           )}
@@ -107,16 +105,32 @@ function MaterialCard({
       )}
 
       {isOwner && material.status === 'draft' && onPublish && (
-        <button onClick={() => onPublish(material.id)} className="btn-secondary self-start" disabled={isBusy}>
+        <button
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onPublish(material.id);
+          }}
+          className="btn-secondary self-start"
+          disabled={isBusy}
+        >
           Опубликовать
         </button>
       )}
       {isOwner && material.status === 'archived' && onRestore && (
-        <button onClick={() => onRestore(material.id)} className="btn-secondary self-start" disabled={isBusy}>
+        <button
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onRestore(material.id);
+          }}
+          className="btn-secondary self-start"
+          disabled={isBusy}
+        >
           Восстановить
         </button>
       )}
-    </div>
+    </Link>
   );
 }
 
