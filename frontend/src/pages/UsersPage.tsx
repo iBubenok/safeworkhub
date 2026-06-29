@@ -5,6 +5,7 @@ import { UserRound, Shield, Mail, Lock, Plus } from 'lucide-react';
 import * as usersApi from '@/api/users';
 import { getErrorMessage } from '@/api/client';
 import { useAuth } from '@/hooks/useAuth';
+import { roleLabel, roleLabels } from '@/utils/roleLabels';
 
 export function UsersPage() {
   const queryClient = useQueryClient();
@@ -142,8 +143,8 @@ export function UsersPage() {
                     setNewUser((prev) => ({ ...prev, role: e.target.value }))
                   }
                 >
-                  <option value="member">Сотрудник</option>
-                  <option value="org_owner">Владелец</option>
+                  <option value="member">{roleLabels.member}</option>
+                  <option value="org_owner">{roleLabels.org_owner}</option>
                 </select>
               </div>
             </div>
@@ -169,6 +170,7 @@ export function UsersPage() {
               <div>
                 <p className="text-sm font-semibold text-gray-900">{user.name}</p>
                 <p className="text-xs text-gray-500">{user.email}</p>
+                <p className="text-xs text-gray-500">{roleLabel(user.role)}</p>
                 <p className="text-xs text-gray-500">
                   Статус: {user.is_active ? 'активен' : 'заблокирован'}
                 </p>

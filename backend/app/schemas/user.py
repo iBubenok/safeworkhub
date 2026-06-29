@@ -42,6 +42,7 @@ class UserResponse(UserBase):
     is_active: bool
     is_superuser: bool = False
     primary_organization_id: int | None = None
+    role: str | None = None
     created_at: datetime
     updated_at: datetime
 

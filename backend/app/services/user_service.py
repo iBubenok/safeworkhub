@@ -170,10 +170,16 @@ class UserService:
         limit: int = 20,
         offset: int = 0,
     ) -> list[UserResponse]:
-        users = await self.repository.get_by_organization(
+        rows = await self.repository.get_by_organization(
             organization_id=organization_id,
             limit=limit,
             offset=offset,
         )
-        filtered = [u for u in users if query.lower() in u.email.lower() or query.lower() in u.name.lower()]
-        return [UserResponse.model_validate(u) for u in filtered]
+        needle = query.lower()
+        return [
+            UserResponse.model_validate(user).model_copy(
+                update={"role": role.value if isinstance(role, OrgRole) else str(role)}
+            )
+            for user, role in rows
+            if needle in user.email.lower() or needle in user.name.lower()
+        ]

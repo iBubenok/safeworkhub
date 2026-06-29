@@ -65,11 +65,11 @@ class UserRepository(BaseRepository[User]):
         *,
         limit: int = 100,
         offset: int = 0,
-    ) -> list[User]:
-        """Получить пользователей организации."""
+    ) -> list[tuple[User, OrgRole]]:
+        """Получить пользователей организации вместе с их ролью в ней."""
         query = (
-            select(User)
-            .join(OrganizationUser)
+            select(User, OrganizationUser.role)
+            .join(OrganizationUser, OrganizationUser.user_id == User.id)
             .where(
                 OrganizationUser.organization_id == organization_id,
                 OrganizationUser.is_active.is_(True),
@@ -78,7 +78,7 @@ class UserRepository(BaseRepository[User]):
             .offset(offset)
         )
         result = await self.session.execute(query)
-        return list(result.scalars().all())
+        return [(row[0], row[1]) for row in result.all()]
 
     async def is_email_taken(
         self,

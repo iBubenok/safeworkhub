@@ -4,6 +4,7 @@ export interface User {
   id: string;
   email: string;
   name: string;
+  role: string;
   is_active: boolean;
   is_superuser: boolean;
   primary_organization_id: number | null;
