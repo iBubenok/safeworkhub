@@ -62,7 +62,7 @@ function ChecklistCard({ checklist }: { checklist: ChecklistListItem }) {
   );
 }
 
-export function ChecklistsTab() {
+export function ChecklistsTab({ emptyMessage = 'Чек-листы не найдены' }: { emptyMessage?: string } = {}) {
   const { role } = useAuth();
   const isOwner = role === 'org_owner';
   const [status, setStatus] = useState<ChecklistStatus>('published');
@@ -105,7 +105,7 @@ export function ChecklistsTab() {
       ) : !query.data || query.data.items.length === 0 ? (
         <div className="card flex flex-col items-center gap-2 py-10 text-center">
           <ClipboardList className="h-8 w-8 text-gray-300" />
-          <p className="text-gray-500">Чек-листы не найдены</p>
+          <p className="text-gray-500">{emptyMessage}</p>
         </div>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

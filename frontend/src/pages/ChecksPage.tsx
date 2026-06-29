@@ -32,7 +32,7 @@ export function ChecksPage() {
         </Tabs.List>
 
         <Tabs.Content value="all" className="pt-6 focus:outline-none">
-          <ChecklistsTab />
+          <ChecklistsTab emptyMessage="Проверки и чек-листы не найдены" />
         </Tabs.Content>
         <Tabs.Content value="runs" className="pt-6 focus:outline-none">
           <div className="rounded-lg border-2 border-dashed border-gray-300 p-10 text-center">
