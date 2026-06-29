@@ -5,12 +5,16 @@ import remarkGfm from 'remark-gfm';
 
 // Схема санитайзера на базе GitHub-набора (defaultSchema из hast-util-sanitize).
 // Разрешаем сырой HTML, но строго по белому списку — скрипты, onerror,
-// javascript:-ссылки и т.п. вырезаются. Дополнительно разрешаем width/height
-// у <img>, чтобы автор мог задавать размер как на GitHub (<img src=… height=400>).
+// javascript:-ссылки и т.п. вырезаются. Дополнительно разрешаем:
+//  • width/height у <img> — размер как на GitHub (<img src=… height=400>);
+//  • style/class у любых тегов — чтобы автор мог делать аккуратную вёрстку
+//    (flex-карточки и т.п.). CSS не исполняет код, а авторство статей — у владельца.
 const sanitizeSchema = {
   ...defaultSchema,
+  tagNames: [...(defaultSchema.tagNames ?? []), 'div', 'span'],
   attributes: {
     ...defaultSchema.attributes,
+    '*': [...(defaultSchema.attributes?.['*'] ?? []), 'style', 'className'],
     img: [...(defaultSchema.attributes?.img ?? []), 'width', 'height'],
   },
 };
@@ -50,12 +54,14 @@ const components: Components = {
     <blockquote className="my-2 border-l-4 border-gray-200 pl-3 text-gray-600">{children}</blockquote>
   ),
   hr: () => <hr className="my-4 border-t border-gray-200" />,
-  img: ({ src, alt, width, height }) => {
+  img: ({ src, alt, width, height, style: htmlStyle }) => {
     const w = sizeToCss(width);
     const h = sizeToCss(height);
     // Если задано хотя бы одно измерение — переводим в inline-стиль, недостающее
-    // ставим auto (сохраняет пропорции). max-w-full всегда ограничивает ширину.
-    const style = w || h ? { width: w ?? 'auto', height: h ?? 'auto' } : undefined;
+    // ставим auto (сохраняет пропорции). Инлайн-стиль из HTML (border-radius и т.п.)
+    // домешиваем сверху. max-w-full всегда ограничивает ширину.
+    const sizeStyle = w || h ? { width: w ?? 'auto', height: h ?? 'auto' } : undefined;
+    const style = sizeStyle || htmlStyle ? { ...sizeStyle, ...htmlStyle } : undefined;
     return (
       <img
         src={typeof src === 'string' ? src : undefined}
