@@ -45,7 +45,7 @@ router = APIRouter()
     description="Получение списка категорий организации.",
 )
 async def list_categories(
-    ctx: ActiveSubscriptionContext,
+    ctx: CurrentContext,
     session: DbSession,
 ) -> list[CategoryResponse]:
     service = MaterialService(session)
@@ -63,7 +63,7 @@ async def list_categories(
 async def create_category(
     request: Request,
     data: CategoryCreate,
-    ctx: CurrentContext,
+    ctx: ActiveSubscriptionContext,
     session: DbSession,
 ) -> CategoryResponse:
     service = MaterialService(session)
@@ -86,7 +86,7 @@ async def create_category(
 async def create_material(
     request: Request,
     data: MaterialCreate,
-    ctx: CurrentContext,
+    ctx: ActiveSubscriptionContext,
     session: DbSession,
 ) -> MaterialResponse:
     service = MaterialService(session)
@@ -109,7 +109,7 @@ async def create_material(
 async def create_article(
     request: Request,
     data: ArticleCreate,
-    ctx: CurrentContext,
+    ctx: ActiveSubscriptionContext,
     session: DbSession,
 ) -> MaterialResponse:
     service = MaterialService(session)
@@ -132,7 +132,7 @@ async def create_article(
 async def create_news(
     request: Request,
     data: NewsCreate,
-    ctx: CurrentContext,
+    ctx: ActiveSubscriptionContext,
     session: DbSession,
 ) -> MaterialResponse:
     service = MaterialService(session)
@@ -155,7 +155,7 @@ async def create_news(
 async def create_npa(
     request: Request,
     data: NpaCreate,
-    ctx: CurrentContext,
+    ctx: ActiveSubscriptionContext,
     session: DbSession,
 ) -> MaterialResponse:
     service = MaterialService(session)
@@ -178,7 +178,7 @@ async def update_npa(
     material_id: UUID,
     request: Request,
     data: NpaUpdate,
-    ctx: CurrentContext,
+    ctx: ActiveSubscriptionContext,
     session: DbSession,
 ) -> MaterialResponse:
     service = MaterialService(session)
@@ -203,7 +203,7 @@ async def update_npa(
 async def create_template(
     request: Request,
     data: TemplateCreate,
-    ctx: CurrentContext,
+    ctx: ActiveSubscriptionContext,
     session: DbSession,
 ) -> MaterialResponse:
     service = MaterialService(session)
@@ -225,7 +225,7 @@ async def update_material(
     material_id: UUID,
     request: Request,
     data: MaterialUpdate,
-    ctx: CurrentContext,
+    ctx: ActiveSubscriptionContext,
     session: DbSession,
 ) -> MaterialResponse:
     service = MaterialService(session)
@@ -249,7 +249,7 @@ async def update_material(
 async def publish_material(
     material_id: UUID,
     request: Request,
-    ctx: CurrentContext,
+    ctx: ActiveSubscriptionContext,
     session: DbSession,
 ) -> MaterialResponse:
     service = MaterialService(session)
@@ -268,7 +268,7 @@ async def publish_material(
     description="Получение списка опубликованных материалов с пагинацией и фильтрацией.",
 )
 async def get_materials(
-    ctx: ActiveSubscriptionContext,
+    ctx: CurrentContext,
     session: DbSession,
     material_type: Annotated[MaterialType | None, Query(description="Фильтр по типу материала", alias="type")] = None,
     category_id: Annotated[int | None, Query(description="Фильтр по категории")] = None,
@@ -299,7 +299,7 @@ async def get_materials(
     description="Полнотекстовый поиск по базе знаний с ранжированием результатов.",
 )
 async def search_materials(
-    ctx: ActiveSubscriptionContext,
+    ctx: CurrentContext,
     session: DbSession,
     q: Annotated[str, Query(min_length=2, max_length=200, description="Поисковый запрос")],
     material_type: Annotated[MaterialType | None, Query(description="Фильтр по типу", alias="type")] = None,
@@ -335,7 +335,7 @@ async def search_materials(
     description="Получение списка наиболее популярных материалов по количеству просмотров.",
 )
 async def get_popular_materials(
-    ctx: ActiveSubscriptionContext,
+    ctx: CurrentContext,
     session: DbSession,
     material_type: Annotated[MaterialType | None, Query(description="Фильтр по типу", alias="type")] = None,
     limit: Annotated[int, Query(ge=1, le=50, description="Количество материалов")] = 10,
@@ -356,7 +356,7 @@ async def get_popular_materials(
 )
 async def get_material(
     material_id: UUID,
-    ctx: ActiveSubscriptionContext,
+    ctx: CurrentContext,
     session: DbSession,
 ) -> MaterialResponse:
     service = MaterialService(session)
@@ -376,7 +376,7 @@ async def get_material(
 )
 async def get_material_versions(
     material_id: UUID,
-    ctx: ActiveSubscriptionContext,
+    ctx: CurrentContext,
     session: DbSession,
 ) -> list[MaterialVersionResponse]:
     service = MaterialService(session)
@@ -397,7 +397,7 @@ async def get_material_versions(
 async def archive_material(
     material_id: UUID,
     request: Request,
-    ctx: CurrentContext,
+    ctx: ActiveSubscriptionContext,
     session: DbSession,
 ) -> MaterialResponse:
     service = MaterialService(session)
@@ -419,7 +419,7 @@ async def archive_material(
 async def delete_material(
     material_id: UUID,
     request: Request,
-    ctx: CurrentContext,
+    ctx: ActiveSubscriptionContext,
     session: DbSession,
 ) -> None:
     service = MaterialService(session)
@@ -441,7 +441,7 @@ async def delete_material(
 async def restore_material(
     material_id: UUID,
     request: Request,
-    ctx: CurrentContext,
+    ctx: ActiveSubscriptionContext,
     session: DbSession,
 ) -> MaterialResponse:
     service = MaterialService(session)
@@ -465,7 +465,7 @@ async def restore_material(
 async def upload_attachment(
     material_id: UUID,
     request: Request,
-    ctx: CurrentContext,
+    ctx: ActiveSubscriptionContext,
     session: DbSession,
     file: Annotated[UploadFile, File(description="Файл вложения")],
 ) -> AttachmentResponse:
@@ -488,7 +488,7 @@ async def upload_attachment(
 async def download_attachment(
     material_id: UUID,
     attachment_id: UUID,
-    ctx: ActiveSubscriptionContext,
+    ctx: CurrentContext,
     session: DbSession,
 ) -> StreamingResponse:
     service = MaterialService(session)
@@ -520,7 +520,7 @@ async def delete_attachment(
     material_id: UUID,
     attachment_id: UUID,
     request: Request,
-    ctx: CurrentContext,
+    ctx: ActiveSubscriptionContext,
     session: DbSession,
 ) -> None:
     service = MaterialService(session)

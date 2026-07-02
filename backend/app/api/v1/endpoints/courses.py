@@ -30,7 +30,7 @@ router = APIRouter()
     description="Получение опубликованных курсов организации.",
 )
 async def list_courses(
-    ctx: ActiveSubscriptionContext,
+    ctx: CurrentContext,
     session: DbSession,
     limit: Annotated[int, Query(ge=1, le=100)] = 20,
     offset: Annotated[int, Query(ge=0)] = 0,
@@ -50,7 +50,7 @@ async def list_courses(
 async def create_course(
     request: Request,
     data: CourseCreate,
-    ctx: CurrentContext,
+    ctx: ActiveSubscriptionContext,
     session: DbSession,
 ) -> CourseResponse:
     service = CourseService(session)
@@ -71,7 +71,7 @@ async def update_course(
     course_id: int,
     request: Request,
     data: CourseUpdate,
-    ctx: CurrentContext,
+    ctx: ActiveSubscriptionContext,
     session: DbSession,
 ) -> CourseResponse:
     service = CourseService(session)
@@ -92,7 +92,7 @@ async def update_course(
 async def publish_course(
     course_id: int,
     request: Request,
-    ctx: CurrentContext,
+    ctx: ActiveSubscriptionContext,
     session: DbSession,
 ) -> CourseResponse:
     service = CourseService(session)
@@ -112,7 +112,7 @@ async def publish_course(
 async def assign_course(
     course_id: int,
     request: Request,
-    ctx: CurrentContext,
+    ctx: ActiveSubscriptionContext,
     session: DbSession,
     user_ids: Annotated[list[UUID], Body(embed=True, description="Список пользователей для назначения")],
 ) -> list[CourseAssignmentResponse]:
@@ -154,7 +154,7 @@ async def update_progress(
     summary="Назначенные мне курсы",
 )
 async def my_assignments(
-    ctx: ActiveSubscriptionContext,
+    ctx: CurrentContext,
     session: DbSession,
 ) -> list[CourseAssignmentResponse]:
     service = CourseService(session)

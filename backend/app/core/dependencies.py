@@ -12,7 +12,7 @@ from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.core.exceptions import AuthenticationError, AuthorizationError
+from app.core.exceptions import AuthenticationError, AuthorizationError, SubscriptionInactiveError
 from app.core.security import TokenType, verify_token
 from app.db.repositories import SubscriptionRepository, UserRepository
 from app.db.session import get_session
@@ -137,7 +137,7 @@ async def enforce_active_subscription(
     subscription_repo = SubscriptionRepository(session)
     subscription = await subscription_repo.get_with_tariff(ctx.organization_id)
     if subscription is None or subscription.status not in {SubscriptionStatus.TRIAL, SubscriptionStatus.ACTIVE}:
-        raise AuthorizationError("Подписка неактивна")
+        raise SubscriptionInactiveError()
     return ctx
 
 

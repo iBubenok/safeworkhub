@@ -5,7 +5,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Query, Request, status
 
-from app.core.dependencies import ActiveSubscriptionContext, DbSession
+from app.core.dependencies import ActiveSubscriptionContext, CurrentContext, DbSession
 from app.models import OrgRole
 from app.models.checklist_run import ChecklistRunStatus
 from app.schemas.checklist_run import (
@@ -52,7 +52,7 @@ async def start_run(
     description="Проверки организации. Видны всем участникам организации.",
 )
 async def list_runs(
-    ctx: ActiveSubscriptionContext,
+    ctx: CurrentContext,
     session: DbSession,
     status_filter: Annotated[ChecklistRunStatus | None, Query(alias="status", description="Фильтр по статусу")] = None,
     q: Annotated[str, Query(description="Поиск по названию проверки/чек-листа")] = "",
@@ -77,7 +77,7 @@ async def list_runs(
 )
 async def get_run(
     run_id: UUID,
-    ctx: ActiveSubscriptionContext,
+    ctx: CurrentContext,
     session: DbSession,
 ) -> ChecklistRunResponse:
     service = ChecklistRunService(session)

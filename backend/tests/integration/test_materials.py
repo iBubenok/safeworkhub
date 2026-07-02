@@ -69,13 +69,23 @@ async def create_member_and_login(client: AsyncClient, owner_tokens, owner_cooki
 
 
 @pytest.mark.asyncio
-async def test_subscription_guard_blocks_materials_when_inactive(
+async def test_subscription_guard_blocks_writes_allows_reads(
     client: AsyncClient,
     db_session,
     unique_email: str,
 ):
-    """Проверка, что неактивная подписка блокирует доступ к материалам."""
+    """Неактивная подписка блокирует запись (SUBSCRIPTION_INACTIVE), но не чтение."""
     tokens, cookies = await register_and_login(client, unique_email)
+    headers = {"Authorization": f"Bearer {tokens['access_token']}"}
+
+    # Материал создаётся, пока подписка активна (триал).
+    created = await client.post(
+        "/api/v1/materials",
+        json={"title": "Инструкция", "content": "текст", "type": "article", "status": "published"},
+        headers=headers,
+        cookies=cookies,
+    )
+    assert created.status_code == 201, created.text
 
     subscription = await db_session.scalar(
         select(Subscription).where(Subscription.organization_id == tokens["organization_id"])
@@ -84,14 +94,19 @@ async def test_subscription_guard_blocks_materials_when_inactive(
     subscription.status = SubscriptionStatus.BLOCKED
     await db_session.flush()
 
-    response = await client.get(
+    # Чтение доступно даже при неактивной подписке.
+    read = await client.get("/api/v1/materials", headers=headers, cookies=cookies)
+    assert read.status_code == 200, read.text
+
+    # Запись блокируется с распознаваемым кодом.
+    write = await client.post(
         "/api/v1/materials",
-        headers={"Authorization": f"Bearer {tokens['access_token']}"},
+        json={"title": "Новая", "content": "x", "type": "article", "status": "draft"},
+        headers=headers,
         cookies=cookies,
     )
-    assert response.status_code == 403
-    payload = response.json()
-    assert payload["error"]["code"] == "AUTHORIZATION_ERROR"
+    assert write.status_code == 403, write.text
+    assert write.json()["error"]["code"] == "SUBSCRIPTION_INACTIVE"
 
 
 @pytest.mark.asyncio

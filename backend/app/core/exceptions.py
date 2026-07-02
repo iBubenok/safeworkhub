@@ -187,11 +187,16 @@ class TokenExpiredError(AuthenticationError):
         super().__init__(message="Срок действия токена истёк")
 
 
-class SubscriptionExpiredError(AuthorizationError):
-    """Подписка истекла."""
+class SubscriptionInactiveError(AuthorizationError):
+    """Подписка организации неактивна (истекла/заблокирована).
 
-    def __init__(self) -> None:
-        super().__init__(message="Срок действия подписки истёк")
+    Отдельный код `SUBSCRIPTION_INACTIVE`, чтобы клиент отличал отказ по подписке
+    от обычного отказа по правам и показывал призыв продлить подписку.
+    """
+
+    def __init__(self, message: str = "Подписка неактивна") -> None:
+        super().__init__(message=message)
+        self.code = "SUBSCRIPTION_INACTIVE"
 
 
 class UserLimitExceededError(ConflictError):

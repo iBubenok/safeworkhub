@@ -24,7 +24,7 @@ from app.services.checklist_service import ChecklistService
 router = APIRouter()
 
 
-def _is_owner(ctx: ActiveSubscriptionContext | CurrentContext) -> bool:
+def _is_owner(ctx: CurrentContext | ActiveSubscriptionContext) -> bool:
     return ctx.role == OrgRole.ORG_OWNER or ctx.user.is_superuser
 
 
@@ -35,7 +35,7 @@ def _is_owner(ctx: ActiveSubscriptionContext | CurrentContext) -> bool:
     description="Чек-листы организации. Обычный пользователь видит только опубликованные.",
 )
 async def list_checklists(
-    ctx: ActiveSubscriptionContext,
+    ctx: CurrentContext,
     session: DbSession,
     status_filter: Annotated[ChecklistStatus | None, Query(alias="status", description="Фильтр по статусу")] = None,
     q: Annotated[str, Query(description="Поиск по названию/описанию")] = "",
@@ -64,7 +64,7 @@ async def list_checklists(
 async def create_checklist(
     request: Request,
     data: ChecklistCreate,
-    ctx: CurrentContext,
+    ctx: ActiveSubscriptionContext,
     session: DbSession,
 ) -> ChecklistResponse:
     service = ChecklistService(session)
@@ -84,7 +84,7 @@ async def create_checklist(
 )
 async def get_checklist(
     checklist_id: UUID,
-    ctx: ActiveSubscriptionContext,
+    ctx: CurrentContext,
     session: DbSession,
 ) -> ChecklistResponse:
     service = ChecklistService(session)
@@ -106,7 +106,7 @@ async def update_checklist(
     checklist_id: UUID,
     request: Request,
     data: ChecklistUpdate,
-    ctx: CurrentContext,
+    ctx: ActiveSubscriptionContext,
     session: DbSession,
 ) -> ChecklistResponse:
     service = ChecklistService(session)
@@ -128,7 +128,7 @@ async def update_checklist(
 async def publish_checklist(
     checklist_id: UUID,
     request: Request,
-    ctx: CurrentContext,
+    ctx: ActiveSubscriptionContext,
     session: DbSession,
 ) -> ChecklistResponse:
     service = ChecklistService(session)
@@ -149,7 +149,7 @@ async def publish_checklist(
 async def archive_checklist(
     checklist_id: UUID,
     request: Request,
-    ctx: CurrentContext,
+    ctx: ActiveSubscriptionContext,
     session: DbSession,
 ) -> ChecklistResponse:
     service = ChecklistService(session)
@@ -170,7 +170,7 @@ async def archive_checklist(
 async def delete_checklist(
     checklist_id: UUID,
     request: Request,
-    ctx: CurrentContext,
+    ctx: ActiveSubscriptionContext,
     session: DbSession,
 ) -> None:
     service = ChecklistService(session)
