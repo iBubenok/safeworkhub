@@ -5,8 +5,8 @@ import { Building2, ClipboardList, Eye, ListChecks, Search } from 'lucide-react'
 
 import * as checklistsApi from '@/api/checklists';
 import * as runsApi from '@/api/checklistRuns';
-import { getErrorMessage } from '@/api/client';
-import { useAuth } from '@/hooks/useAuth';
+import { handleActionError } from '@/api/errors';
+import { usePermissions } from '@/hooks/usePermissions';
 import { checklistStatusLabels } from '@/utils/checklistLabels';
 import type { ChecklistListItem, ChecklistStatus } from '@/types';
 
@@ -21,7 +21,7 @@ function ChecklistCard({ checklist }: { checklist: ChecklistListItem }) {
   const startRun = useMutation({
     mutationFn: () => runsApi.startRun({ checklist_id: checklist.id }),
     onSuccess: (run) => navigate(`/checks/runs/${run.id}`),
-    onError: (e) => alert(getErrorMessage(e)),
+    onError: (e) => handleActionError(e),
   });
 
   return (
@@ -78,8 +78,7 @@ function ChecklistCard({ checklist }: { checklist: ChecklistListItem }) {
 }
 
 export function ChecklistsTab({ emptyMessage = 'Чек-листы не найдены' }: { emptyMessage?: string } = {}) {
-  const { role } = useAuth();
-  const isOwner = role === 'org_owner';
+  const { isOwner } = usePermissions();
   const [status, setStatus] = useState<ChecklistStatus>('published');
   const [search, setSearch] = useState('');
 

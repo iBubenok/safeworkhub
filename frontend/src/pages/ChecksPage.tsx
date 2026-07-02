@@ -1,7 +1,7 @@
 import * as Tabs from '@radix-ui/react-tabs';
 import { ClipboardCheck, Layers, ListChecks } from 'lucide-react';
 
-import { useAuth } from '@/hooks/useAuth';
+import { usePermissions } from '@/hooks/usePermissions';
 import { ChecklistsTab } from '@/components/checklists/ChecklistsTab';
 import { RunsTab } from '@/components/checklists/RunsTab';
 import { CreateCheckDialog } from '@/components/checklists/CreateCheckDialog';
@@ -13,8 +13,7 @@ const tabs = [
 ];
 
 export function ChecksPage() {
-  const { role } = useAuth();
-  const isOwner = role === 'org_owner';
+  const { isOwner } = usePermissions();
 
   return (
     <div className="space-y-6">

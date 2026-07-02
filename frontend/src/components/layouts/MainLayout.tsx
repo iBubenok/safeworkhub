@@ -18,6 +18,7 @@ import {
 import { useState } from 'react';
 
 import { useAuth } from '@/hooks/useAuth';
+import { usePermissions } from '@/hooks/usePermissions';
 import { cn } from '@/utils/cn';
 import { NotificationsDropdown } from '../NotificationsDropdown';
 
@@ -27,14 +28,16 @@ const navigation = [
   { name: 'Проверки и чек-листы', href: '/checks', icon: Check },
   { name: 'Обучение', href: '/courses', icon: GraduationCap },
   { name: 'Отчеты', href: '/reports', icon: BookCheckIcon },
-  { name: 'Пользователи', href: '/users', icon: Users },
+  { name: 'Пользователи', href: '/users', icon: Users, ownerOnly: true },
   { name: 'Настройки', href: '/settings', icon: Settings },
 ];
 
 export function MainLayout() {
   const { user, logout } = useAuth();
+  const { isOwner } = usePermissions();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const visibleNavigation = navigation.filter((item) => !item.ownerOnly || isOwner);
 
   const handleLogout = async () => {
     await logout();
@@ -73,7 +76,7 @@ export function MainLayout() {
 
           {/* Навигация */}
           <nav className="flex-1 space-y-1 px-2 py-4">
-            {navigation.map((item) => (
+            {visibleNavigation.map((item) => (
               <NavLink
                 key={item.name}
                 to={item.href}

@@ -16,6 +16,7 @@ import { UsersPage } from '@/pages/UsersPage';
 import { SettingsPage } from '@/pages/SettingsPage';
 import { NotFoundPage } from '@/pages/NotFoundPage';
 import { ReportsPage } from '@/pages/ReportsPage';
+import { Toaster } from '@/components/ui/Toaster';
 
 /**
  * Защищённый маршрут — требует аутентификации.
@@ -64,7 +65,9 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
  */
 export default function App() {
   return (
-    <Routes>
+    <>
+      <Toaster />
+      <Routes>
       {/* Публичные маршруты (аутентификация) */}
       <Route
         path="/login"
@@ -111,6 +114,7 @@ export default function App() {
 
       {/* 404 */}
       <Route path="*" element={<NotFoundPage />} />
-    </Routes>
+      </Routes>
+    </>
   );
 }

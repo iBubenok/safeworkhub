@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Archive, ArchiveRestore, ArrowLeft, Check, Download, Paperclip, Pencil, Trash2, X } from 'lucide-react';
 
 import * as materialsApi from '@/api/materials';
-import { getErrorMessage } from '@/api/client';
+import { getErrorMessage, handleActionError } from '@/api/errors';
 import { Markdown } from '@/components/Markdown';
 import { ContentEditor } from '@/components/ContentEditor';
 import { MaterialHistory } from '@/components/materials/MaterialHistory';
@@ -62,7 +62,7 @@ export function MaterialDetailPage() {
       queryClient.invalidateQueries({ queryKey: ['material', id] });
       queryClient.invalidateQueries({ queryKey: ['materials'] });
     },
-    onError: (e) => alert(getErrorMessage(e)),
+    onError: (e) => handleActionError(e),
   });
 
   const restore = useMutation({
@@ -71,7 +71,7 @@ export function MaterialDetailPage() {
       queryClient.invalidateQueries({ queryKey: ['material', id] });
       queryClient.invalidateQueries({ queryKey: ['materials'] });
     },
-    onError: (e) => alert(getErrorMessage(e)),
+    onError: (e) => handleActionError(e),
   });
 
   const remove = useMutation({
@@ -80,7 +80,7 @@ export function MaterialDetailPage() {
       queryClient.invalidateQueries({ queryKey: ['materials'] });
       navigate('/materials');
     },
-    onError: (e) => alert(getErrorMessage(e)),
+    onError: (e) => handleActionError(e),
   });
 
   const attachInputRef = useRef<HTMLInputElement>(null);
@@ -107,14 +107,14 @@ export function MaterialDetailPage() {
   const deleteAttachment = useMutation({
     mutationFn: (attachmentId: string) => materialsApi.deleteAttachment(id as string, attachmentId),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['material', id] }),
-    onError: (e) => alert(getErrorMessage(e)),
+    onError: (e) => handleActionError(e),
   });
 
   const handleDownload = async (att: { id: string; filename: string }) => {
     try {
       await materialsApi.downloadAttachment(id as string, att);
     } catch (e) {
-      alert(getErrorMessage(e));
+      handleActionError(e);
     }
   };
 

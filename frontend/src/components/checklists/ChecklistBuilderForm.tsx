@@ -4,7 +4,7 @@ import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, Plus, Search, Trash2, X 
 
 import * as checklistsApi from '@/api/checklists';
 import { searchMaterials } from '@/api/materials';
-import { getErrorMessage } from '@/api/client';
+import { getActionErrorMessage } from '@/api/errors';
 import { checklistAnswerTypeLabels } from '@/utils/checklistLabels';
 import type { Checklist, ChecklistAnswerType, ChecklistNode, ChecklistNodeInput, ChecklistStatus } from '@/types';
 
@@ -451,7 +451,7 @@ export function ChecklistBuilderForm({ checklist, onSaved }: { checklist?: Check
       queryClient.invalidateQueries({ queryKey: ['checklist', saved.id] });
       onSaved();
     },
-    onError: (e) => setError(getErrorMessage(e)),
+    onError: (e) => setError(getActionErrorMessage(e)),
   });
 
   const submit = (nextStatus: ChecklistStatus) => {

@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Search, FileText, Book, Newspaper, File, Eye, Calendar, Building2, Paperclip } from 'lucide-react';
 
 import * as materialsApi from '@/api/materials';
-import { useAuth } from '@/hooks/useAuth';
+import { usePermissions } from '@/hooks/usePermissions';
 import { CreateMaterialDialog } from '@/components/materials/CreateMaterialDialog';
 import type { MaterialListItem, MaterialStatus, MaterialType } from '@/types';
 
@@ -142,8 +142,7 @@ export function MaterialsPage() {
   const pageSize = 12;
 
   const queryClient = useQueryClient();
-  const { role } = useAuth();
-  const isOwner = role === 'org_owner';
+  const { isOwner } = usePermissions();
 
   const materialsQuery = useQuery({
     queryKey: ['materials', selectedStatus, searchQuery, selectedType, page],

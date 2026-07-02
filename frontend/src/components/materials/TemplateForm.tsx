@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { Paperclip, X } from 'lucide-react';
 
 import * as materialsApi from '@/api/materials';
-import { getErrorMessage } from '@/api/client';
+import { getActionErrorMessage } from '@/api/errors';
 import { ContentEditor } from '@/components/ContentEditor';
 import { formatFileSize } from '@/utils/formatFileSize';
 import type { Category, MaterialStatus } from '@/types';
@@ -76,7 +76,7 @@ export function TemplateForm({ categories }: { categories: Category[] }) {
       queryClient.invalidateQueries({ queryKey: ['materials'] });
       navigate(`/materials/${material.id}`);
     } catch (e) {
-      setError(getErrorMessage(e));
+      setError(getActionErrorMessage(e));
     } finally {
       setSubmitting(false);
     }

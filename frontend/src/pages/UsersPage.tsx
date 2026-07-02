@@ -4,13 +4,13 @@ import { UserRound, Shield, Mail, Lock, Plus } from 'lucide-react';
 
 import * as usersApi from '@/api/users';
 import { getErrorMessage } from '@/api/client';
-import { useAuth } from '@/hooks/useAuth';
+import { AccessDenied } from '@/components/ui/AccessDenied';
+import { usePermissions } from '@/hooks/usePermissions';
 import { roleLabel, roleLabels } from '@/utils/roleLabels';
 
 export function UsersPage() {
   const queryClient = useQueryClient();
-  const { role } = useAuth();
-  const isOwner = role === 'org_owner';
+  const { isOwner } = usePermissions();
 
   const [search, setSearch] = useState('');
   const [formError, setFormError] = useState<string | null>(null);
@@ -50,6 +50,11 @@ export function UsersPage() {
     setFormError(null);
     await createUser.mutateAsync(newUser);
   };
+
+  // Управление пользователями — только для владельца (защита при прямом переходе по URL).
+  if (!isOwner) {
+    return <AccessDenied variant="role" />;
+  }
 
   return (
     <div className="space-y-6">

@@ -14,8 +14,8 @@ import {
 
 import * as checklistsApi from '@/api/checklists';
 import * as runsApi from '@/api/checklistRuns';
-import { getErrorMessage } from '@/api/client';
-import { useAuth } from '@/hooks/useAuth';
+import { handleActionError } from '@/api/errors';
+import { usePermissions } from '@/hooks/usePermissions';
 import { ChecklistBuilderDialog } from '@/components/checklists/ChecklistBuilderDialog';
 import { checklistAnswerTypeShort, checklistStatusLabels } from '@/utils/checklistLabels';
 import type { ChecklistNode } from '@/types';
@@ -94,8 +94,7 @@ export function ChecklistDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { role } = useAuth();
-  const isOwner = role === 'org_owner';
+  const { isOwner } = usePermissions();
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['checklist', id],
@@ -111,12 +110,12 @@ export function ChecklistDetailPage() {
   const publish = useMutation({
     mutationFn: () => checklistsApi.publishChecklist(id as string),
     onSuccess: invalidate,
-    onError: (e) => alert(getErrorMessage(e)),
+    onError: (e) => handleActionError(e),
   });
   const archive = useMutation({
     mutationFn: () => checklistsApi.archiveChecklist(id as string),
     onSuccess: invalidate,
-    onError: (e) => alert(getErrorMessage(e)),
+    onError: (e) => handleActionError(e),
   });
   const remove = useMutation({
     mutationFn: () => checklistsApi.deleteChecklist(id as string),
@@ -124,12 +123,12 @@ export function ChecklistDetailPage() {
       queryClient.invalidateQueries({ queryKey: ['checklists'] });
       navigate('/checks');
     },
-    onError: (e) => alert(getErrorMessage(e)),
+    onError: (e) => handleActionError(e),
   });
   const startRun = useMutation({
     mutationFn: () => runsApi.startRun({ checklist_id: id as string }),
     onSuccess: (run) => navigate(`/checks/runs/${run.id}`),
-    onError: (e) => alert(getErrorMessage(e)),
+    onError: (e) => handleActionError(e),
   });
 
   if (isLoading) {

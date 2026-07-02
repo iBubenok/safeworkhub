@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, X } from 'lucide-react';
 
 import * as materialsApi from '@/api/materials';
-import { getErrorMessage } from '@/api/client';
+import { getActionErrorMessage } from '@/api/errors';
 import { ArticleForm } from '@/components/materials/ArticleForm';
 import { NewsForm } from '@/components/materials/NewsForm';
 import { NpaForm } from '@/components/materials/NpaForm';
@@ -46,7 +46,7 @@ export function CreateMaterialDialog() {
       setNewMaterial({ title: '', summary: '', content: '', category_id: undefined });
       setOpen(false);
     },
-    onError: (error) => setFormError(getErrorMessage(error)),
+    onError: (error) => setFormError(getActionErrorMessage(error)),
   });
 
   const handleCreate = async (e: React.FormEvent) => {

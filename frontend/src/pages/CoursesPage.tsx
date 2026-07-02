@@ -5,13 +5,12 @@ import { BookOpenCheck, Rocket, UsersRound, Clock3 } from 'lucide-react';
 import * as coursesApi from '@/api/courses';
 import * as usersApi from '@/api/users';
 import { getErrorMessage } from '@/api/client';
-import { useAuth } from '@/hooks/useAuth';
+import { usePermissions } from '@/hooks/usePermissions';
 import type { Course } from '@/types';
 
 export function CoursesPage() {
   const queryClient = useQueryClient();
-  const { role } = useAuth();
-  const isOwner = role === 'org_owner';
+  const { isOwner } = usePermissions();
 
   const [newCourse, setNewCourse] = useState({
     title: '',

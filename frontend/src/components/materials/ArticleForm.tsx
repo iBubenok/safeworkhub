@@ -3,7 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 
 import * as materialsApi from '@/api/materials';
-import { getErrorMessage } from '@/api/client';
+import { getActionErrorMessage } from '@/api/errors';
 import { ContentEditor } from '@/components/ContentEditor';
 import type { Category, MaterialStatus } from '@/types';
 
@@ -27,7 +27,7 @@ export function ArticleForm({ categories }: { categories: Category[] }) {
       queryClient.invalidateQueries({ queryKey: ['materials'] });
       navigate(`/materials/${material.id}`);
     },
-    onError: (e) => setError(getErrorMessage(e)),
+    onError: (e) => setError(getActionErrorMessage(e)),
   });
 
   const submit = (status: MaterialStatus) => {

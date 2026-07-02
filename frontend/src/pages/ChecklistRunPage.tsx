@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, BookText, CheckCircle2, Save, Trash2 } from 'lucide-react';
+import { ArrowLeft, BookText, CheckCircle2, Eye, Save, Trash2 } from 'lucide-react';
 
 import * as runsApi from '@/api/checklistRuns';
-import { getErrorMessage } from '@/api/client';
-import { useAuth } from '@/hooks/useAuth';
+import { handleActionError } from '@/api/errors';
+import { usePermissions } from '@/hooks/usePermissions';
 import {
   checklistRunResultLabels,
   checklistRunStatusLabels,
@@ -110,8 +110,7 @@ export function ChecklistRunPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { user, role } = useAuth();
-  const isOwner = role === 'org_owner';
+  const { user, isOwner } = usePermissions();
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['checklist-run', id],
@@ -152,7 +151,7 @@ export function ChecklistRunPage() {
   const save = useMutation({
     mutationFn: () => runsApi.updateRun(id as string, buildPayload()),
     onSuccess: invalidate,
-    onError: (e) => alert(getErrorMessage(e)),
+    onError: (e) => handleActionError(e),
   });
 
   const complete = useMutation({
@@ -161,7 +160,7 @@ export function ChecklistRunPage() {
       return runsApi.completeRun(id as string);
     },
     onSuccess: invalidate,
-    onError: (e) => alert(getErrorMessage(e)),
+    onError: (e) => handleActionError(e),
   });
 
   const remove = useMutation({
@@ -170,7 +169,7 @@ export function ChecklistRunPage() {
       queryClient.invalidateQueries({ queryKey: ['checklist-runs'] });
       navigate('/checks');
     },
-    onError: (e) => alert(getErrorMessage(e)),
+    onError: (e) => handleActionError(e),
   });
 
   if (isLoading) return <div className="card h-40 animate-pulse" />;
@@ -258,6 +257,17 @@ export function ChecklistRunPage() {
           <h1 className="mt-2 text-2xl font-bold text-gray-900">{data.title || data.checklist_title}</h1>
         )}
         <p className="mt-1 text-sm text-gray-500">Чек-лист: {data.checklist_title}</p>
+
+        {!canEdit && (
+          <div className="mt-3 flex items-start gap-2 rounded-lg bg-gray-50 p-3 text-sm text-gray-600">
+            <Eye className="mt-0.5 h-4 w-4 shrink-0 text-gray-400" />
+            <span>
+              {data.status === 'completed'
+                ? 'Проверка завершена — доступен только просмотр.'
+                : `Проверку проводит ${data.conducted_by_name ?? 'другой сотрудник'}. Вам доступен только просмотр.`}
+            </span>
+          </div>
+        )}
 
         <div className="mt-5 space-y-5">
           {groups.map((group, gi) => (

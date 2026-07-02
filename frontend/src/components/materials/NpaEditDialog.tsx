@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ScrollText, Search, X } from 'lucide-react';
 
 import * as materialsApi from '@/api/materials';
-import { getErrorMessage } from '@/api/client';
+import { getActionErrorMessage } from '@/api/errors';
 import { npaActKindLabels, npaLevelLabels, npaStatusLabels } from '@/utils/npaLabels';
 import type { NpaActKind, NpaDetail, NpaLevel, NpaStatus } from '@/types';
 
@@ -70,7 +70,7 @@ export function NpaEditDialog({ materialId, npa }: { materialId: string; npa: Np
       queryClient.invalidateQueries({ queryKey: ['material', materialId] });
       setOpen(false);
     },
-    onError: (e) => setError(getErrorMessage(e)),
+    onError: (e) => setError(getActionErrorMessage(e)),
   });
 
   const candidates = (pickerResults?.items ?? []).filter((m) => m.id !== materialId);
