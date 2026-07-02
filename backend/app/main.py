@@ -62,14 +62,6 @@ def create_application() -> FastAPI:
         lifespan=lifespan,
     )
 
-    application.add_middleware(
-        CORSMiddleware,
-        allow_origins=settings.cors_origins,
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
-
     @application.middleware("http")
     async def request_context_middleware(
         request: Request,
@@ -102,6 +94,17 @@ def create_application() -> FastAPI:
         REQUEST_LATENCY.labels(request.method, request.url.path).observe(duration)
         response.headers[settings.request_id_header] = request_id
         return response
+
+    # CORS добавляем последним, чтобы он был самым внешним слоем и проставлял заголовки
+    # даже на ответы-ошибки, которые формирует request_context_middleware (иначе браузер
+    # блокирует тело 4xx/5xx кросс-доменного ответа и клиент видит «Произошла ошибка»).
+    application.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.cors_origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
     application.include_router(api_router, prefix=settings.api_v1_prefix)
 
