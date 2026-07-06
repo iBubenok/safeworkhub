@@ -42,6 +42,11 @@ export async function completeRun(runId: string): Promise<ChecklistRun> {
   return response.data;
 }
 
+export async function reopenRun(runId: string): Promise<ChecklistRun> {
+  const response = await apiClient.post<ChecklistRun>(`/checklist-runs/${runId}/reopen`);
+  return response.data;
+}
+
 export async function setAssignees(runId: string, assigneeIds: string[]): Promise<ChecklistRun> {
   const response = await apiClient.put<ChecklistRun>(`/checklist-runs/${runId}/assignees`, {
     assignee_ids: assigneeIds,

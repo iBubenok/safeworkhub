@@ -38,6 +38,9 @@ function RunCard({ run }: { run: ChecklistRunListItem }) {
                 {run.score !== null && ` · ${run.score}%`}
               </span>
             )}
+            {run.corrected_at && (
+              <span className="rounded-full bg-amber-50 px-2 py-1 font-medium text-amber-700">Скорректирована</span>
+            )}
             <span>{formatDate(run.created_at)}</span>
           </div>
         </div>

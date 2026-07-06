@@ -134,6 +134,28 @@ async def set_assignees(
 
 
 @router.post(
+    "/{run_id}/reopen",
+    response_model=ChecklistRunResponse,
+    summary="Возобновить проверку для корректировок",
+    description="Возвращает завершённую проверку в статус «В процессе». Доступно исполнителю или владельцу.",
+)
+async def reopen_run(
+    run_id: UUID,
+    request: Request,
+    ctx: ActiveSubscriptionContext,
+    session: DbSession,
+) -> ChecklistRunResponse:
+    service = ChecklistRunService(session)
+    return await service.reopen_run(
+        run_id,
+        organization_id=ctx.organization_id,
+        editor_id=ctx.user.id,
+        is_owner=_is_owner(ctx),
+        request_id=getattr(request.state, "request_id", None),
+    )
+
+
+@router.post(
     "/{run_id}/complete",
     response_model=ChecklistRunResponse,
     summary="Завершить проверку",

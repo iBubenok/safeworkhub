@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, BookText, CheckCircle2, Eye, Info, Save, Trash2, Users } from 'lucide-react';
+import { ArrowLeft, BookText, CheckCircle2, Eye, Info, Pencil, Save, Trash2, Users } from 'lucide-react';
 
 import * as runsApi from '@/api/checklistRuns';
 import { handleActionError } from '@/api/errors';
@@ -178,6 +178,12 @@ export function ChecklistRunPage() {
     onError: (e) => handleActionError(e),
   });
 
+  const reopen = useMutation({
+    mutationFn: () => runsApi.reopenRun(id as string),
+    onSuccess: invalidate,
+    onError: (e) => handleActionError(e),
+  });
+
   if (isLoading) return <div className="card h-40 animate-pulse" />;
   if (isError || !data) {
     return (
@@ -190,8 +196,10 @@ export function ChecklistRunPage() {
     );
   }
 
-  const busy = save.isPending || complete.isPending || remove.isPending;
+  const busy = save.isPending || complete.isPending || remove.isPending || reopen.isPending;
   const canDelete = data.conducted_by_id === user?.id || isOwner;
+  // Возобновить завершённую проверку для корректировок могут исполнители (как и правку).
+  const canCorrect = data.status === 'completed' && (isConductor || isAssignee || isOwner);
 
   const setValue = (answerId: string, value: string | null) =>
     setDraft((d) => ({ ...d, [answerId]: { value, comment: d[answerId]?.comment ?? null } }));
@@ -233,6 +241,9 @@ export function ChecklistRunPage() {
               {checklistRunResultLabels[data.result]}
               {data.score !== null && ` · ${data.score}%`}
             </span>
+          )}
+          {data.corrected_at && (
+            <span className="rounded-full bg-amber-50 px-2 py-1 font-medium text-amber-700">Скорректирована</span>
           )}
           {data.conducted_by_name && <span>Проверяющий: {data.conducted_by_name}</span>}
           {data.assignees.length > 0 && (
@@ -281,13 +292,23 @@ export function ChecklistRunPage() {
         <p className="mt-1 text-sm text-gray-500">Чек-лист: {data.checklist_title}</p>
 
         {!canEdit && (
-          <div className="mt-3 flex items-start gap-2 rounded-lg bg-gray-50 p-3 text-sm text-gray-600">
-            <Eye className="mt-0.5 h-4 w-4 shrink-0 text-gray-400" />
-            <span>
+          <div className="mt-3 flex flex-wrap items-center gap-3 rounded-lg bg-gray-50 p-3 text-sm text-gray-600">
+            <span className="flex items-start gap-2">
+              <Eye className="mt-0.5 h-4 w-4 shrink-0 text-gray-400" />
               {data.status === 'completed'
                 ? 'Проверка завершена — доступен только просмотр.'
                 : `Проверку проводит ${data.conducted_by_name ?? 'другой сотрудник'}. Вам доступен только просмотр.`}
             </span>
+            {canCorrect && (
+              <button
+                type="button"
+                className="btn-secondary ml-auto flex items-center gap-1"
+                disabled={busy}
+                onClick={() => reopen.mutate()}
+              >
+                <Pencil size={16} /> Внести корректировки
+              </button>
+            )}
           </div>
         )}
 
@@ -353,6 +374,12 @@ export function ChecklistRunPage() {
                       disabled={!canEdit}
                       onChange={(e) => setComment(answer.id, e.target.value || null)}
                     />
+                  )}
+
+                  {answer.corrected_at && (
+                    <p className="mt-2 text-xs text-amber-600">
+                      Отредактировано {answer.corrected_by_name ?? 'сотрудником'} · {formatDate(answer.corrected_at)}
+                    </p>
                   )}
                 </div>
               ))}

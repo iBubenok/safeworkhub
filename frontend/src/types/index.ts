@@ -343,6 +343,8 @@ export interface ChecklistRunAnswer {
   option_hints: Record<string, string>;
   value: string | null;
   comment: string | null;
+  corrected_at: string | null;
+  corrected_by_name: string | null;
 }
 
 export interface RunAssignee {
@@ -370,6 +372,8 @@ export interface ChecklistRun {
   created_at: string;
   updated_at: string;
   completed_at: string | null;
+  corrected_at: string | null;
+  corrected_by_name: string | null;
   answers: ChecklistRunAnswer[];
 }
 
@@ -387,6 +391,7 @@ export interface ChecklistRunListItem {
   assignees: RunAssignee[];
   created_at: string;
   completed_at: string | null;
+  corrected_at: string | null;
 }
 
 export interface ChecklistRunCreateInput {

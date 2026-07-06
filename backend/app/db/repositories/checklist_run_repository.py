@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload, selectinload
 
 from app.db.repositories.base import BaseRepository
-from app.models.checklist_run import ChecklistRun, ChecklistRunStatus
+from app.models.checklist_run import ChecklistRun, ChecklistRunAnswer, ChecklistRunStatus
 
 
 class ChecklistRunRepository(BaseRepository[ChecklistRun]):
@@ -53,12 +53,13 @@ class ChecklistRunRepository(BaseRepository[ChecklistRun]):
         return list(result.scalars().all()), total
 
     async def get_with_answers(self, run_id: UUID) -> ChecklistRun | None:
-        """Проверка с ответами и автором."""
+        """Проверка с ответами, автором и данными о корректировках."""
         query = (
             select(ChecklistRun)
             .options(
-                selectinload(ChecklistRun.answers),
+                selectinload(ChecklistRun.answers).joinedload(ChecklistRunAnswer.corrected_by),
                 joinedload(ChecklistRun.conducted_by),
+                joinedload(ChecklistRun.corrected_by),
                 selectinload(ChecklistRun.assignees),
             )
             .where(ChecklistRun.id == run_id)

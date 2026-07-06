@@ -131,7 +131,14 @@ class ChecklistRunService:
     def _to_response(self, run: ChecklistRun) -> ChecklistRunResponse:
         response = ChecklistRunResponse.model_validate(run)
         response.conducted_by_name = run.conducted_by.name if run.conducted_by else None
+        response.corrected_by_name = run.corrected_by.name if run.corrected_by else None
         response.score = self._score(run.compliant_count, run.non_compliant_count)
+        # Имя правившего для каждого скорректированного ответа.
+        corrector_names = {
+            answer.id: (answer.corrected_by.name if answer.corrected_by else None) for answer in run.answers
+        }
+        for answer in response.answers:
+            answer.corrected_by_name = corrector_names.get(answer.id)
         return response
 
     def _to_list_item(self, run: ChecklistRun) -> ChecklistRunListItem:
@@ -227,6 +234,42 @@ class ChecklistRunService:
             raise NotFoundError("Проверка", str(run_id))
         return self._to_response(run)
 
+    async def reopen_run(
+        self,
+        run_id: UUID,
+        *,
+        organization_id: int,
+        editor_id: UUID,
+        is_owner: bool,
+        request_id: str | None = None,
+    ) -> ChecklistRunResponse:
+        """Возобновить завершённую проверку для внесения корректировок (→ «В процессе»)."""
+        run = await self.repository.get_with_answers(run_id)
+        if run is None or run.organization_id != organization_id:
+            raise NotFoundError("Проверка", str(run_id))
+        if run.status != ChecklistRunStatus.COMPLETED:
+            raise ConflictError("Возобновить можно только завершённую проверку")
+        self._ensure_actor_can_edit(run, editor_id=editor_id, is_owner=is_owner)
+
+        run.status = ChecklistRunStatus.IN_PROGRESS
+        run.corrected_at = utcnow()
+        # Присваиваем связь (а не только id), чтобы имя правившего подтянулось без перезагрузки.
+        run.corrected_by = await self.user_repo.get_by_id(editor_id)
+        await self.session.flush()
+
+        await log_audit(
+            self.session,
+            action="checklist_run_reopened",
+            entity_type="checklist_run",
+            entity_id=str(run_id),
+            organization_id=organization_id,
+            user_id=str(editor_id),
+            request_id=request_id,
+        )
+        loaded = await self.repository.get_with_answers(run_id)
+        assert loaded is not None
+        return self._to_response(loaded)
+
     async def set_assignees(
         self,
         run_id: UUID,
@@ -267,15 +310,19 @@ class ChecklistRunService:
         assert loaded is not None
         return self._to_response(loaded)
 
-    def _ensure_editable(self, run: ChecklistRun, *, editor_id: UUID, is_owner: bool) -> None:
-        """Редактировать ход проверки может создатель, назначенный или владелец, пока она не завершена."""
-        if run.status != ChecklistRunStatus.IN_PROGRESS:
-            raise ConflictError("Проверка уже завершена и доступна только для чтения")
+    def _ensure_actor_can_edit(self, run: ChecklistRun, *, editor_id: UUID, is_owner: bool) -> None:
+        """Право правки: создатель, назначенный сотрудник или владелец (без учёта статуса)."""
         is_assignee = editor_id in {assignee.id for assignee in run.assignees}
         if run.conducted_by_id != editor_id and not is_assignee and not is_owner:
             raise AuthorizationError(
                 "Редактировать проверку может проводящий её, назначенный сотрудник или владелец организации"
             )
+
+    def _ensure_editable(self, run: ChecklistRun, *, editor_id: UUID, is_owner: bool) -> None:
+        """Редактировать ход проверки можно, пока она не завершена, и только исполнителю."""
+        if run.status != ChecklistRunStatus.IN_PROGRESS:
+            raise ConflictError("Проверка уже завершена и доступна только для чтения")
+        self._ensure_actor_can_edit(run, editor_id=editor_id, is_owner=is_owner)
 
     async def update_run(
         self,
@@ -297,13 +344,20 @@ class ChecklistRunService:
         if data.notes is not None:
             run.notes = data.notes
         if data.answers is not None:
+            # Идёт цикл корректировки, если проверка уже была возобновлена после завершения.
+            correcting = run.corrected_at is not None
+            editor = await self.user_repo.get_by_id(editor_id) if correcting else None
             answers_by_id = {answer.id: answer for answer in run.answers}
             for patch in data.answers:
                 answer = answers_by_id.get(patch.answer_id)
                 if answer is None:
                     raise NotFoundError("Ответ проверки", str(patch.answer_id))
+                changed = answer.value != patch.value or answer.comment != patch.comment
                 answer.value = patch.value
                 answer.comment = patch.comment
+                if correcting and changed:
+                    answer.corrected_by = editor
+                    answer.corrected_at = utcnow()
 
         counts = self._counts(list(run.answers))
         run.gradable_count = counts["gradable_count"]

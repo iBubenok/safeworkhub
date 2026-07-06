@@ -68,6 +68,8 @@ class ChecklistRunAnswerResponse(BaseModel):
     option_hints: dict[str, str] = Field(default_factory=dict)
     value: str | None = None
     comment: str | None = None
+    corrected_at: datetime | None = None
+    corrected_by_name: str | None = None
 
 
 class ChecklistRunResponse(BaseModel):
@@ -94,6 +96,8 @@ class ChecklistRunResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
     completed_at: datetime | None = None
+    corrected_at: datetime | None = None
+    corrected_by_name: str | None = None
     answers: list[ChecklistRunAnswerResponse] = Field(default_factory=list)
 
 
@@ -115,6 +119,7 @@ class ChecklistRunListItem(BaseModel):
     assignees: list[AssigneeInfo] = Field(default_factory=list)
     created_at: datetime
     completed_at: datetime | None = None
+    corrected_at: datetime | None = None
 
 
 class ChecklistRunListResponse(BaseModel):

@@ -229,6 +229,72 @@ async def test_completed_run_is_read_only(client: AsyncClient, unique_email: str
 
 
 @pytest.mark.asyncio
+async def test_reopen_and_correct_completed_run(client: AsyncClient, unique_email: str):
+    """Завершённую проверку можно возобновить, скорректировать ответ (с аудитом) и завершить заново."""
+    tokens, cookies = await register_and_login(client, unique_email)
+    checklist = await create_checklist(client, tokens, cookies)
+    run = await start_run(client, tokens, cookies, checklist["id"])
+    answer_id = run["answers"][0]["id"]
+
+    await client.post(f"/api/v1/checklist-runs/{run['id']}/complete", headers=auth_headers(tokens), cookies=cookies)
+
+    # Возобновление: статус снова «в процессе», отмечена корректировка.
+    reopened = await client.post(
+        f"/api/v1/checklist-runs/{run['id']}/reopen", headers=auth_headers(tokens), cookies=cookies
+    )
+    assert reopened.status_code == 200, reopened.text
+    assert reopened.json()["status"] == "in_progress"
+    assert reopened.json()["corrected_at"] is not None
+    assert reopened.json()["corrected_by_name"] == "Проверяющий"
+
+    # Правка ответа во время корректировки помечается автором и временем.
+    patched = await client.patch(
+        f"/api/v1/checklist-runs/{run['id']}",
+        json={"answers": [{"answer_id": answer_id, "value": "non_compliant", "comment": "исправление"}]},
+        headers=auth_headers(tokens),
+        cookies=cookies,
+    )
+    assert patched.status_code == 200, patched.text
+    edited = next(a for a in patched.json()["answers"] if a["id"] == answer_id)
+    assert edited["corrected_at"] is not None
+    assert edited["corrected_by_name"] == "Проверяющий"
+
+    # Завершаем заново — метка корректировки сохраняется.
+    done = await client.post(
+        f"/api/v1/checklist-runs/{run['id']}/complete", headers=auth_headers(tokens), cookies=cookies
+    )
+    assert done.status_code == 200, done.text
+    assert done.json()["status"] == "completed"
+    assert done.json()["corrected_at"] is not None
+
+
+@pytest.mark.asyncio
+async def test_reopen_requires_completed_and_editor(client: AsyncClient, unique_email: str):
+    """Возобновить нельзя незавершённую проверку (409) и постороннему участнику (403)."""
+    owner_tokens, owner_cookies = await register_and_login(client, unique_email)
+    checklist = await create_checklist(client, owner_tokens, owner_cookies)
+    run = await start_run(client, owner_tokens, owner_cookies, checklist["id"])
+
+    # Ещё не завершена → 409.
+    early = await client.post(
+        f"/api/v1/checklist-runs/{run['id']}/reopen", headers=auth_headers(owner_tokens), cookies=owner_cookies
+    )
+    assert early.status_code == 409, early.text
+
+    await client.post(
+        f"/api/v1/checklist-runs/{run['id']}/complete", headers=auth_headers(owner_tokens), cookies=owner_cookies
+    )
+    # Посторонний участник (не проводящий, не назначенный, не владелец) → 403.
+    member_tokens, member_cookies = await create_member_and_login(
+        client, owner_tokens, owner_cookies, f"member_{unique_email}"
+    )
+    denied = await client.post(
+        f"/api/v1/checklist-runs/{run['id']}/reopen", headers=auth_headers(member_tokens), cookies=member_cookies
+    )
+    assert denied.status_code == 403, denied.text
+
+
+@pytest.mark.asyncio
 async def test_run_visible_to_whole_org(client: AsyncClient, unique_email: str):
     """Проверку видят все участники организации, а не только проводящий."""
     owner_tokens, owner_cookies = await register_and_login(client, unique_email)

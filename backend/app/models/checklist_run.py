@@ -95,8 +95,15 @@ class ChecklistRun(Base, UUIDMixin, TimestampMixin):
     not_applicable_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     notes: Mapped[str | None] = mapped_column(Text)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Факт корректировки: проверка была возобновлена после завершения (последняя корректировка).
+    corrected_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    corrected_by_id: Mapped[UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+    )
 
     conducted_by: Mapped["User"] = relationship(foreign_keys=[conducted_by_id], lazy="selectin")
+    corrected_by: Mapped["User | None"] = relationship(foreign_keys=[corrected_by_id], lazy="selectin")
     assignees: Mapped[list["User"]] = relationship(secondary=checklist_run_assignees, lazy="selectin")
     answers: Mapped[list["ChecklistRunAnswer"]] = relationship(
         back_populates="run",
@@ -142,8 +149,15 @@ class ChecklistRunAnswer(Base, UUIDMixin, TimestampMixin):
     # Введённое значение в каноническом виде (код compliance / "true"|"false" / текст / число строкой).
     value: Mapped[str | None] = mapped_column(Text)
     comment: Mapped[str | None] = mapped_column(Text)
+    # Аудит корректировки поля после завершения проверки: кем и когда изменено.
+    corrected_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    corrected_by_id: Mapped[UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+    )
 
     run: Mapped["ChecklistRun"] = relationship(back_populates="answers")
+    corrected_by: Mapped["User | None"] = relationship(foreign_keys=[corrected_by_id], lazy="selectin")
 
     __table_args__ = (Index("ix_checklist_run_answers_run_id", "run_id"),)
 
