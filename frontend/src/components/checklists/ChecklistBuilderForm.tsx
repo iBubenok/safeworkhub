@@ -443,6 +443,8 @@ export function ChecklistBuilderForm({ checklist, onSaved }: { checklist?: Check
   const save = useMutation({
     mutationFn: (nextStatus: ChecklistStatus) => {
       const items = toInput(tree);
+      // Видимость через UI не меняется (управляется только главным редактором через API),
+      // поэтому не передаём — при обновлении бэкенд сохраняет текущее значение.
       const payload = { title, description: description || null, status: nextStatus, items };
       return checklist ? checklistsApi.updateChecklist(checklist.id, payload) : checklistsApi.createChecklist(payload);
     },

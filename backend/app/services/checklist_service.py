@@ -15,6 +15,7 @@ from app.models.checklist import (
     ChecklistItemReference,
     ChecklistNodeType,
     ChecklistStatus,
+    ChecklistVisibility,
 )
 from app.schemas.checklist import (
     ChecklistCreate,
@@ -152,6 +153,7 @@ class ChecklistService:
         )
         items = []
         for checklist in checklists:
+            # runs_count берётся из колонки (монотонный счётчик использований) автоматически.
             list_item = ChecklistListItem.model_validate(checklist)
             list_item.item_count = sum(1 for it in checklist.items if it.node_type == ChecklistNodeType.ITEM)
             list_item.organization_name = checklist.organization.name if checklist.organization else None
@@ -167,10 +169,15 @@ class ChecklistService:
         is_owner: bool,
     ) -> ChecklistResponse:
         checklist = await self.repository.get_with_items(checklist_id)
-        if checklist is None or checklist.organization_id != organization_id:
+        if checklist is None:
             raise NotFoundError("Чек-лист", str(checklist_id))
-        # Черновики и архив видит только владелец организации.
-        if checklist.status != ChecklistStatus.PUBLISHED and not is_owner:
+        is_own = checklist.organization_id == organization_id
+        if not is_own:
+            # Чужой чек-лист доступен, только если он публичный и опубликован.
+            if checklist.visibility != ChecklistVisibility.PUBLIC or checklist.status != ChecklistStatus.PUBLISHED:
+                raise NotFoundError("Чек-лист", str(checklist_id))
+        elif checklist.status != ChecklistStatus.PUBLISHED and not is_owner:
+            # Свои черновики и архив видит только владелец организации.
             raise NotFoundError("Чек-лист", str(checklist_id))
         # Сериализуем до инкремента; считаем просмотры только у опубликованных.
         response = self._to_response(checklist)
@@ -193,6 +200,7 @@ class ChecklistService:
             title=data.title,
             description=data.description,
             status=data.status,
+            visibility=data.visibility,
         )
         self.session.add(checklist)
         await self.session.flush()
@@ -232,6 +240,8 @@ class ChecklistService:
             checklist.description = data.description
         if data.status is not None:
             checklist.status = data.status
+        if data.visibility is not None:
+            checklist.visibility = data.visibility
         if data.items is not None:
             await self._validate_references(data.items, organization_id=organization_id)
             # Заменяем всё дерево: удаляем старые узлы, вставляем новые.

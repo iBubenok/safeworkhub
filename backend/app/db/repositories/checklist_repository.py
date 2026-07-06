@@ -4,12 +4,18 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from sqlalchemy import desc, func, or_, select, update
+from sqlalchemy import and_, desc, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload, selectinload
 
 from app.db.repositories.base import BaseRepository
-from app.models.checklist import Checklist, ChecklistItem, ChecklistItemReference, ChecklistStatus
+from app.models.checklist import (
+    Checklist,
+    ChecklistItem,
+    ChecklistItemReference,
+    ChecklistStatus,
+    ChecklistVisibility,
+)
 
 
 class ChecklistRepository(BaseRepository[Checklist]):
@@ -27,8 +33,18 @@ class ChecklistRepository(BaseRepository[Checklist]):
         limit: int = 20,
         offset: int = 0,
     ) -> tuple[list[Checklist], int]:
-        """Чек-листы организации с фильтром по статусам (с подгрузкой пунктов для счётчика)."""
-        conditions = [Checklist.organization_id == organization_id, Checklist.status.in_(statuses)]
+        """Чек-листы: свои (в заданных статусах) + публичные опубликованные из других организаций."""
+        own = and_(Checklist.organization_id == organization_id, Checklist.status.in_(statuses))
+        # Публичные из других орг. подмешиваем только когда запрошены опубликованные
+        # (чтобы фильтры «Черновики»/«Архив» оставались строго внутри своей организации).
+        if ChecklistStatus.PUBLISHED in statuses:
+            public = and_(
+                Checklist.visibility == ChecklistVisibility.PUBLIC,
+                Checklist.status == ChecklistStatus.PUBLISHED,
+            )
+            conditions = [or_(own, public)]
+        else:
+            conditions = [own]
         if search:
             pattern = f"%{search}%"
             conditions.append(or_(Checklist.title.ilike(pattern), Checklist.description.ilike(pattern)))
@@ -70,5 +86,14 @@ class ChecklistRepository(BaseRepository[Checklist]):
             update(Checklist)
             .where(Checklist.id == checklist_id)
             .values(views_count=Checklist.views_count + 1, updated_at=Checklist.updated_at)
+        )
+        await self.session.execute(stmt)
+
+    async def increment_runs(self, checklist_id: UUID) -> None:
+        """Увеличить счётчик использований (запусков проверок), не сдвигая updated_at."""
+        stmt = (
+            update(Checklist)
+            .where(Checklist.id == checklist_id)
+            .values(runs_count=Checklist.runs_count + 1, updated_at=Checklist.updated_at)
         )
         await self.session.execute(stmt)

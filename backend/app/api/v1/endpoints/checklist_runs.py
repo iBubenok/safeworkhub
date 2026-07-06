@@ -9,6 +9,7 @@ from app.core.dependencies import ActiveSubscriptionContext, CurrentContext, DbS
 from app.models import OrgRole
 from app.models.checklist_run import ChecklistRunStatus
 from app.schemas.checklist_run import (
+    ChecklistRunAssigneesUpdate,
     ChecklistRunCreate,
     ChecklistRunListResponse,
     ChecklistRunResponse,
@@ -104,6 +105,30 @@ async def update_run(
         editor_id=ctx.user.id,
         is_owner=_is_owner(ctx),
         data=data,
+        request_id=getattr(request.state, "request_id", None),
+    )
+
+
+@router.put(
+    "/{run_id}/assignees",
+    response_model=ChecklistRunResponse,
+    summary="Изменить состав назначенных",
+    description="Заменяет список назначенных сотрудников. Доступно создателю проверки или владельцу организации.",
+)
+async def set_assignees(
+    run_id: UUID,
+    request: Request,
+    data: ChecklistRunAssigneesUpdate,
+    ctx: ActiveSubscriptionContext,
+    session: DbSession,
+) -> ChecklistRunResponse:
+    service = ChecklistRunService(session)
+    return await service.set_assignees(
+        run_id,
+        organization_id=ctx.organization_id,
+        actor_id=ctx.user.id,
+        is_owner=_is_owner(ctx),
+        assignee_ids=data.assignee_ids,
         request_id=getattr(request.state, "request_id", None),
     )
 

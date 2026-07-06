@@ -41,7 +41,10 @@ class ChecklistRunRepository(BaseRepository[ChecklistRun]):
         query = (
             select(ChecklistRun)
             .where(*conditions)
-            .options(joinedload(ChecklistRun.conducted_by))
+            .options(
+                joinedload(ChecklistRun.conducted_by),
+                selectinload(ChecklistRun.assignees),
+            )
             .order_by(desc(ChecklistRun.created_at))
             .limit(limit)
             .offset(offset)
@@ -56,6 +59,7 @@ class ChecklistRunRepository(BaseRepository[ChecklistRun]):
             .options(
                 selectinload(ChecklistRun.answers),
                 joinedload(ChecklistRun.conducted_by),
+                selectinload(ChecklistRun.assignees),
             )
             .where(ChecklistRun.id == run_id)
         )

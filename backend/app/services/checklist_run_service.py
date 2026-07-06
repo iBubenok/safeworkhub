@@ -8,8 +8,14 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import AuthorizationError, ConflictError, NotFoundError, ValidationError
-from app.db.repositories import ChecklistRepository, ChecklistRunRepository
-from app.models.checklist import ChecklistAnswerType, ChecklistItem, ChecklistNodeType, ChecklistStatus
+from app.db.repositories import ChecklistRepository, ChecklistRunRepository, UserRepository
+from app.models.checklist import (
+    ChecklistAnswerType,
+    ChecklistItem,
+    ChecklistNodeType,
+    ChecklistStatus,
+    ChecklistVisibility,
+)
 from app.models.checklist_run import (
     ChecklistComplianceValue,
     ChecklistRun,
@@ -17,6 +23,7 @@ from app.models.checklist_run import (
     ChecklistRunResult,
     ChecklistRunStatus,
 )
+from app.models.user import User
 from app.schemas.checklist_run import (
     ChecklistRunCreate,
     ChecklistRunListItem,
@@ -34,6 +41,22 @@ class ChecklistRunService:
         self.session = session
         self.repository = ChecklistRunRepository(session)
         self.checklist_repo = ChecklistRepository(session)
+        self.user_repo = UserRepository(session)
+
+    async def _validate_assignees(self, organization_id: int, assignee_ids: list[UUID]) -> list[User]:
+        """Проверить, что все назначаемые — активные участники организации, и вернуть их."""
+        if not assignee_ids:
+            return []
+        unique_ids = list(dict.fromkeys(assignee_ids))
+        members = await self.user_repo.get_by_organization(organization_id)
+        members_by_id = {user.id: user for user, _role in members if user.is_active}
+        selected: list[User] = []
+        for user_id in unique_ids:
+            user = members_by_id.get(user_id)
+            if user is None:
+                raise ValidationError("Назначить можно только активных участников вашей организации")
+            selected.append(user)
+        return selected
 
     @staticmethod
     def _flatten_items(flat_items: list[ChecklistItem]) -> list[dict[str, Any]]:
@@ -125,7 +148,11 @@ class ChecklistRunService:
         request_id: str | None = None,
     ) -> ChecklistRunResponse:
         checklist = await self.checklist_repo.get_with_items(data.checklist_id)
-        if checklist is None or checklist.organization_id != organization_id:
+        # Можно проводить проверку по своему чек-листу либо по публичному из другой организации.
+        is_accessible = checklist is not None and (
+            checklist.organization_id == organization_id or checklist.visibility == ChecklistVisibility.PUBLIC
+        )
+        if checklist is None or not is_accessible:
             raise NotFoundError("Чек-лист", str(data.checklist_id))
         if checklist.status != ChecklistStatus.PUBLISHED:
             raise ValidationError("Проводить проверку можно только по опубликованному чек-листу")
@@ -134,6 +161,10 @@ class ChecklistRunService:
         if not snapshots:
             raise ValidationError("В чек-листе нет пунктов для проверки")
 
+        # Создатель всегда редактор — не дублируем его в списке назначенных.
+        assignee_ids = [uid for uid in data.assignee_ids if uid != conducted_by_id]
+        assignees = await self._validate_assignees(organization_id, assignee_ids)
+
         run = ChecklistRun(
             organization_id=organization_id,
             checklist_id=checklist.id,
@@ -141,6 +172,7 @@ class ChecklistRunService:
             title=data.title.strip() if data.title and data.title.strip() else None,
             conducted_by_id=conducted_by_id,
             status=ChecklistRunStatus.IN_PROGRESS,
+            assignees=assignees,
         )
         self.session.add(run)
         await self.session.flush()
@@ -148,6 +180,9 @@ class ChecklistRunService:
         for index, snap in enumerate(snapshots):
             self.session.add(ChecklistRunAnswer(run_id=run.id, sort_order=index, **snap))
         await self.session.flush()
+
+        # Монотонный счётчик использований шаблона: не уменьшается при удалении проверки.
+        await self.checklist_repo.increment_runs(checklist.id)
 
         await log_audit(
             self.session,
@@ -191,12 +226,55 @@ class ChecklistRunService:
             raise NotFoundError("Проверка", str(run_id))
         return self._to_response(run)
 
+    async def set_assignees(
+        self,
+        run_id: UUID,
+        *,
+        organization_id: int,
+        actor_id: UUID,
+        is_owner: bool,
+        assignee_ids: list[UUID],
+        request_id: str | None = None,
+    ) -> ChecklistRunResponse:
+        """Заменить состав назначенных. Доступно создателю проверки или владельцу, пока она не завершена."""
+        run = await self.repository.get_with_answers(run_id)
+        if run is None or run.organization_id != organization_id:
+            raise NotFoundError("Проверка", str(run_id))
+        if run.conducted_by_id != actor_id and not is_owner:
+            raise AuthorizationError(
+                "Менять состав назначенных может только создатель проверки или владелец организации"
+            )
+        if run.status != ChecklistRunStatus.IN_PROGRESS:
+            raise ConflictError("Проверка уже завершена — изменить состав нельзя")
+
+        # Создатель всегда редактор — не дублируем его в списке назначенных.
+        filtered_ids = [uid for uid in assignee_ids if uid != run.conducted_by_id]
+        run.assignees = await self._validate_assignees(organization_id, filtered_ids)
+        await self.session.flush()
+
+        await log_audit(
+            self.session,
+            action="checklist_run_assignees_updated",
+            entity_type="checklist_run",
+            entity_id=str(run_id),
+            organization_id=organization_id,
+            user_id=str(actor_id),
+            request_id=request_id,
+            details={"assignees": [str(assignee.id) for assignee in run.assignees]},
+        )
+        loaded = await self.repository.get_with_answers(run_id)
+        assert loaded is not None
+        return self._to_response(loaded)
+
     def _ensure_editable(self, run: ChecklistRun, *, editor_id: UUID, is_owner: bool) -> None:
-        """Редактировать ход проверки может проводящий или владелец, пока она не завершена."""
+        """Редактировать ход проверки может создатель, назначенный или владелец, пока она не завершена."""
         if run.status != ChecklistRunStatus.IN_PROGRESS:
             raise ConflictError("Проверка уже завершена и доступна только для чтения")
-        if run.conducted_by_id != editor_id and not is_owner:
-            raise AuthorizationError("Редактировать проверку может только проводящий её или владелец организации")
+        is_assignee = editor_id in {assignee.id for assignee in run.assignees}
+        if run.conducted_by_id != editor_id and not is_assignee and not is_owner:
+            raise AuthorizationError(
+                "Редактировать проверку может проводящий её, назначенный сотрудник или владелец организации"
+            )
 
     async def update_run(
         self,

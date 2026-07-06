@@ -42,6 +42,13 @@ class ChecklistNodeType(StrEnum):
     ITEM = "item"
 
 
+class ChecklistVisibility(StrEnum):
+    """Видимость чек-листа (как у материалов)."""
+
+    ORG = "org"  # только своя организация
+    PUBLIC = "public"  # виден всем организациям
+
+
 def _enum(enum_cls: type, name: str) -> Enum:
     """PG-enum со значениями по value (как в остальных моделях)."""
     return Enum(enum_cls, name=name, values_callable=lambda e: [m.value for m in e])
@@ -73,6 +80,15 @@ class Checklist(Base, UUIDMixin, TimestampMixin):
         ForeignKey("users.id", ondelete="SET NULL"),
     )
     views_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    # Счётчик использований (запусков проверок). Монотонный: не уменьшается при удалении прогона —
+    # факт использования шаблона сохраняется.
+    runs_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    # Видимость: org — только своя организация, public — виден всем организациям.
+    visibility: Mapped[ChecklistVisibility] = mapped_column(
+        _enum(ChecklistVisibility, "checklist_visibility"),
+        nullable=False,
+        default=ChecklistVisibility.ORG,
+    )
 
     organization: Mapped["Organization"] = relationship()
     author: Mapped["User"] = relationship(foreign_keys=[author_id])

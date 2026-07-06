@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, BookText, CheckCircle2, Eye, Save, Trash2 } from 'lucide-react';
+import { ArrowLeft, BookText, CheckCircle2, Eye, Save, Trash2, Users } from 'lucide-react';
 
 import * as runsApi from '@/api/checklistRuns';
 import { handleActionError } from '@/api/errors';
+import { EditAssigneesDialog } from '@/components/checklists/EditAssigneesDialog';
 import { usePermissions } from '@/hooks/usePermissions';
 import {
   checklistRunResultLabels,
@@ -121,6 +122,7 @@ export function ChecklistRunPage() {
   const [draft, setDraft] = useState<Draft>({});
   const [title, setTitle] = useState('');
   const [notes, setNotes] = useState('');
+  const [assigneesOpen, setAssigneesOpen] = useState(false);
 
   useEffect(() => {
     if (!data) return;
@@ -131,7 +133,11 @@ export function ChecklistRunPage() {
     setNotes(data.notes ?? '');
   }, [data]);
 
-  const canEdit = !!data && data.status === 'in_progress' && (data.conducted_by_id === user?.id || isOwner);
+  const isConductor = !!data && data.conducted_by_id === user?.id;
+  const isAssignee = !!data && !!user && data.assignees.some((a) => a.id === user.id);
+  const canEdit = !!data && data.status === 'in_progress' && (isConductor || isAssignee || isOwner);
+  // Менять состав назначенных может создатель проверки или владелец, пока она не завершена.
+  const canManageAssignees = !!data && data.status === 'in_progress' && (isConductor || isOwner);
 
   const buildPayload = () => ({
     title: title.trim() || null,
@@ -229,6 +235,22 @@ export function ChecklistRunPage() {
             </span>
           )}
           {data.conducted_by_name && <span>Проверяющий: {data.conducted_by_name}</span>}
+          {data.assignees.length > 0 && (
+            <span className="inline-flex items-center gap-1">
+              <Users className="h-3.5 w-3.5 text-gray-400" />
+              {data.assignees.map((a) => a.name).join(', ')}
+            </span>
+          )}
+          {canManageAssignees && (
+            <button
+              type="button"
+              onClick={() => setAssigneesOpen(true)}
+              className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-primary-600 transition hover:bg-primary-50"
+            >
+              <Users className="h-3.5 w-3.5" />
+              {data.assignees.length > 0 ? 'Изменить состав' : 'Назначить'}
+            </button>
+          )}
           <span>{formatDate(data.created_at)}</span>
 
           {canDelete && (
@@ -362,6 +384,15 @@ export function ChecklistRunPage() {
           </div>
         )}
       </article>
+
+      <EditAssigneesDialog
+        runId={data.id}
+        creatorId={data.conducted_by_id}
+        current={data.assignees}
+        open={assigneesOpen}
+        onOpenChange={setAssigneesOpen}
+        onSaved={invalidate}
+      />
     </div>
   );
 }

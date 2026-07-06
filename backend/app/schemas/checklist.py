@@ -5,7 +5,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from app.models.checklist import ChecklistAnswerType, ChecklistNodeType, ChecklistStatus
+from app.models.checklist import ChecklistAnswerType, ChecklistNodeType, ChecklistStatus, ChecklistVisibility
 
 
 class ChecklistReferenceInput(BaseModel):
@@ -72,6 +72,7 @@ class ChecklistCreate(BaseModel):
     title: str = Field(min_length=1, max_length=500, description="Название")
     description: str | None = Field(None, description="Описание")
     status: ChecklistStatus = Field(default=ChecklistStatus.DRAFT, description="Статус")
+    visibility: ChecklistVisibility = Field(default=ChecklistVisibility.ORG, description="Видимость")
     items: list[ChecklistNodeInput] = Field(default_factory=list, description="Дерево пунктов/разделов")
 
 
@@ -81,6 +82,7 @@ class ChecklistUpdate(BaseModel):
     title: str | None = Field(None, min_length=1, max_length=500)
     description: str | None = None
     status: ChecklistStatus | None = None
+    visibility: ChecklistVisibility | None = None
     items: list[ChecklistNodeInput] | None = None
 
 
@@ -97,6 +99,7 @@ class ChecklistResponse(BaseModel):
     title: str
     description: str | None
     status: ChecklistStatus
+    visibility: ChecklistVisibility = ChecklistVisibility.ORG
     views_count: int = 0
     created_at: datetime
     updated_at: datetime
@@ -113,9 +116,11 @@ class ChecklistListItem(BaseModel):
     title: str
     description: str | None
     status: ChecklistStatus
+    visibility: ChecklistVisibility = ChecklistVisibility.ORG
     organization_name: str | None = None
     item_count: int = 0
     views_count: int = 0
+    runs_count: int = 0
     created_at: datetime
 
 

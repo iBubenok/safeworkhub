@@ -1,11 +1,10 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { useMutation, useQuery } from '@tanstack/react-query';
-import { Building2, ClipboardList, Eye, ListChecks, Search } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
+import { Building2, ClipboardCheck, ClipboardList, Eye, Globe, ListChecks, Search } from 'lucide-react';
 
 import * as checklistsApi from '@/api/checklists';
-import * as runsApi from '@/api/checklistRuns';
-import { handleActionError } from '@/api/errors';
+import { StartRunDialog } from '@/components/checklists/StartRunDialog';
 import { usePermissions } from '@/hooks/usePermissions';
 import { checklistStatusLabels } from '@/utils/checklistLabels';
 import type { ChecklistListItem, ChecklistStatus } from '@/types';
@@ -17,63 +16,77 @@ const statusFilters: { value: ChecklistStatus; label: string }[] = [
 ];
 
 function ChecklistCard({ checklist }: { checklist: ChecklistListItem }) {
-  const navigate = useNavigate();
-  const startRun = useMutation({
-    mutationFn: () => runsApi.startRun({ checklist_id: checklist.id }),
-    onSuccess: (run) => navigate(`/checks/runs/${run.id}`),
-    onError: (e) => handleActionError(e),
-  });
+  const [runOpen, setRunOpen] = useState(false);
+  const published = checklist.status === 'published';
 
   return (
-    <Link
-      to={`/checks/checklists/${checklist.id}`}
-      className="card flex flex-col gap-3 transition-shadow hover:shadow-md"
-    >
-      <div className="flex items-start gap-3">
-        <ListChecks className="h-5 w-5 shrink-0 text-primary-500" />
-        <div className="min-w-0 flex-1">
-          <p className="block font-medium text-gray-900 line-clamp-2">{checklist.title}</p>
-          {checklist.description && (
-            <p className="mt-1 text-sm text-gray-500 line-clamp-2">{checklist.description}</p>
-          )}
-          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-gray-500">
-            <span className="rounded-full bg-gray-100 px-2 py-1 uppercase tracking-wide">
-              {checklistStatusLabels[checklist.status]}
-            </span>
-            <span>{checklist.item_count} пунктов</span>
-            <span className="inline-flex items-center gap-1">
-              <Eye className="h-3.5 w-3.5" />
-              {checklist.views_count}
-            </span>
+    <>
+      <Link
+        to={`/checks/checklists/${checklist.id}`}
+        className="card flex flex-col gap-3 transition-shadow hover:shadow-md"
+      >
+        <div className="flex items-start gap-3">
+          <ListChecks className="h-5 w-5 shrink-0 text-primary-500" />
+          <div className="min-w-0 flex-1">
+            <p className="block font-medium text-gray-900 line-clamp-2">{checklist.title}</p>
+            {checklist.description && (
+              <p className="mt-1 text-sm text-gray-500 line-clamp-2">{checklist.description}</p>
+            )}
+            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-gray-500">
+              <span className="rounded-full bg-gray-100 px-2 py-1 uppercase tracking-wide">
+                {checklistStatusLabels[checklist.status]}
+              </span>
+              {checklist.visibility === 'public' && (
+                <span
+                  className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-1 font-medium text-blue-700"
+                  title="Публичный — доступен всем организациям"
+                >
+                  <Globe className="h-3.5 w-3.5" />
+                  Публичный
+                </span>
+              )}
+              <span>{checklist.item_count} пунктов</span>
+              <span className="inline-flex items-center gap-1" title="Просмотры">
+                <Eye className="h-3.5 w-3.5" />
+                {checklist.views_count}
+              </span>
+              <span className="inline-flex items-center gap-1" title="Проведено проверок">
+                <ClipboardCheck className="h-3.5 w-3.5" />
+                {checklist.runs_count}
+              </span>
+            </div>
           </div>
         </div>
-      </div>
-      <button
-        type="button"
-        className="btn-secondary w-full"
-        disabled={startRun.isPending || checklist.status !== 'published'}
-        title={
-          checklist.status !== 'published'
-            ? 'Проверку можно проводить только по опубликованному чек-листу'
-            : 'Провести проверку по чек-листу'
-        }
-        onClick={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          startRun.mutate();
-        }}
-      >
-        Использовать
-      </button>
-      {checklist.organization_name && (
-        <div className="mt-auto flex items-center gap-1.5 border-t border-gray-100 pt-2 text-xs text-gray-400">
-          <Building2 className="h-3.5 w-3.5 shrink-0" />
-          <span className="truncate" title={checklist.organization_name}>
-            {checklist.organization_name}
-          </span>
-        </div>
-      )}
-    </Link>
+        <button
+          type="button"
+          className="btn-secondary w-full"
+          disabled={!published}
+          title={
+            published
+              ? 'Провести проверку по чек-листу'
+              : 'Проверку можно проводить только по опубликованному чек-листу'
+          }
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setRunOpen(true);
+          }}
+        >
+          Использовать
+        </button>
+        {checklist.organization_name && (
+          <div className="mt-auto flex items-center gap-1.5 border-t border-gray-100 pt-2 text-xs text-gray-400">
+            <Building2 className="h-3.5 w-3.5 shrink-0" />
+            <span className="truncate" title={checklist.organization_name}>
+              {checklist.organization_name}
+            </span>
+          </div>
+        )}
+      </Link>
+      {/* Диалог вне <Link>: события из портала Radix всплывают по дереву React, */}
+      {/* поэтому внутри ссылки клик по диалогу уводил бы на страницу чек-листа. */}
+      <StartRunDialog checklistId={checklist.id} open={runOpen} onOpenChange={setRunOpen} />
+    </>
   );
 }
 

@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, Query, Request, status
 
 from app.core.dependencies import CurrentContext, DbSession, require_roles
 from app.models import OrgRole
-from app.schemas.user import UserCreate, UserResponse, UserUpdate, UserWithMemberships
+from app.schemas.user import OrgMemberOption, UserCreate, UserResponse, UserUpdate, UserWithMemberships
 from app.services.user_service import UserService
 
 router = APIRouter()
@@ -40,6 +40,20 @@ async def update_current_user(
 ) -> UserWithMemberships:
     service = UserService(session)
     return await service.update_user(ctx.user.id, ctx.organization_id, data)
+
+
+@router.get(
+    "/members",
+    response_model=list[OrgMemberOption],
+    summary="Участники организации",
+    description="Краткий список активных участников организации. Доступно любому участнику (для назначений).",
+)
+async def list_members(
+    ctx: CurrentContext,
+    session: DbSession,
+) -> list[OrgMemberOption]:
+    service = UserService(session)
+    return await service.list_org_members(ctx.organization_id)
 
 
 @router.get(

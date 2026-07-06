@@ -233,6 +233,7 @@ export interface MaterialVersion {
 }
 
 export type ChecklistStatus = 'draft' | 'published' | 'archived';
+export type ChecklistVisibility = 'org' | 'public';
 export type ChecklistAnswerType = 'compliance' | 'yes_no' | 'text' | 'number';
 export type ChecklistNodeType = 'group' | 'item';
 
@@ -278,6 +279,7 @@ export interface Checklist {
   title: string;
   description: string | null;
   status: ChecklistStatus;
+  visibility: ChecklistVisibility;
   views_count: number;
   created_at: string;
   updated_at: string;
@@ -290,9 +292,11 @@ export interface ChecklistListItem {
   title: string;
   description: string | null;
   status: ChecklistStatus;
+  visibility: ChecklistVisibility;
   organization_name: string | null;
   item_count: number;
   views_count: number;
+  runs_count: number;
   created_at: string;
 }
 
@@ -300,6 +304,7 @@ export interface ChecklistCreateInput {
   title: string;
   description?: string | null;
   status?: ChecklistStatus;
+  visibility?: ChecklistVisibility;
   items: ChecklistNodeInput[];
 }
 
@@ -307,6 +312,7 @@ export interface ChecklistUpdateInput {
   title?: string;
   description?: string | null;
   status?: ChecklistStatus;
+  visibility?: ChecklistVisibility;
   items?: ChecklistNodeInput[];
 }
 
@@ -336,6 +342,11 @@ export interface ChecklistRunAnswer {
   comment: string | null;
 }
 
+export interface RunAssignee {
+  id: string;
+  name: string;
+}
+
 export interface ChecklistRun {
   id: string;
   organization_id: number;
@@ -344,6 +355,7 @@ export interface ChecklistRun {
   title: string | null;
   conducted_by_id: string;
   conducted_by_name: string | null;
+  assignees: RunAssignee[];
   status: ChecklistRunStatus;
   result: ChecklistRunResult | null;
   gradable_count: number;
@@ -369,6 +381,7 @@ export interface ChecklistRunListItem {
   non_compliant_count: number;
   score: number | null;
   conducted_by_name: string | null;
+  assignees: RunAssignee[];
   created_at: string;
   completed_at: string | null;
 }
@@ -376,6 +389,7 @@ export interface ChecklistRunListItem {
 export interface ChecklistRunCreateInput {
   checklist_id: string;
   title?: string | null;
+  assignee_ids?: string[];
 }
 
 export interface ChecklistRunAnswerInput {
@@ -388,6 +402,12 @@ export interface ChecklistRunUpdateInput {
   title?: string | null;
   notes?: string | null;
   answers?: ChecklistRunAnswerInput[];
+}
+
+export interface OrgMemberOption {
+  id: string;
+  name: string;
+  email: string;
 }
 
 export interface PaginatedResponse<T> {

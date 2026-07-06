@@ -13,6 +13,7 @@ from app.models.checklist import (
     ChecklistItemReference,
     ChecklistNodeType,
     ChecklistStatus,
+    ChecklistVisibility,
 )
 from app.models.checklist_run import (
     ChecklistComplianceValue,
@@ -57,6 +58,7 @@ __all__ = [
     "ChecklistRunResult",
     "ChecklistRunStatus",
     "ChecklistStatus",
+    "ChecklistVisibility",
     "Course",
     "CourseAssignment",
     "CourseModule",

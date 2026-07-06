@@ -18,7 +18,14 @@ from app.db.repositories import (
     UserRepository,
 )
 from app.models import OrgRole
-from app.schemas.user import MembershipResponse, UserCreate, UserResponse, UserUpdate, UserWithMemberships
+from app.schemas.user import (
+    MembershipResponse,
+    OrgMemberOption,
+    UserCreate,
+    UserResponse,
+    UserUpdate,
+    UserWithMemberships,
+)
 from app.services.utils import log_audit
 
 
@@ -182,6 +189,11 @@ class UserService:
             user_id=str(actor_id) if actor_id else str(user_id),
             request_id=request_id,
         )
+
+    async def list_org_members(self, organization_id: int) -> list[OrgMemberOption]:
+        """Активные участники организации (минимум данных) — для выбора при назначении."""
+        rows = await self.repository.get_by_organization(organization_id=organization_id)
+        return [OrgMemberOption.model_validate(user) for user, _role in rows if user.is_active]
 
     async def search_users(
         self,

@@ -62,3 +62,13 @@ class UserWithMemberships(UserResponse):
     """Пользователь с привязками к организациям."""
 
     memberships: list[MembershipResponse] = []
+
+
+class OrgMemberOption(BaseModel):
+    """Минимальные данные участника организации для выбора (назначение и т.п.)."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    name: str
+    email: EmailStr

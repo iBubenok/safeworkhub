@@ -42,10 +42,15 @@ function RunCard({ run }: { run: ChecklistRunListItem }) {
           </div>
         </div>
       </div>
-      {run.conducted_by_name && (
+      {(run.conducted_by_name || run.assignees.length > 0) && (
         <div className="mt-auto flex items-center gap-1.5 border-t border-gray-100 pt-2 text-xs text-gray-400">
           <User className="h-3.5 w-3.5 shrink-0" />
           <span className="truncate">{run.conducted_by_name}</span>
+          {run.assignees.length > 0 && (
+            <span className="shrink-0" title={run.assignees.map((a) => a.name).join(', ')}>
+              +{run.assignees.length}
+            </span>
+          )}
         </div>
       )}
     </Link>

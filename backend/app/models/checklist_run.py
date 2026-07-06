@@ -12,7 +12,7 @@ from enum import StrEnum
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
-from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Index, Integer, String, Text
+from sqlalchemy import Boolean, Column, DateTime, Enum, ForeignKey, Index, Integer, String, Table, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -51,6 +51,17 @@ def _enum(enum_cls: type, name: str) -> Enum:
     return Enum(enum_cls, name=name, values_callable=lambda e: [m.value for m in e])
 
 
+# Назначенные на проверку сотрудники (кроме создателя `conducted_by_id`): им также
+# разрешено редактировать и завершать проверку. M2M «проверка ↔ пользователь».
+checklist_run_assignees = Table(
+    "checklist_run_assignees",
+    Base.metadata,
+    Column("run_id", PG_UUID(as_uuid=True), ForeignKey("checklist_runs.id", ondelete="CASCADE"), primary_key=True),
+    Column("user_id", PG_UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), primary_key=True),
+    Index("ix_checklist_run_assignees_user_id", "user_id"),
+)
+
+
 class ChecklistRun(Base, UUIDMixin, TimestampMixin):
     """Проведённая по чек-листу проверка."""
 
@@ -86,6 +97,7 @@ class ChecklistRun(Base, UUIDMixin, TimestampMixin):
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     conducted_by: Mapped["User"] = relationship(foreign_keys=[conducted_by_id], lazy="selectin")
+    assignees: Mapped[list["User"]] = relationship(secondary=checklist_run_assignees, lazy="selectin")
     answers: Mapped[list["ChecklistRunAnswer"]] = relationship(
         back_populates="run",
         cascade="all, delete-orphan",

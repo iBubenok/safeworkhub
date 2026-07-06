@@ -1,5 +1,5 @@
 import { apiClient } from './client';
-import type { User } from '@/types';
+import type { OrgMemberOption, User } from '@/types';
 
 export async function searchUsers(params: {
   query?: string;
@@ -13,6 +13,12 @@ export async function searchUsers(params: {
       offset: params.offset ?? 0,
     },
   });
+  return response.data;
+}
+
+/** Активные участники организации (краткий список) — доступно любому участнику. */
+export async function getOrgMembers(): Promise<OrgMemberOption[]> {
+  const response = await apiClient.get<OrgMemberOption[]>('/users/members');
   return response.data;
 }
 
