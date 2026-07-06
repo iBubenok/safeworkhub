@@ -94,7 +94,7 @@ export function ChecklistDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { isOwner } = usePermissions();
+  const { isOwner, organizationId } = usePermissions();
   const [runOpen, setRunOpen] = useState(false);
 
   const { data, isLoading, isError } = useQuery({
@@ -142,6 +142,9 @@ export function ChecklistDetailPage() {
 
   const busy = publish.isPending || archive.isPending || remove.isPending;
   const published = data.status === 'published';
+  // Управлять (править/публиковать/архивировать/удалять) можно только своим чек-листом.
+  // Чужой публичный доступен лишь для использования.
+  const canManage = isOwner && data.organization_id === organizationId;
 
   const handleDelete = () => {
     if (window.confirm('Удалить чек-лист без возможности восстановления?')) remove.mutate();
@@ -181,7 +184,7 @@ export function ChecklistDetailPage() {
               <CheckCircle2 size={14} /> Использовать
             </button>
             <StartRunDialog checklistId={id as string} open={runOpen} onOpenChange={setRunOpen} />
-            {isOwner && (
+            {canManage && (
               <>
                 <ChecklistBuilderDialog
                   checklist={data}
