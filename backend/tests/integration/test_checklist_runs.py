@@ -106,6 +106,37 @@ async def test_start_run_snapshots_items(client: AsyncClient, unique_email: str)
 
 
 @pytest.mark.asyncio
+async def test_option_hints_snapshot_and_immutable(client: AsyncClient, unique_email: str):
+    """Подсказки к вариантам попадают в снимок проверки и не меняются при правке шаблона."""
+    tokens, cookies = await register_and_login(client, unique_email)
+    hints = {"compliant": "всё по норме", "non_compliant": "опишите нарушение", "not_applicable": "почему н/п"}
+    checklist = await create_checklist(
+        client,
+        tokens,
+        cookies,
+        items=[{"text": "Ограждение", "answer_type": "compliance", "option_hints": hints}],
+    )
+    # Шаблон отдаёт подсказки в дереве.
+    assert checklist["items"][0]["option_hints"] == hints
+
+    run = await start_run(client, tokens, cookies, checklist["id"])
+    assert run["answers"][0]["option_hints"] == hints
+
+    # Правим шаблон (меняем подсказки) — снимок начатой проверки не меняется.
+    updated = await client.patch(
+        f"/api/v1/checklists/{checklist['id']}",
+        json={"items": [{"node_type": "item", "text": "Ограждение", "answer_type": "compliance", "option_hints": {}}]},
+        headers=auth_headers(tokens),
+        cookies=cookies,
+    )
+    assert updated.status_code == 200, updated.text
+    assert updated.json()["items"][0]["option_hints"] == {}
+
+    detail = await client.get(f"/api/v1/checklist-runs/{run['id']}", headers=auth_headers(tokens), cookies=cookies)
+    assert detail.json()["answers"][0]["option_hints"] == hints
+
+
+@pytest.mark.asyncio
 async def test_cannot_start_from_draft(client: AsyncClient, unique_email: str):
     tokens, cookies = await register_and_login(client, unique_email)
     draft = await create_checklist(client, tokens, cookies, status="draft")

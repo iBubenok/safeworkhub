@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 from uuid import UUID
 
 from sqlalchemy import Boolean, Enum, ForeignKey, Index, Integer, String, Text
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -134,6 +135,9 @@ class ChecklistItem(Base, UUIDMixin, TimestampMixin):
     answer_type: Mapped[ChecklistAnswerType | None] = mapped_column(_enum(ChecklistAnswerType, "checklist_answer_type"))
     required: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     help_text: Mapped[str | None] = mapped_column(Text)
+    # Подсказки редактора к вариантам ответа: {"<значение>": "<текст>"}.
+    # Ключи — канонические значения (compliant/non_compliant/not_applicable, true/false).
+    option_hints: Mapped[dict[str, str]] = mapped_column(JSONB, default=dict, nullable=False)
 
     checklist: Mapped["Checklist"] = relationship(back_populates="items")
     references: Mapped[list["ChecklistItemReference"]] = relationship(

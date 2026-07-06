@@ -23,6 +23,9 @@ class ChecklistNodeInput(BaseModel):
     answer_type: ChecklistAnswerType | None = Field(None, description="Тип ответа (только у пункта)")
     required: bool = Field(default=True, description="Обязательный пункт")
     help_text: str | None = Field(None, description="Подсказка")
+    option_hints: dict[str, str] = Field(
+        default_factory=dict, description="Подсказки редактора к вариантам ответа: {значение: текст}"
+    )
     references: list[ChecklistReferenceInput] = Field(default_factory=list, description="Ссылки пункта")
     children: list["ChecklistNodeInput"] = Field(default_factory=list, description="Вложенные узлы")
 
@@ -58,6 +61,7 @@ class ChecklistNodeResponse(BaseModel):
     answer_type: ChecklistAnswerType | None = None
     required: bool
     help_text: str | None = None
+    option_hints: dict[str, str] = Field(default_factory=dict)
     references: list[ChecklistReferenceResponse] = Field(default_factory=list)
     children: list["ChecklistNodeResponse"] = Field(default_factory=list)
 

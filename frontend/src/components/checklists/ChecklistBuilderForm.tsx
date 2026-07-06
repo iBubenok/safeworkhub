@@ -5,7 +5,7 @@ import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, Plus, Search, Trash2, X 
 import * as checklistsApi from '@/api/checklists';
 import { searchMaterials } from '@/api/materials';
 import { getActionErrorMessage } from '@/api/errors';
-import { checklistAnswerTypeLabels } from '@/utils/checklistLabels';
+import { checklistAnswerTypeLabels, complianceValueLabels } from '@/utils/checklistLabels';
 import type { Checklist, ChecklistAnswerType, ChecklistNode, ChecklistNodeInput, ChecklistStatus } from '@/types';
 
 interface BuilderRef {
@@ -22,9 +22,23 @@ interface BuilderNode {
   answer_type: ChecklistAnswerType;
   required: boolean;
   help_text: string;
+  option_hints: Record<string, string>;
   references: BuilderRef[];
   children: BuilderNode[];
 }
+
+/** Варианты ответа с фиксированным набором — для них редактор задаёт подсказки. */
+const answerOptionsForHints: Partial<Record<ChecklistAnswerType, { value: string; label: string }[]>> = {
+  compliance: [
+    { value: 'compliant', label: complianceValueLabels.compliant },
+    { value: 'non_compliant', label: complianceValueLabels.non_compliant },
+    { value: 'not_applicable', label: complianceValueLabels.not_applicable },
+  ],
+  yes_no: [
+    { value: 'true', label: 'Да' },
+    { value: 'false', label: 'Нет' },
+  ],
+};
 
 function makeRef(): BuilderRef {
   return { key: crypto.randomUUID(), material_id: null, material_title: null, note: '' };
@@ -38,6 +52,7 @@ function makeNode(node_type: 'group' | 'item'): BuilderNode {
     answer_type: 'compliance',
     required: true,
     help_text: '',
+    option_hints: {},
     references: [],
     children: [],
   };
@@ -51,6 +66,7 @@ function fromNodes(nodes: ChecklistNode[]): BuilderNode[] {
     answer_type: n.answer_type ?? 'compliance',
     required: n.required,
     help_text: n.help_text ?? '',
+    option_hints: { ...n.option_hints },
     references: n.references.map((r) => ({
       key: crypto.randomUUID(),
       material_id: r.material_id,
@@ -73,6 +89,11 @@ function toInput(nodes: BuilderNode[]): ChecklistNodeInput[] {
             answer_type: n.answer_type,
             required: n.required,
             help_text: n.help_text.trim() || null,
+            option_hints: Object.fromEntries(
+              (answerOptionsForHints[n.answer_type] ?? [])
+                .map((o) => [o.value, (n.option_hints[o.value] ?? '').trim()] as const)
+                .filter(([, v]) => v),
+            ),
             references: n.references
               .filter((r) => r.material_id || r.note.trim())
               .map((r) => ({ material_id: r.material_id, note: r.note.trim() || null })),
@@ -275,6 +296,26 @@ function NodeEditor({
               value={node.help_text}
               onChange={(e) => handlers.patch(node.key, { help_text: e.target.value })}
             />
+            {answerOptionsForHints[node.answer_type] && (
+              <div className="space-y-2 rounded-md bg-gray-50 p-2">
+                <span className="text-xs text-gray-500">Подсказки к вариантам ответа (необязательно)</span>
+                {answerOptionsForHints[node.answer_type]?.map((opt) => (
+                  <div key={opt.value}>
+                    <label className="mb-0.5 block text-xs font-medium text-gray-600">{opt.label}</label>
+                    <input
+                      className="input"
+                      placeholder="Подсказка для этого варианта"
+                      value={node.option_hints[opt.value] ?? ''}
+                      onChange={(e) =>
+                        handlers.patch(node.key, {
+                          option_hints: { ...node.option_hints, [opt.value]: e.target.value },
+                        })
+                      }
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
             <div className="space-y-2 rounded-md bg-gray-50 p-2">
               <div className="flex items-center justify-between">
                 <span className="text-xs text-gray-500">Ссылки на законы/материалы (необязательно)</span>

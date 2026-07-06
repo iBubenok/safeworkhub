@@ -137,6 +137,8 @@ class ChecklistRunAnswer(Base, UUIDMixin, TimestampMixin):
     required: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     # Снимок ссылок пункта: [{"material_id": ..., "material_title": ..., "note": ...}].
     references: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, default=list, nullable=False)
+    # Снимок подсказок редактора к вариантам ответа: {"<значение>": "<текст>"}.
+    option_hints: Mapped[dict[str, str]] = mapped_column(JSONB, default=dict, nullable=False)
     # Введённое значение в каноническом виде (код compliance / "true"|"false" / текст / число строкой).
     value: Mapped[str | None] = mapped_column(Text)
     comment: Mapped[str | None] = mapped_column(Text)

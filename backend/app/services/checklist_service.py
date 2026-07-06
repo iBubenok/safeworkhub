@@ -57,6 +57,11 @@ class ChecklistService:
         for index, node in enumerate(nodes):
             node_id = uuid4()
             is_item = node.node_type == ChecklistNodeType.ITEM
+            option_hints = (
+                {key: value.strip() for key, value in node.option_hints.items() if value and value.strip()}
+                if is_item
+                else {}
+            )
             self.session.add(
                 ChecklistItem(
                     id=node_id,
@@ -68,6 +73,7 @@ class ChecklistService:
                     answer_type=node.answer_type if is_item else None,
                     required=node.required,
                     help_text=node.help_text,
+                    option_hints=option_hints,
                 )
             )
             if is_item:

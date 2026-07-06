@@ -92,6 +92,7 @@ class ChecklistRunService:
                         "answer_type": item.answer_type,
                         "required": item.required,
                         "references": references,
+                        "option_hints": item.option_hints,
                     }
                 )
 

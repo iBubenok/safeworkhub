@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, BookText, CheckCircle2, Eye, Save, Trash2, Users } from 'lucide-react';
+import { ArrowLeft, BookText, CheckCircle2, Eye, Info, Save, Trash2, Users } from 'lucide-react';
 
 import * as runsApi from '@/api/checklistRuns';
 import { handleActionError } from '@/api/errors';
@@ -331,6 +331,18 @@ export function ChecklistRunPage() {
                       disabled={!canEdit}
                     />
                   </div>
+
+                  {/* Подсказка редактора к выбранному варианту ответа. */}
+                  {(() => {
+                    const selected = draft[answer.id]?.value;
+                    const hint = selected ? answer.option_hints[selected] : undefined;
+                    return hint ? (
+                      <div className="mt-2 flex items-start gap-2 rounded-md bg-blue-50 p-2 text-sm text-blue-800">
+                        <Info className="mt-0.5 h-4 w-4 shrink-0 text-blue-500" />
+                        <span>{hint}</span>
+                      </div>
+                    ) : null;
+                  })()}
 
                   {answer.answer_type !== 'text' && (
                     <input

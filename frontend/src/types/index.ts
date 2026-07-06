@@ -256,6 +256,7 @@ export interface ChecklistNode {
   answer_type: ChecklistAnswerType | null;
   required: boolean;
   help_text: string | null;
+  option_hints: Record<string, string>;
   references: ChecklistReference[];
   children: ChecklistNode[];
 }
@@ -266,6 +267,7 @@ export interface ChecklistNodeInput {
   answer_type?: ChecklistAnswerType | null;
   required?: boolean;
   help_text?: string | null;
+  option_hints?: Record<string, string>;
   references?: ChecklistReferenceInput[];
   children?: ChecklistNodeInput[];
 }
@@ -338,6 +340,7 @@ export interface ChecklistRunAnswer {
   answer_type: ChecklistAnswerType;
   required: boolean;
   references: ChecklistRunReference[];
+  option_hints: Record<string, string>;
   value: string | null;
   comment: string | null;
 }

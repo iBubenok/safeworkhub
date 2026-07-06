@@ -65,6 +65,7 @@ class ChecklistRunAnswerResponse(BaseModel):
     answer_type: ChecklistAnswerType
     required: bool
     references: list[dict[str, Any]] = Field(default_factory=list)
+    option_hints: dict[str, str] = Field(default_factory=dict)
     value: str | None = None
     comment: str | None = None
 
