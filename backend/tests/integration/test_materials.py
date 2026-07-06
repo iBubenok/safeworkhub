@@ -1314,3 +1314,38 @@ async def test_npa_replacement_nulled_on_delete(client: AsyncClient, unique_emai
     assert deleted.status_code == 204, deleted.text
     old_resp = await client.get(f"/api/v1/materials/{old['id']}", headers=auth_headers(tokens), cookies=cookies)
     assert old_resp.json()["npa"]["replaced_by"] is None
+
+
+@pytest.mark.asyncio
+async def test_owner_cannot_set_public_visibility(client: AsyncClient, unique_email: str):
+    """Владелец без суперпользователя не может сделать материал публичным ни при создании, ни при правке."""
+    tokens, cookies = await register_and_login(client, unique_email)
+    created = await client.post(
+        "/api/v1/materials/articles",
+        json={"title": "Публичная статья", "content": "текст", "status": "published", "visibility": "public"},
+        headers=auth_headers(tokens),
+        cookies=cookies,
+    )
+    assert created.status_code == 403, created.text
+
+    article = await create_article(client, tokens, cookies)  # visibility=org по умолчанию
+    updated = await client.patch(
+        f"/api/v1/materials/{article['id']}",
+        json={"visibility": "public"},
+        headers=auth_headers(tokens),
+        cookies=cookies,
+    )
+    assert updated.status_code == 403, updated.text
+
+
+@pytest.mark.asyncio
+async def test_superuser_can_set_public_visibility(client: AsyncClient, db_session, unique_email: str):
+    """Суперпользователь может создать публичный материал."""
+    await register_and_login(client, unique_email)
+    await db_session.execute(update(User).where(User.email == unique_email).values(is_superuser=True))
+    await db_session.commit()
+    relogin = await client.post("/api/v1/auth/login", json={"email": unique_email, "password": "MaterialPass123!"})
+    su_tokens, su_cookies = relogin.json(), relogin.cookies
+
+    created = await create_article(client, su_tokens, su_cookies, title="Публичная от суперюзера", visibility="public")
+    assert created["visibility"] == "public"

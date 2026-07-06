@@ -296,6 +296,44 @@ async def test_superuser_sees_drafts(client: AsyncClient, db_session, unique_ema
 
 
 @pytest.mark.asyncio
+async def test_owner_cannot_set_public_visibility(client: AsyncClient, unique_email: str):
+    """Владелец без суперпользователя не может сделать чек-лист публичным ни при создании, ни при правке."""
+    tokens, cookies = await register_and_login(client, unique_email)
+    created = await client.post(
+        "/api/v1/checklists",
+        json={"title": "Пробую публичный", "status": "published", "visibility": "public", "items": []},
+        headers=auth_headers(tokens),
+        cookies=cookies,
+    )
+    # Пустые items тоже провалятся валидацией, но гейт видимости срабатывает раньше → 403.
+    assert created.status_code == 403, created.text
+
+    checklist = await create_checklist(client, tokens, cookies)  # visibility=org по умолчанию
+    updated = await client.patch(
+        f"/api/v1/checklists/{checklist['id']}",
+        json={"visibility": "public"},
+        headers=auth_headers(tokens),
+        cookies=cookies,
+    )
+    assert updated.status_code == 403, updated.text
+
+
+@pytest.mark.asyncio
+async def test_superuser_can_set_public_visibility(client: AsyncClient, db_session, unique_email: str):
+    """Суперпользователь может создать публичный чек-лист."""
+    await register_and_login(client, unique_email)
+    await db_session.execute(update(User).where(User.email == unique_email).values(is_superuser=True))
+    await db_session.commit()
+    relogin = await client.post("/api/v1/auth/login", json={"email": unique_email, "password": "CheckPass123!"})
+    su_tokens, su_cookies = relogin.json(), relogin.cookies
+
+    created = await create_checklist(
+        client, su_tokens, su_cookies, title="Публичный от суперюзера", visibility="public"
+    )
+    assert created["visibility"] == "public"
+
+
+@pytest.mark.asyncio
 async def test_list_search_by_title_and_description(client: AsyncClient, unique_email: str):
     """Параметр q фильтрует чек-листы по названию и описанию (на уровне API)."""
     tokens, cookies = await register_and_login(client, unique_email)

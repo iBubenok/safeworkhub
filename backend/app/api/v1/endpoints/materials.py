@@ -94,6 +94,7 @@ async def create_material(
         organization_id=ctx.organization_id,
         author_id=ctx.user.id,
         data=data,
+        is_superuser=ctx.user.is_superuser,
         request_id=getattr(request.state, "request_id", None),
     )
 
@@ -117,6 +118,7 @@ async def create_article(
         organization_id=ctx.organization_id,
         author_id=ctx.user.id,
         data=data,
+        is_superuser=ctx.user.is_superuser,
         request_id=getattr(request.state, "request_id", None),
     )
 
@@ -140,6 +142,7 @@ async def create_news(
         organization_id=ctx.organization_id,
         author_id=ctx.user.id,
         data=data,
+        is_superuser=ctx.user.is_superuser,
         request_id=getattr(request.state, "request_id", None),
     )
 
@@ -163,6 +166,7 @@ async def create_npa(
         organization_id=ctx.organization_id,
         author_id=ctx.user.id,
         data=data,
+        is_superuser=ctx.user.is_superuser,
         request_id=getattr(request.state, "request_id", None),
     )
 
@@ -211,6 +215,7 @@ async def create_template(
         organization_id=ctx.organization_id,
         author_id=ctx.user.id,
         data=data,
+        is_superuser=ctx.user.is_superuser,
         request_id=getattr(request.state, "request_id", None),
     )
 

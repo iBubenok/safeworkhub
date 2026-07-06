@@ -91,14 +91,22 @@ class MaterialService:
         item.attachment_count = len(material.attachments)
         return item
 
+    @staticmethod
+    def _ensure_public_allowed(visibility: MaterialVisibility, *, is_superuser: bool) -> None:
+        """Публичную видимость может задавать только суперпользователь."""
+        if visibility == MaterialVisibility.PUBLIC and not is_superuser:
+            raise AuthorizationError("Публичную видимость может задавать только суперпользователь")
+
     async def create_material(
         self,
         *,
         organization_id: int,
         author_id: UUID,
         data: MaterialCreate,
+        is_superuser: bool = False,
         request_id: str | None = None,
     ) -> MaterialResponse:
+        self._ensure_public_allowed(data.visibility, is_superuser=is_superuser)
         material = await self.repository.create(
             organization_id=organization_id,
             author_id=author_id,
@@ -130,6 +138,7 @@ class MaterialService:
         organization_id: int,
         author_id: UUID,
         data: ArticleCreate,
+        is_superuser: bool = False,
         request_id: str | None = None,
     ) -> MaterialResponse:
         """Создать статью (тип фиксирован ARTICLE).
@@ -137,6 +146,7 @@ class MaterialService:
         Per-type точка входа: позже рядом появятся create_npa и т.д.
         Переиспользует общий репозиторий/аудит, тело хранится в базовой таблице.
         """
+        self._ensure_public_allowed(data.visibility, is_superuser=is_superuser)
         material = await self.repository.create(
             organization_id=organization_id,
             author_id=author_id,
@@ -169,9 +179,11 @@ class MaterialService:
         organization_id: int,
         author_id: UUID,
         data: NewsCreate,
+        is_superuser: bool = False,
         request_id: str | None = None,
     ) -> MaterialResponse:
         """Создать новость: базовый материал (type=NEWS) + деталь-строку news."""
+        self._ensure_public_allowed(data.visibility, is_superuser=is_superuser)
         material = await self.repository.create(
             organization_id=organization_id,
             author_id=author_id,
@@ -216,9 +228,11 @@ class MaterialService:
         organization_id: int,
         author_id: UUID,
         data: NpaCreate,
+        is_superuser: bool = False,
         request_id: str | None = None,
     ) -> MaterialResponse:
         """Создать НПА: базовый материал (type=NPA) + деталь-строку npa."""
+        self._ensure_public_allowed(data.visibility, is_superuser=is_superuser)
         material = await self.repository.create(
             organization_id=organization_id,
             author_id=author_id,
@@ -327,9 +341,11 @@ class MaterialService:
         organization_id: int,
         author_id: UUID,
         data: TemplateCreate,
+        is_superuser: bool = False,
         request_id: str | None = None,
     ) -> MaterialResponse:
         """Создать шаблон (тип фиксирован TEMPLATE). Файлы грузятся отдельно."""
+        self._ensure_public_allowed(data.visibility, is_superuser=is_superuser)
         material = await self.repository.create(
             organization_id=organization_id,
             author_id=author_id,
@@ -371,6 +387,13 @@ class MaterialService:
             raise NotFoundError("Материал", str(material_id))
         if material.author_id != editor_id and not is_superuser:
             raise AuthorizationError("Редактировать материал может только его автор")
+        # Перевести материал в публичную видимость может только суперпользователь.
+        if (
+            data.visibility == MaterialVisibility.PUBLIC
+            and material.visibility != MaterialVisibility.PUBLIC
+            and not is_superuser
+        ):
+            raise AuthorizationError("Публичную видимость может задавать только суперпользователь")
 
         update_data = data.model_dump(exclude_unset=True)
         # change_note — поле версии, не материала: убираем до диффа.

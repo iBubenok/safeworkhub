@@ -7,7 +7,7 @@ from uuid import UUID, uuid4
 from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import NotFoundError, ValidationError
+from app.core.exceptions import AuthorizationError, NotFoundError, ValidationError
 from app.db.repositories import ChecklistRepository, MaterialRepository
 from app.models.checklist import (
     Checklist,
@@ -185,14 +185,22 @@ class ChecklistService:
             await self.repository.increment_views(checklist_id)
         return response
 
+    @staticmethod
+    def _ensure_public_allowed(visibility: ChecklistVisibility, *, is_superuser: bool) -> None:
+        """Публичную видимость может задавать только суперпользователь."""
+        if visibility == ChecklistVisibility.PUBLIC and not is_superuser:
+            raise AuthorizationError("Публичную видимость может задавать только суперпользователь")
+
     async def create_checklist(
         self,
         *,
         organization_id: int,
         author_id: UUID,
         data: ChecklistCreate,
+        is_superuser: bool = False,
         request_id: str | None = None,
     ) -> ChecklistResponse:
+        self._ensure_public_allowed(data.visibility, is_superuser=is_superuser)
         await self._validate_references(data.items, organization_id=organization_id)
         checklist = Checklist(
             organization_id=organization_id,
@@ -228,11 +236,19 @@ class ChecklistService:
         organization_id: int,
         editor_id: UUID,
         data: ChecklistUpdate,
+        is_superuser: bool = False,
         request_id: str | None = None,
     ) -> ChecklistResponse:
         checklist = await self.repository.get_with_items(checklist_id)
         if checklist is None or checklist.organization_id != organization_id:
             raise NotFoundError("Чек-лист", str(checklist_id))
+        # Перевести чек-лист в публичную видимость может только суперпользователь.
+        if (
+            data.visibility == ChecklistVisibility.PUBLIC
+            and checklist.visibility != ChecklistVisibility.PUBLIC
+            and not is_superuser
+        ):
+            raise AuthorizationError("Публичную видимость может задавать только суперпользователь")
 
         if data.title is not None:
             checklist.title = data.title

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { Building2, ClipboardCheck, ClipboardList, Eye, Globe, ListChecks, Search } from 'lucide-react';
+import { Building2, ClipboardCheck, ClipboardList, Eye, ListChecks, Search } from 'lucide-react';
 
 import * as checklistsApi from '@/api/checklists';
 import { StartRunDialog } from '@/components/checklists/StartRunDialog';
@@ -36,15 +36,6 @@ function ChecklistCard({ checklist }: { checklist: ChecklistListItem }) {
               <span className="rounded-full bg-gray-100 px-2 py-1 uppercase tracking-wide">
                 {checklistStatusLabels[checklist.status]}
               </span>
-              {checklist.visibility === 'public' && (
-                <span
-                  className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-1 font-medium text-blue-700"
-                  title="Публичный — доступен всем организациям"
-                >
-                  <Globe className="h-3.5 w-3.5" />
-                  Публичный
-                </span>
-              )}
               <span>{checklist.item_count} пунктов</span>
               <span className="inline-flex items-center gap-1" title="Просмотры">
                 <Eye className="h-3.5 w-3.5" />

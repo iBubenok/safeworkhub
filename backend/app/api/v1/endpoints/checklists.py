@@ -72,6 +72,7 @@ async def create_checklist(
         organization_id=ctx.organization_id,
         author_id=ctx.user.id,
         data=data,
+        is_superuser=ctx.user.is_superuser,
         request_id=getattr(request.state, "request_id", None),
     )
 
@@ -115,6 +116,7 @@ async def update_checklist(
         organization_id=ctx.organization_id,
         editor_id=ctx.user.id,
         data=data,
+        is_superuser=ctx.user.is_superuser,
         request_id=getattr(request.state, "request_id", None),
     )
 

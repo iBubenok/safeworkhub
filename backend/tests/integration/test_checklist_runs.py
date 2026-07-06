@@ -6,6 +6,9 @@ import uuid
 
 import pytest
 from httpx import AsyncClient
+from sqlalchemy import update
+
+from app.models import Checklist
 
 
 def auth_headers(tokens: dict) -> dict:
@@ -399,10 +402,15 @@ async def test_checklist_runs_count_is_monotonic(client: AsyncClient, unique_ema
 
 
 @pytest.mark.asyncio
-async def test_public_checklist_visible_and_usable_cross_org(client: AsyncClient, unique_email: str):
+async def test_public_checklist_visible_and_usable_cross_org(client: AsyncClient, db_session, unique_email: str):
     """Публичный опубликованный чек-лист виден другой организации, её сотрудник может провести проверку."""
     owner_a, cookies_a = await register_and_login(client, unique_email)
-    checklist = await create_checklist(client, owner_a, cookies_a, title="Публичный шаблон", visibility="public")
+    checklist = await create_checklist(client, owner_a, cookies_a, title="Публичный шаблон")
+    # Публичность выставляет только суперпользователь (через API); здесь — напрямую в БД.
+    await db_session.execute(
+        update(Checklist).where(Checklist.id == uuid.UUID(checklist["id"])).values(visibility="public")
+    )
+    await db_session.commit()
 
     owner_b, cookies_b = await register_and_login(client, f"orgb_{unique_email}", org_name="Орг Б", inn="7707083893")
     # Виден в списке.
