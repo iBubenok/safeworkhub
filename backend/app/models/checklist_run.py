@@ -95,6 +95,10 @@ class ChecklistRun(Base, UUIDMixin, TimestampMixin):
     not_applicable_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     notes: Mapped[str | None] = mapped_column(Text)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Срок проведения проверки. None = без срока.
+    due_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Когда отправлено напоминание «скоро срок» (анти-дубль). Сбрасывается при смене срока.
+    deadline_reminded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     # Факт корректировки: проверка была возобновлена после завершения (последняя корректировка).
     corrected_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     corrected_by_id: Mapped[UUID | None] = mapped_column(

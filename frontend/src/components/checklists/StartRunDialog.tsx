@@ -27,17 +27,24 @@ export function StartRunDialog({
   const { user } = usePermissions();
   const [title, setTitle] = useState('');
   const [assigneeIds, setAssigneeIds] = useState<string[]>([]);
+  const [dueAt, setDueAt] = useState('');
 
   useEffect(() => {
     if (open) {
       setTitle('');
       setAssigneeIds([]);
+      setDueAt('');
     }
   }, [open]);
 
   const startRun = useMutation({
     mutationFn: () =>
-      runsApi.startRun({ checklist_id: checklistId, title: title.trim() || null, assignee_ids: assigneeIds }),
+      runsApi.startRun({
+        checklist_id: checklistId,
+        title: title.trim() || null,
+        due_at: dueAt ? new Date(dueAt).toISOString() : null,
+        assignee_ids: assigneeIds,
+      }),
     onSuccess: (run) => {
       onOpenChange(false);
       navigate(`/checks/runs/${run.id}`);
@@ -91,6 +98,19 @@ export function StartRunDialog({
                 onChange={setAssigneeIds}
                 excludeIds={user ? [user.id] : []}
               />
+            </div>
+            <div>
+              <label className="label" htmlFor="run-due">
+                Срок проведения <span className="font-normal text-gray-400">(необязательно)</span>
+              </label>
+              <input
+                id="run-due"
+                type="datetime-local"
+                className="input"
+                value={dueAt}
+                onChange={(e) => setDueAt(e.target.value)}
+              />
+              <p className="mt-1 text-xs text-gray-500">Оставьте пустым — проверка без срока.</p>
             </div>
           </div>
 

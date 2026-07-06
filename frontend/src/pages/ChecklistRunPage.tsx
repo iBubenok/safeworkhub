@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, BookText, CheckCircle2, Eye, Info, Pencil, Save, Trash2, Users } from 'lucide-react';
+import { ArrowLeft, BookText, CalendarClock, CheckCircle2, Eye, Info, Pencil, Save, Trash2, Users } from 'lucide-react';
 
 import * as runsApi from '@/api/checklistRuns';
 import { handleActionError } from '@/api/errors';
 import { EditAssigneesDialog } from '@/components/checklists/EditAssigneesDialog';
+import { EditDeadlineDialog } from '@/components/checklists/EditDeadlineDialog';
 import { usePermissions } from '@/hooks/usePermissions';
 import {
   checklistRunResultLabels,
@@ -123,6 +124,7 @@ export function ChecklistRunPage() {
   const [title, setTitle] = useState('');
   const [notes, setNotes] = useState('');
   const [assigneesOpen, setAssigneesOpen] = useState(false);
+  const [deadlineOpen, setDeadlineOpen] = useState(false);
 
   useEffect(() => {
     if (!data) return;
@@ -245,6 +247,9 @@ export function ChecklistRunPage() {
           {data.corrected_at && (
             <span className="rounded-full bg-amber-50 px-2 py-1 font-medium text-amber-700">Скорректирована</span>
           )}
+          {data.is_overdue && (
+            <span className="rounded-full bg-red-50 px-2 py-1 font-medium text-red-700">Срок прошёл</span>
+          )}
           {data.conducted_by_name && <span>Проверяющий: {data.conducted_by_name}</span>}
           {data.assignees.length > 0 && (
             <span className="inline-flex items-center gap-1">
@@ -260,6 +265,20 @@ export function ChecklistRunPage() {
             >
               <Users className="h-3.5 w-3.5" />
               {data.assignees.length > 0 ? 'Изменить состав' : 'Назначить'}
+            </button>
+          )}
+          <span className="inline-flex items-center gap-1">
+            <CalendarClock className="h-3.5 w-3.5 text-gray-400" />
+            {data.due_at ? `Срок: ${formatDate(data.due_at)}` : 'Без срока'}
+          </span>
+          {canEdit && (
+            <button
+              type="button"
+              onClick={() => setDeadlineOpen(true)}
+              className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-primary-600 transition hover:bg-primary-50"
+            >
+              <CalendarClock className="h-3.5 w-3.5" />
+              {data.is_overdue ? 'Продлить' : 'Изменить срок'}
             </button>
           )}
           <span>{formatDate(data.created_at)}</span>
@@ -407,12 +426,16 @@ export function ChecklistRunPage() {
               <button
                 type="button"
                 className="btn-primary flex items-center gap-1"
-                disabled={busy}
+                disabled={busy || data.is_overdue}
+                title={data.is_overdue ? 'Срок истёк — продлите срок или снимите его, чтобы завершить' : undefined}
                 onClick={handleComplete}
               >
                 <CheckCircle2 size={16} /> Завершить проверку
               </button>
             </div>
+            {data.is_overdue && (
+              <p className="text-xs text-red-600">Срок проведения истёк — продлите срок или снимите его, чтобы завершить.</p>
+            )}
           </div>
         )}
 
@@ -430,6 +453,14 @@ export function ChecklistRunPage() {
         current={data.assignees}
         open={assigneesOpen}
         onOpenChange={setAssigneesOpen}
+        onSaved={invalidate}
+      />
+
+      <EditDeadlineDialog
+        runId={data.id}
+        currentDueAt={data.due_at}
+        open={deadlineOpen}
+        onOpenChange={setDeadlineOpen}
         onSaved={invalidate}
       />
     </div>

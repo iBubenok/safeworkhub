@@ -5,12 +5,18 @@ from uuid import UUID
 
 from fastapi import APIRouter, Query, Request, status
 
-from app.core.dependencies import ActiveSubscriptionContext, CurrentContext, DbSession
+from app.core.dependencies import (
+    ActiveSubscriptionContext,
+    CurrentContext,
+    CurrentNotificationService,
+    DbSession,
+)
 from app.models import OrgRole
 from app.models.checklist_run import ChecklistRunStatus
 from app.schemas.checklist_run import (
     ChecklistRunAssigneesUpdate,
     ChecklistRunCreate,
+    ChecklistRunDeadlineUpdate,
     ChecklistRunListResponse,
     ChecklistRunResponse,
     ChecklistRunUpdate,
@@ -36,8 +42,9 @@ async def start_run(
     data: ChecklistRunCreate,
     ctx: ActiveSubscriptionContext,
     session: DbSession,
+    notifications: CurrentNotificationService,
 ) -> ChecklistRunResponse:
-    service = ChecklistRunService(session)
+    service = ChecklistRunService(session, notifications=notifications)
     return await service.start_run(
         organization_id=ctx.organization_id,
         conducted_by_id=ctx.user.id,
@@ -121,14 +128,40 @@ async def set_assignees(
     data: ChecklistRunAssigneesUpdate,
     ctx: ActiveSubscriptionContext,
     session: DbSession,
+    notifications: CurrentNotificationService,
 ) -> ChecklistRunResponse:
-    service = ChecklistRunService(session)
+    service = ChecklistRunService(session, notifications=notifications)
     return await service.set_assignees(
         run_id,
         organization_id=ctx.organization_id,
         actor_id=ctx.user.id,
         is_owner=_is_owner(ctx),
         assignee_ids=data.assignee_ids,
+        request_id=getattr(request.state, "request_id", None),
+    )
+
+
+@router.put(
+    "/{run_id}/deadline",
+    response_model=ChecklistRunResponse,
+    summary="Изменить срок проведения",
+    description="Продлить или снять срок проведения. Доступно исполнителю или владельцу, пока проверка идёт.",
+)
+async def set_deadline(
+    run_id: UUID,
+    request: Request,
+    data: ChecklistRunDeadlineUpdate,
+    ctx: ActiveSubscriptionContext,
+    session: DbSession,
+    notifications: CurrentNotificationService,
+) -> ChecklistRunResponse:
+    service = ChecklistRunService(session, notifications=notifications)
+    return await service.set_deadline(
+        run_id,
+        organization_id=ctx.organization_id,
+        editor_id=ctx.user.id,
+        is_owner=_is_owner(ctx),
+        due_at=data.due_at,
         request_id=getattr(request.state, "request_id", None),
     )
 
@@ -166,8 +199,9 @@ async def complete_run(
     request: Request,
     ctx: ActiveSubscriptionContext,
     session: DbSession,
+    notifications: CurrentNotificationService,
 ) -> ChecklistRunResponse:
-    service = ChecklistRunService(session)
+    service = ChecklistRunService(session, notifications=notifications)
     return await service.complete_run(
         run_id,
         organization_id=ctx.organization_id,

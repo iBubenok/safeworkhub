@@ -54,6 +54,11 @@ export async function setAssignees(runId: string, assigneeIds: string[]): Promis
   return response.data;
 }
 
+export async function setDeadline(runId: string, dueAt: string | null): Promise<ChecklistRun> {
+  const response = await apiClient.put<ChecklistRun>(`/checklist-runs/${runId}/deadline`, { due_at: dueAt });
+  return response.data;
+}
+
 export async function deleteRun(runId: string): Promise<void> {
   await apiClient.delete(`/checklist-runs/${runId}`);
 }

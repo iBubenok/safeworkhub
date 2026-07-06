@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import uuid
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from httpx import AsyncClient
@@ -226,6 +227,85 @@ async def test_completed_run_is_read_only(client: AsyncClient, unique_email: str
         cookies=cookies,
     )
     assert patch.status_code == 409, patch.text
+
+
+@pytest.mark.asyncio
+async def test_overdue_blocks_completion_until_extended(client: AsyncClient, unique_email: str):
+    """Истёкший срок помечает проверку и блокирует завершение, пока срок не продлят/снимут."""
+    tokens, cookies = await register_and_login(client, unique_email)
+    checklist = await create_checklist(client, tokens, cookies)
+    past = (datetime.now(UTC) - timedelta(days=1)).isoformat()
+    run = await start_run(client, tokens, cookies, checklist["id"], due_at=past)
+    assert run["due_at"] is not None
+    assert run["is_overdue"] is True
+
+    # Завершить нельзя, пока просрочено.
+    blocked = await client.post(
+        f"/api/v1/checklist-runs/{run['id']}/complete", headers=auth_headers(tokens), cookies=cookies
+    )
+    assert blocked.status_code == 409, blocked.text
+
+    # Продление на будущее снимает просрочку.
+    future = (datetime.now(UTC) + timedelta(days=7)).isoformat()
+    extended = await client.put(
+        f"/api/v1/checklist-runs/{run['id']}/deadline",
+        json={"due_at": future},
+        headers=auth_headers(tokens),
+        cookies=cookies,
+    )
+    assert extended.status_code == 200, extended.text
+    assert extended.json()["is_overdue"] is False
+
+    done = await client.post(
+        f"/api/v1/checklist-runs/{run['id']}/complete", headers=auth_headers(tokens), cookies=cookies
+    )
+    assert done.status_code == 200, done.text
+
+
+@pytest.mark.asyncio
+async def test_deadline_clear_and_permissions(client: AsyncClient, unique_email: str):
+    """Снятие срока разрешает завершение; менять срок посторонний не может и нельзя у завершённой."""
+    owner_tokens, owner_cookies = await register_and_login(client, unique_email)
+    checklist = await create_checklist(client, owner_tokens, owner_cookies)
+    past = (datetime.now(UTC) - timedelta(days=1)).isoformat()
+    run = await start_run(client, owner_tokens, owner_cookies, checklist["id"], due_at=past)
+
+    # Посторонний участник не может менять срок.
+    member_tokens, member_cookies = await create_member_and_login(
+        client, owner_tokens, owner_cookies, f"member_{unique_email}"
+    )
+    denied = await client.put(
+        f"/api/v1/checklist-runs/{run['id']}/deadline",
+        json={"due_at": None},
+        headers=auth_headers(member_tokens),
+        cookies=member_cookies,
+    )
+    assert denied.status_code == 403, denied.text
+
+    # Снятие срока (без срока) — просрочки нет, можно завершить.
+    cleared = await client.put(
+        f"/api/v1/checklist-runs/{run['id']}/deadline",
+        json={"due_at": None},
+        headers=auth_headers(owner_tokens),
+        cookies=owner_cookies,
+    )
+    assert cleared.status_code == 200, cleared.text
+    assert cleared.json()["due_at"] is None
+    assert cleared.json()["is_overdue"] is False
+
+    done = await client.post(
+        f"/api/v1/checklist-runs/{run['id']}/complete", headers=auth_headers(owner_tokens), cookies=owner_cookies
+    )
+    assert done.status_code == 200, done.text
+
+    # У завершённой срок менять нельзя.
+    late = await client.put(
+        f"/api/v1/checklist-runs/{run['id']}/deadline",
+        json={"due_at": None},
+        headers=auth_headers(owner_tokens),
+        cookies=owner_cookies,
+    )
+    assert late.status_code == 409, late.text
 
 
 @pytest.mark.asyncio

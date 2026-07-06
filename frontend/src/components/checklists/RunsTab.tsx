@@ -41,6 +41,9 @@ function RunCard({ run }: { run: ChecklistRunListItem }) {
             {run.corrected_at && (
               <span className="rounded-full bg-amber-50 px-2 py-1 font-medium text-amber-700">Скорректирована</span>
             )}
+            {run.is_overdue && (
+              <span className="rounded-full bg-red-50 px-2 py-1 font-medium text-red-700">Срок прошёл</span>
+            )}
             <span>{formatDate(run.created_at)}</span>
           </div>
         </div>

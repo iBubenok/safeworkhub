@@ -24,6 +24,7 @@ class ChecklistRunCreate(BaseModel):
 
     checklist_id: UUID = Field(description="Чек-лист, по которому проводится проверка")
     title: str | None = Field(None, max_length=500, description="Название проверки/объекта (по умолчанию — чек-лист)")
+    due_at: datetime | None = Field(None, description="Срок проведения (необязательно; None = без срока)")
     assignee_ids: list[UUID] = Field(
         default_factory=list,
         description="Сотрудники организации, назначенные на проведение проверки (помимо создателя)",
@@ -34,6 +35,12 @@ class ChecklistRunAssigneesUpdate(BaseModel):
     """Изменение состава назначенных на проверку."""
 
     assignee_ids: list[UUID] = Field(description="Полный новый список назначенных сотрудников")
+
+
+class ChecklistRunDeadlineUpdate(BaseModel):
+    """Изменение срока проведения (продлить или снять)."""
+
+    due_at: datetime | None = Field(None, description="Новый срок; None = без срока")
 
 
 class ChecklistRunAnswerInput(BaseModel):
@@ -96,6 +103,8 @@ class ChecklistRunResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
     completed_at: datetime | None = None
+    due_at: datetime | None = None
+    is_overdue: bool = False
     corrected_at: datetime | None = None
     corrected_by_name: str | None = None
     answers: list[ChecklistRunAnswerResponse] = Field(default_factory=list)
@@ -119,6 +128,8 @@ class ChecklistRunListItem(BaseModel):
     assignees: list[AssigneeInfo] = Field(default_factory=list)
     created_at: datetime
     completed_at: datetime | None = None
+    due_at: datetime | None = None
+    is_overdue: bool = False
     corrected_at: datetime | None = None
 
 

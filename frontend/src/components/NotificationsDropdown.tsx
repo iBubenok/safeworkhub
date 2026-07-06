@@ -31,6 +31,8 @@ import { ru } from "date-fns/locale";
 const entityRoutes: Record<string, (id: string) => string> = {
   // Материал/статья → страница просмотра /materials/:id (MaterialDetailPage).
   material: (id) => `/materials/${id}`,
+  // Проверка по чек-листу → страница прохождения /checks/runs/:id (ChecklistRunPage).
+  checklist_run: (id) => `/checks/runs/${id}`,
 };
 
 // Определяет, куда ведёт уведомление. Приоритет: внешний URL -> внутренний путь -> сущность.

@@ -69,6 +69,10 @@ class Settings(BaseSettings):
     subscription_trial_days: int = 14
     default_tariff_code: str = "base"
 
+    # Напоминания о скором сроке проверки (фоновый сканер)
+    deadline_reminder_interval_seconds: int = 1800
+    deadline_reminder_threshold_hours: int = 24
+
     # Наблюдаемость
     prometheus_enabled: bool = True
     metrics_namespace: str = "safeworkhub"

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any
 from uuid import UUID
 
@@ -31,17 +32,52 @@ from app.schemas.checklist_run import (
     ChecklistRunResponse,
     ChecklistRunUpdate,
 )
+from app.schemas.notification import NotificationCreate
+from app.services.notification_service import NotificationService
 from app.services.utils import log_audit, utcnow
 
 
 class ChecklistRunService:
     """Сервис проверок по чек-листам."""
 
-    def __init__(self, session: AsyncSession) -> None:
+    def __init__(self, session: AsyncSession, notifications: NotificationService | None = None) -> None:
         self.session = session
         self.repository = ChecklistRunRepository(session)
         self.checklist_repo = ChecklistRepository(session)
         self.user_repo = UserRepository(session)
+        self.notifications = notifications
+
+    @staticmethod
+    def _run_audience(run: ChecklistRun) -> set[UUID]:
+        """Аудитория уведомлений: создатель проверки + назначенные."""
+        return {run.conducted_by_id, *(assignee.id for assignee in run.assignees)}
+
+    async def _notify(
+        self,
+        run: ChecklistRun,
+        recipients: set[UUID],
+        *,
+        title: str,
+        message: str,
+        type_: str = "info",
+        category: str = "check",
+    ) -> None:
+        """Разослать уведомление получателям (если сервис уведомлений подключён)."""
+        if self.notifications is None or not recipients:
+            return
+        await self.notifications.create_bulk(
+            list(recipients),
+            NotificationCreate(
+                user_id=next(iter(recipients)),  # перезапишется в create_bulk на каждого
+                title=title,
+                message=message,
+                type=type_,
+                category=category,
+                entity_type="checklist_run",
+                entity_id=run.id,
+                metadata={"url": f"/checks/runs/{run.id}"},
+            ),
+        )
 
     async def _validate_assignees(self, organization_id: int, assignee_ids: list[UUID]) -> list[User]:
         """Проверить, что все назначаемые — активные участники организации, и вернуть их."""
@@ -128,10 +164,16 @@ class ChecklistRunService:
             return None
         return round(compliant / denominator * 100, 1)
 
+    @staticmethod
+    def _is_overdue(run: ChecklistRun) -> bool:
+        """Срок истёк: проверка не завершена и назначенный срок в прошлом."""
+        return run.status == ChecklistRunStatus.IN_PROGRESS and run.due_at is not None and run.due_at < utcnow()
+
     def _to_response(self, run: ChecklistRun) -> ChecklistRunResponse:
         response = ChecklistRunResponse.model_validate(run)
         response.conducted_by_name = run.conducted_by.name if run.conducted_by else None
         response.corrected_by_name = run.corrected_by.name if run.corrected_by else None
+        response.is_overdue = self._is_overdue(run)
         response.score = self._score(run.compliant_count, run.non_compliant_count)
         # Имя правившего для каждого скорректированного ответа.
         corrector_names = {
@@ -144,6 +186,7 @@ class ChecklistRunService:
     def _to_list_item(self, run: ChecklistRun) -> ChecklistRunListItem:
         item = ChecklistRunListItem.model_validate(run)
         item.conducted_by_name = run.conducted_by.name if run.conducted_by else None
+        item.is_overdue = self._is_overdue(run)
         item.score = self._score(run.compliant_count, run.non_compliant_count)
         return item
 
@@ -180,6 +223,7 @@ class ChecklistRunService:
             title=data.title.strip() if data.title and data.title.strip() else None,
             conducted_by_id=conducted_by_id,
             status=ChecklistRunStatus.IN_PROGRESS,
+            due_at=data.due_at,
             assignees=assignees,
         )
         self.session.add(run)
@@ -201,6 +245,14 @@ class ChecklistRunService:
             user_id=str(conducted_by_id),
             request_id=request_id,
             details={"checklist_id": str(checklist.id), "items": len(snapshots)},
+        )
+        # Уведомляем назначенных (создатель — инициатор, себя не уведомляет).
+        await self._notify(
+            run,
+            {assignee.id for assignee in run.assignees},
+            title="Новая проверка",
+            message=f"Вам назначена проверка «{run.title or run.checklist_title}»",
+            type_="info",
         )
         loaded = await self.repository.get_with_answers(run.id)
         assert loaded is not None
@@ -270,6 +322,55 @@ class ChecklistRunService:
         assert loaded is not None
         return self._to_response(loaded)
 
+    async def set_deadline(
+        self,
+        run_id: UUID,
+        *,
+        organization_id: int,
+        editor_id: UUID,
+        is_owner: bool,
+        due_at: datetime | None,
+        request_id: str | None = None,
+    ) -> ChecklistRunResponse:
+        """Изменить срок проведения (продлить или снять). Доступно исполнителю, пока проверка идёт."""
+        run = await self.repository.get_with_answers(run_id)
+        if run is None or run.organization_id != organization_id:
+            raise NotFoundError("Проверка", str(run_id))
+        if run.status != ChecklistRunStatus.IN_PROGRESS:
+            raise ConflictError("Срок можно менять только у незавершённой проверки")
+        self._ensure_actor_can_edit(run, editor_id=editor_id, is_owner=is_owner)
+
+        run.due_at = due_at
+        # Новый срок — снова разрешаем напоминание «скоро срок».
+        run.deadline_reminded_at = None
+        await self.session.flush()
+
+        await log_audit(
+            self.session,
+            action="checklist_run_deadline_updated",
+            entity_type="checklist_run",
+            entity_id=str(run_id),
+            organization_id=organization_id,
+            user_id=str(editor_id),
+            request_id=request_id,
+            details={"due_at": due_at.isoformat() if due_at else None},
+        )
+        message = (
+            f"Срок проверки «{run.title or run.checklist_title}» изменён: до {due_at:%d.%m.%Y %H:%M}"
+            if due_at
+            else f"Срок проверки «{run.title or run.checklist_title}» снят"
+        )
+        await self._notify(
+            run,
+            self._run_audience(run) - {editor_id},
+            title="Изменён срок проверки",
+            message=message,
+            type_="info",
+        )
+        loaded = await self.repository.get_with_answers(run_id)
+        assert loaded is not None
+        return self._to_response(loaded)
+
     async def set_assignees(
         self,
         run_id: UUID,
@@ -293,7 +394,9 @@ class ChecklistRunService:
 
         # Создатель всегда редактор — не дублируем его в списке назначенных.
         filtered_ids = [uid for uid in assignee_ids if uid != run.conducted_by_id]
+        old_ids = {assignee.id for assignee in run.assignees}
         run.assignees = await self._validate_assignees(organization_id, filtered_ids)
+        new_ids = {assignee.id for assignee in run.assignees}
         await self.session.flush()
 
         await log_audit(
@@ -305,6 +408,21 @@ class ChecklistRunService:
             user_id=str(actor_id),
             request_id=request_id,
             details={"assignees": [str(assignee.id) for assignee in run.assignees]},
+        )
+        name = run.title or run.checklist_title
+        await self._notify(
+            run,
+            (new_ids - old_ids) - {actor_id},
+            title="Вас назначили на проверку",
+            message=f"Вас назначили на проверку «{name}»",
+            type_="info",
+        )
+        await self._notify(
+            run,
+            (old_ids - new_ids) - {actor_id},
+            title="Снят доступ к проверке",
+            message=f"С вас снят доступ к проверке «{name}»",
+            type_="warning",
         )
         loaded = await self.repository.get_with_answers(run_id)
         assert loaded is not None
@@ -392,6 +510,8 @@ class ChecklistRunService:
         if run is None or run.organization_id != organization_id:
             raise NotFoundError("Проверка", str(run_id))
         self._ensure_editable(run, editor_id=editor_id, is_owner=is_owner)
+        if self._is_overdue(run):
+            raise ConflictError("Срок проверки истёк — продлите срок или снимите его, чтобы завершить")
 
         counts = self._counts(list(run.answers))
         run.gradable_count = counts["gradable_count"]
@@ -412,6 +532,13 @@ class ChecklistRunService:
             user_id=str(editor_id),
             request_id=request_id,
             details={"result": run.result, "score": self._score(run.compliant_count, run.non_compliant_count)},
+        )
+        await self._notify(
+            run,
+            self._run_audience(run) - {editor_id},
+            title="Проверка завершена",
+            message=f"Проверка «{run.title or run.checklist_title}» завершена",
+            type_="success",
         )
         loaded = await self.repository.get_with_answers(run_id)
         assert loaded is not None

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
 import time
 import uuid
 from collections.abc import AsyncIterator, Awaitable, Callable
@@ -17,6 +19,7 @@ from app.api.v1.router import api_router
 from app.core.config import settings
 from app.core.exceptions import AppError
 from app.db.session import close_db
+from app.tasks.deadline_reminders import deadline_reminder_loop
 
 logger = structlog.get_logger(__name__)
 
@@ -46,8 +49,17 @@ def problem_response(request: Request, exc: AppError) -> JSONResponse:
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     """Управление жизненным циклом приложения."""
-    yield
-    await close_db()
+    reminder_task: asyncio.Task[None] | None = None
+    if not settings.is_testing:
+        reminder_task = asyncio.create_task(deadline_reminder_loop())
+    try:
+        yield
+    finally:
+        if reminder_task is not None:
+            reminder_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await reminder_task
+        await close_db()
 
 
 def create_application() -> FastAPI:

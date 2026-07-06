@@ -51,6 +51,11 @@ def _get_session_factory() -> async_sessionmaker[AsyncSession]:
     return _state.session_factory
 
 
+def get_sessionmaker() -> async_sessionmaker[AsyncSession]:
+    """Публичный доступ к фабрике сессий (для фоновых задач вне цикла запроса)."""
+    return _get_session_factory()
+
+
 async def get_session() -> AsyncGenerator[AsyncSession, None]:
     """Dependency для получения сессии БД.
 

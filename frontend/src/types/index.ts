@@ -372,6 +372,8 @@ export interface ChecklistRun {
   created_at: string;
   updated_at: string;
   completed_at: string | null;
+  due_at: string | null;
+  is_overdue: boolean;
   corrected_at: string | null;
   corrected_by_name: string | null;
   answers: ChecklistRunAnswer[];
@@ -391,12 +393,15 @@ export interface ChecklistRunListItem {
   assignees: RunAssignee[];
   created_at: string;
   completed_at: string | null;
+  due_at: string | null;
+  is_overdue: boolean;
   corrected_at: string | null;
 }
 
 export interface ChecklistRunCreateInput {
   checklist_id: string;
   title?: string | null;
+  due_at?: string | null;
   assignee_ids?: string[];
 }
 
