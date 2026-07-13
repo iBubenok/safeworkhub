@@ -7,10 +7,9 @@ from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from app.db.repositories.base import BaseRepository
-from app.models import AssignmentStatus, Course, CourseAssignment, CourseModule
+from app.models import AssignmentStatus, Course, CourseAssignment
 
 
 class CourseRepository(BaseRepository[Course]):
@@ -30,7 +29,6 @@ class CourseRepository(BaseRepository[Course]):
         query = (
             select(Course)
             .where(Course.organization_id == organization_id)
-            .options(selectinload(Course.modules))
             .order_by(Course.title)
             .limit(limit)
             .offset(offset)
@@ -40,33 +38,10 @@ class CourseRepository(BaseRepository[Course]):
         result = await self.session.execute(query)
         return list(result.scalars().all())
 
-    async def get_with_modules(self, course_id: int, organization_id: int) -> Course | None:
-        query = (
-            select(Course)
-            .where(Course.id == course_id, Course.organization_id == organization_id)
-            .options(selectinload(Course.modules))
-        )
+    async def get_for_org(self, course_id: int, organization_id: int) -> Course | None:
+        query = select(Course).where(Course.id == course_id, Course.organization_id == organization_id)
         result = await self.session.execute(query)
         return result.scalar_one_or_none()
-
-    async def add_module(
-        self,
-        course_id: int,
-        title: str,
-        content: str,
-        sort_order: int,
-        duration_minutes: int,
-    ) -> CourseModule:
-        module = CourseModule(
-            course_id=course_id,
-            title=title,
-            content=content,
-            sort_order=sort_order,
-            duration_minutes=duration_minutes,
-        )
-        self.session.add(module)
-        await self.session.flush()
-        return module
 
 
 class CourseAssignmentRepository(BaseRepository[CourseAssignment]):

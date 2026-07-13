@@ -12,6 +12,7 @@ import { ChecksPage } from '@/pages/ChecksPage';
 import { ChecklistDetailPage } from '@/pages/ChecklistDetailPage';
 import { ChecklistRunPage } from '@/pages/ChecklistRunPage';
 import { CoursesPage } from '@/pages/CoursesPage';
+import { CourseDetailPage } from '@/pages/CourseDetailPage';
 import { UsersPage } from '@/pages/UsersPage';
 import { SettingsPage } from '@/pages/SettingsPage';
 import { NotFoundPage } from '@/pages/NotFoundPage';
@@ -107,6 +108,7 @@ export default function App() {
         <Route path="checks/checklists/:id" element={<ChecklistDetailPage />} />
         <Route path="checks/runs/:id" element={<ChecklistRunPage />} />
         <Route path="courses" element={<CoursesPage />} />
+        <Route path="courses/:id" element={<CourseDetailPage />} />
         <Route path="reports" element={<ReportsPage />} />
         <Route path="users" element={<UsersPage />} />
         <Route path="settings" element={<SettingsPage />} />

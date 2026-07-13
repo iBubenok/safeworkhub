@@ -74,12 +74,9 @@ async def test_course_assignment_and_progress(client: AsyncClient, unique_email:
     course_payload = {
         "title": "Курс по охране труда",
         "description": "Базовый курс",
+        "content": "# Введение\n\nТекст курса, фото и видео.",
         "duration_minutes": 90,
         "is_published": False,
-        "modules": [
-            {"title": "Введение", "content": "Общие правила", "sort_order": 1, "duration_minutes": 30},
-            {"title": "Практика", "content": "Практические задания", "sort_order": 2, "duration_minutes": 60},
-        ],
     }
     course_resp = await client.post(
         "/api/v1/courses",
@@ -89,6 +86,16 @@ async def test_course_assignment_and_progress(client: AsyncClient, unique_email:
     )
     assert course_resp.status_code == 201, course_resp.text
     course_id = course_resp.json()["id"]
+    assert course_resp.json()["content"] == "# Введение\n\nТекст курса, фото и видео."
+
+    # Курс доступен по прямой ссылке с содержимым.
+    got = await client.get(
+        f"/api/v1/courses/{course_id}",
+        headers={"Authorization": f"Bearer {owner_tokens['access_token']}"},
+        cookies=owner_cookies,
+    )
+    assert got.status_code == 200, got.text
+    assert got.json()["content"] == "# Введение\n\nТекст курса, фото и видео."
 
     publish = await client.post(
         f"/api/v1/courses/{course_id}/publish",

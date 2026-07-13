@@ -40,6 +40,21 @@ async def list_courses(
     return [CourseResponse.model_validate(course) for course in courses]
 
 
+@router.get(
+    "/{course_id}",
+    response_model=CourseResponse,
+    summary="Получить курс",
+    description="Курс с содержимым. Доступно участникам организации.",
+)
+async def get_course(
+    course_id: int,
+    ctx: CurrentContext,
+    session: DbSession,
+) -> CourseResponse:
+    service = CourseService(session)
+    return await service.get_course(course_id, ctx.organization_id)
+
+
 @router.post(
     "",
     response_model=CourseResponse,

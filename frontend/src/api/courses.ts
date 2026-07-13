@@ -1,5 +1,5 @@
 import { apiClient } from './client';
-import type { Course, CourseAssignment, CourseModule } from '@/types';
+import type { Course, CourseAssignment } from '@/types';
 
 export async function listCourses(
   limit: number = 20,
@@ -11,20 +11,30 @@ export async function listCourses(
   return response.data;
 }
 
-export async function createCourse(data: {
+export async function getCourse(courseId: number): Promise<Course> {
+  const response = await apiClient.get<Course>(`/courses/${courseId}`);
+  return response.data;
+}
+
+export interface CourseInput {
   title: string;
   description?: string | null;
+  content?: string | null;
   duration_minutes?: number;
-  thumbnail_url?: string | null;
-  modules?: CourseModule[];
-}): Promise<Course> {
+}
+
+export async function createCourse(data: CourseInput): Promise<Course> {
   const response = await apiClient.post<Course>('/courses', {
     title: data.title,
     description: data.description ?? null,
+    content: data.content ?? null,
     duration_minutes: data.duration_minutes ?? 0,
-    thumbnail_url: data.thumbnail_url ?? null,
-    modules: data.modules ?? [],
   });
+  return response.data;
+}
+
+export async function updateCourse(courseId: number, data: Partial<CourseInput>): Promise<Course> {
+  const response = await apiClient.patch<Course>(`/courses/${courseId}`, data);
   return response.data;
 }
 

@@ -22,7 +22,7 @@ from app.models.checklist_run import (
     ChecklistRunResult,
     ChecklistRunStatus,
 )
-from app.models.course import AssignmentStatus, Course, CourseAssignment, CourseModule
+from app.models.course import AssignmentStatus, Course, CourseAssignment
 from app.models.material import (
     Category,
     Material,
@@ -61,7 +61,6 @@ __all__ = [
     "ChecklistVisibility",
     "Course",
     "CourseAssignment",
-    "CourseModule",
     "Material",
     "MaterialAttachment",
     "MaterialContentFormat",

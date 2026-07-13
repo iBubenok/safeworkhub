@@ -11,13 +11,33 @@ import remarkGfm from 'remark-gfm';
 //    (flex-карточки и т.п.). CSS не исполняет код, а авторство статей — у владельца.
 const sanitizeSchema = {
   ...defaultSchema,
-  tagNames: [...(defaultSchema.tagNames ?? []), 'div', 'span'],
+  // Дополнительно к белому списку GitHub разрешаем video/source (файлы) и iframe
+  // (встраивание видео). Хост iframe дополнительно проверяется при рендере.
+  tagNames: [...(defaultSchema.tagNames ?? []), 'div', 'span', 'video', 'source', 'iframe'],
   attributes: {
     ...defaultSchema.attributes,
     '*': [...(defaultSchema.attributes?.['*'] ?? []), 'style', 'className'],
     img: [...(defaultSchema.attributes?.img ?? []), 'width', 'height'],
+    video: ['src', 'controls', 'width', 'height', 'poster', 'preload', 'muted', 'loop', 'playsInline'],
+    source: ['src', 'type', 'srcSet'],
+    iframe: ['src', 'width', 'height', 'allow', 'allowFullScreen', 'frameBorder', 'title', 'loading'],
   },
 };
+
+// Разрешённые хосты для встраивания видео через iframe (белый список).
+const ALLOWED_EMBED_HOSTS = ['youtube.com', 'youtube-nocookie.com', 'vimeo.com', 'rutube.ru'];
+
+function isAllowedEmbed(src: string | undefined): boolean {
+  if (!src) return false;
+  try {
+    const url = new URL(src);
+    if (url.protocol !== 'https:') return false;
+    const host = url.hostname.toLowerCase();
+    return ALLOWED_EMBED_HOSTS.some((d) => host === d || host.endsWith(`.${d}`));
+  } catch {
+    return false;
+  }
+}
 
 // Число → пиксели; значения с единицами (например "50%") оставляем как есть.
 function sizeToCss(value: string | number | undefined): string | undefined {
@@ -69,6 +89,41 @@ const components: Components = {
         style={style}
         className="my-2 h-auto max-w-full rounded border border-gray-200"
       />
+    );
+  },
+  video: ({ src, poster, children }) => (
+    <video
+      src={typeof src === 'string' ? src : undefined}
+      poster={typeof poster === 'string' ? poster : undefined}
+      controls
+      className="my-2 max-w-full rounded border border-gray-200"
+    >
+      {children}
+    </video>
+  ),
+  source: ({ src, type }) => (
+    <source src={typeof src === 'string' ? src : undefined} type={typeof type === 'string' ? type : undefined} />
+  ),
+  // iframe рендерим только с доверенных видеохостов (белый список), иначе — просто ссылка.
+  iframe: ({ src, title }) => {
+    const url = typeof src === 'string' ? src : undefined;
+    if (!isAllowedEmbed(url)) {
+      return url ? (
+        <a href={url} target="_blank" rel="noopener noreferrer" className="text-primary-600 underline">
+          {url}
+        </a>
+      ) : null;
+    }
+    return (
+      <div className="my-3 aspect-video w-full max-w-2xl">
+        <iframe
+          src={url}
+          title={typeof title === 'string' ? title : 'Видео'}
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          allowFullScreen
+          className="h-full w-full rounded border border-gray-200"
+        />
+      </div>
     );
   },
   strong: ({ children }) => <strong className="font-semibold">{children}</strong>,

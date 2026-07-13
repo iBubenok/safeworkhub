@@ -41,6 +41,12 @@ class CourseService:
             offset=offset,
         )
 
+    async def get_course(self, course_id: int, organization_id: int) -> CourseResponse:
+        course = await self.course_repo.get_for_org(course_id, organization_id)
+        if course is None:
+            raise NotFoundError("Курс", course_id)
+        return CourseResponse.model_validate(course)
+
     async def create_course(
         self,
         organization_id: int,
@@ -52,23 +58,11 @@ class CourseService:
             organization_id=organization_id,
             title=data.title,
             description=data.description,
+            content=data.content,
             duration_minutes=data.duration_minutes,
             is_published=data.is_published,
             thumbnail_url=data.thumbnail_url,
         )
-
-        for module in data.modules:
-            await self.course_repo.add_module(
-                course_id=course.id,
-                title=module.title,
-                content=module.content,
-                sort_order=module.sort_order,
-                duration_minutes=module.duration_minutes,
-            )
-
-        course_with_modules = await self.course_repo.get_with_modules(course.id, organization_id)
-        if course_with_modules is None:
-            raise NotFoundError("Курс", course.id)
         await log_audit(
             self.session,
             action="course_created",
@@ -77,9 +71,8 @@ class CourseService:
             organization_id=organization_id,
             user_id=None,
             request_id=request_id,
-            details={"modules": len(data.modules)},
         )
-        return CourseResponse.model_validate(course_with_modules)
+        return CourseResponse.model_validate(course)
 
     async def update_course(
         self,
@@ -89,30 +82,13 @@ class CourseService:
         *,
         request_id: str | None = None,
     ) -> CourseResponse:
-        course = await self.course_repo.get_by_id(course_id)
-        if course is None or course.organization_id != organization_id:
+        course = await self.course_repo.get_for_org(course_id, organization_id)
+        if course is None:
             raise NotFoundError("Курс", course_id)
 
-        update_data = data.model_dump(exclude_unset=True, exclude={"modules"})
+        update_data = data.model_dump(exclude_unset=True)
         updated = await self.course_repo.update(course_id, **update_data)
         if updated is None:
-            raise NotFoundError("Курс", course_id)
-
-        if data.modules is not None:
-            # Удаляем старые модули и создаём заново (MVP-упрощение)
-            updated.modules.clear()
-            await self.session.flush()
-            for module in data.modules:
-                await self.course_repo.add_module(
-                    course_id=course_id,
-                    title=module.title,
-                    content=module.content,
-                    sort_order=module.sort_order,
-                    duration_minutes=module.duration_minutes,
-                )
-
-        course_with_modules = await self.course_repo.get_with_modules(course_id, organization_id)
-        if course_with_modules is None:
             raise NotFoundError("Курс", course_id)
         await log_audit(
             self.session,
@@ -123,7 +99,7 @@ class CourseService:
             user_id=None,
             request_id=request_id,
         )
-        return CourseResponse.model_validate(course_with_modules)
+        return CourseResponse.model_validate(updated)
 
     async def publish_course(
         self,
@@ -132,16 +108,13 @@ class CourseService:
         *,
         request_id: str | None = None,
     ) -> CourseResponse:
-        course = await self.course_repo.get_by_id(course_id)
-        if course is None or course.organization_id != organization_id:
+        course = await self.course_repo.get_for_org(course_id, organization_id)
+        if course is None:
             raise NotFoundError("Курс", course_id)
 
         updated = await self.course_repo.update(course_id, is_published=True)
         if updated is None:
             raise NotFoundError("Курс", course_id)
-        course_with_modules = await self.course_repo.get_with_modules(updated.id, organization_id)
-        if course_with_modules is None:
-            raise NotFoundError("Курс", updated.id)
         await log_audit(
             self.session,
             action="course_published",
@@ -151,7 +124,7 @@ class CourseService:
             user_id=None,
             request_id=request_id,
         )
-        return CourseResponse.model_validate(course_with_modules)
+        return CourseResponse.model_validate(updated)
 
     async def assign_course(
         self,

@@ -1,10 +1,12 @@
 import { useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { BookOpenCheck, Rocket, UsersRound, Clock3 } from 'lucide-react';
+import { Rocket, UsersRound, Clock3 } from 'lucide-react';
 
 import * as coursesApi from '@/api/courses';
 import * as usersApi from '@/api/users';
 import { getErrorMessage } from '@/api/client';
+import { ContentEditor } from '@/components/ContentEditor';
 import { usePermissions } from '@/hooks/usePermissions';
 import type { Course } from '@/types';
 
@@ -15,6 +17,7 @@ export function CoursesPage() {
   const [newCourse, setNewCourse] = useState({
     title: '',
     description: '',
+    content: '',
     duration_minutes: 0,
   });
   const [assignmentTargets, setAssignmentTargets] = useState<Record<number, string>>({});
@@ -43,7 +46,7 @@ export function CoursesPage() {
     mutationFn: coursesApi.createCourse,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['courses'] });
-      setNewCourse({ title: '', description: '', duration_minutes: 0 });
+      setNewCourse({ title: '', description: '', content: '', duration_minutes: 0 });
     },
     onError: (error) => setFormError(getErrorMessage(error)),
   });
@@ -72,6 +75,7 @@ export function CoursesPage() {
     await createCourse.mutateAsync({
       title: newCourse.title,
       description: newCourse.description || null,
+      content: newCourse.content || null,
       duration_minutes: newCourse.duration_minutes,
     });
   };
@@ -131,15 +135,28 @@ export function CoursesPage() {
             </div>
             <div>
               <label className="label" htmlFor="courseDescription">
-                Описание
+                Краткое описание
               </label>
               <textarea
                 id="courseDescription"
-                className="input min-h-[100px]"
+                className="input min-h-[60px]"
                 value={newCourse.description}
                 onChange={(e) =>
                   setNewCourse((prev) => ({ ...prev, description: e.target.value }))
                 }
+              />
+            </div>
+            <div>
+              <label className="label" htmlFor="courseContent">
+                Содержимое курса
+              </label>
+              <p className="mb-2 text-xs text-gray-500">
+                Текст, фото, видео (YouTube/Vimeo/RuTube) — та же разметка, что и в статьях.
+              </p>
+              <ContentEditor
+                id="courseContent"
+                value={newCourse.content}
+                onChange={(v) => setNewCourse((prev) => ({ ...prev, content: v }))}
               />
             </div>
             <div className="flex justify-end">
@@ -157,7 +174,12 @@ export function CoursesPage() {
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="text-sm uppercase text-gray-500">Курс #{course.id}</p>
-                <h3 className="text-lg font-semibold text-gray-900">{course.title}</h3>
+                <Link
+                  to={`/courses/${course.id}`}
+                  className="text-lg font-semibold text-gray-900 hover:text-primary-700 hover:underline"
+                >
+                  {course.title}
+                </Link>
                 <p className="text-sm text-gray-600">{course.description || 'Описание не задано'}</p>
               </div>
               <div className="rounded-full bg-gray-100 px-3 py-1 text-xs uppercase text-gray-700">
@@ -165,15 +187,14 @@ export function CoursesPage() {
               </div>
             </div>
 
-            <div className="flex flex-wrap gap-3 text-sm text-gray-600">
+            <div className="flex flex-wrap items-center gap-3 text-sm text-gray-600">
               <span className="flex items-center gap-2">
                 <Clock3 className="h-4 w-4 text-gray-400" />
                 {course.duration_minutes} минут
               </span>
-              <span className="flex items-center gap-2">
-                <BookOpenCheck className="h-4 w-4 text-gray-400" />
-                Модулей: {course.modules.length}
-              </span>
+              <Link to={`/courses/${course.id}`} className="text-primary-600 hover:underline">
+                Открыть курс →
+              </Link>
             </div>
 
             {isOwner && (

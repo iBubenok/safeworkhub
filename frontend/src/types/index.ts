@@ -452,27 +452,17 @@ export interface MaterialSearchParams extends PaginationParams {
   status?: MaterialStatus;
 }
 
-export interface CourseModule {
-  id?: number;
-  title: string;
-  content: string;
-  sort_order: number;
-  duration_minutes: number;
-  created_at?: string;
-  updated_at?: string;
-}
-
 export interface Course {
   id: number;
   organization_id: number;
   title: string;
   description: string | null;
+  content: string | null;
   duration_minutes: number;
   is_published: boolean;
   thumbnail_url: string | null;
   created_at: string;
   updated_at: string;
-  modules: CourseModule[];
 }
 
 export interface CourseAssignment {

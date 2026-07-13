@@ -39,17 +39,14 @@ class Course(Base, IntegerPKMixin, TimestampMixin):
     )
     title: Mapped[str] = mapped_column(String(500), nullable=False)
     description: Mapped[str | None] = mapped_column(Text)
+    # Единое содержимое курса в формате разметки статей (текст, фото, видео и т.п.).
+    content: Mapped[str | None] = mapped_column(Text)
     duration_minutes: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     is_published: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     thumbnail_url: Mapped[str | None] = mapped_column(String(500))
 
     # Связи
     organization: Mapped["Organization"] = relationship(back_populates="courses")
-    modules: Mapped[list["CourseModule"]] = relationship(
-        back_populates="course",
-        cascade="all, delete-orphan",
-        order_by="CourseModule.sort_order",
-    )
     assignments: Mapped[list["CourseAssignment"]] = relationship(
         back_populates="course",
         cascade="all, delete-orphan",
@@ -62,29 +59,6 @@ class Course(Base, IntegerPKMixin, TimestampMixin):
 
     def __repr__(self) -> str:
         return f"<Course {self.title}>"
-
-
-class CourseModule(Base, IntegerPKMixin, TimestampMixin):
-    """Модуль (урок) курса."""
-
-    __tablename__ = "course_modules"
-
-    course_id: Mapped[int] = mapped_column(
-        ForeignKey("courses.id", ondelete="CASCADE"),
-        nullable=False,
-    )
-    title: Mapped[str] = mapped_column(String(500), nullable=False)
-    content: Mapped[str] = mapped_column(Text, nullable=False)
-    sort_order: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    duration_minutes: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-
-    # Связи
-    course: Mapped["Course"] = relationship(back_populates="modules")
-
-    __table_args__ = (Index("ix_course_modules_course_id", "course_id"),)
-
-    def __repr__(self) -> str:
-        return f"<CourseModule {self.title}>"
 
 
 class AssignmentStatus(StrEnum):
