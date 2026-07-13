@@ -38,6 +38,7 @@ class User(Base, UUIDMixin, TimestampMixin):
         nullable=True,
     )
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    password_changed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     # Связи
     organization_memberships: Mapped[list["OrganizationUser"]] = relationship(

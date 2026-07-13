@@ -43,6 +43,7 @@ class UserResponse(UserBase):
     is_superuser: bool = False
     primary_organization_id: int | None = None
     role: str | None = None
+    password_changed_at: datetime | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -72,3 +73,16 @@ class OrgMemberOption(BaseModel):
     id: UUID
     name: str
     email: EmailStr
+
+
+class PasswordChangeSelf(BaseModel):
+    """Смена собственного пароля (с подтверждением текущего)."""
+
+    current_password: str = Field(min_length=1, description="Текущий пароль")
+    new_password: str = Field(min_length=8, max_length=100, description="Новый пароль (минимум 8 символов)")
+
+
+class PasswordSet(BaseModel):
+    """Установка нового пароля другому пользователю (админом)."""
+
+    new_password: str = Field(min_length=8, max_length=100, description="Новый пароль (минимум 8 символов)")

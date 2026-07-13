@@ -7,13 +7,16 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import (
+    AuthorizationError,
     EmailAlreadyExistsError,
     UserLimitExceededError,
     UserNotFoundError,
+    ValidationError,
 )
-from app.core.security import get_password_hash
+from app.core.security import get_password_hash, verify_password
 from app.db.repositories import (
     OrganizationRepository,
+    RefreshSessionRepository,
     SubscriptionRepository,
     UserRepository,
 )
@@ -26,7 +29,7 @@ from app.schemas.user import (
     UserUpdate,
     UserWithMemberships,
 )
-from app.services.utils import log_audit
+from app.services.utils import log_audit, utcnow
 
 
 class UserService:
@@ -37,6 +40,7 @@ class UserService:
         self.repository = UserRepository(session)
         self.organization_repo = OrganizationRepository(session)
         self.subscription_repo = SubscriptionRepository(session)
+        self.refresh_repo = RefreshSessionRepository(session)
 
     async def _map_memberships(self, user_id: UUID) -> list[MembershipResponse]:
         user = await self.repository.get_with_memberships(user_id)
@@ -88,6 +92,7 @@ class UserService:
             name=data.name,
             is_active=True,
             primary_organization_id=organization_id,
+            password_changed_at=utcnow(),
         )
 
         role = OrgRole(data.role) if data.role else OrgRole.MEMBER
@@ -215,3 +220,92 @@ class UserService:
             for user, role in rows
             if needle in user.email.lower() or needle in user.name.lower()
         ]
+
+    async def change_own_password(
+        self,
+        user_id: UUID,
+        *,
+        organization_id: int,
+        current_password: str,
+        new_password: str,
+        request_id: str | None = None,
+    ) -> None:
+        """Смена собственного пароля с проверкой текущего. Сессии не отзываются."""
+        user = await self.repository.get_by_id(user_id)
+        if user is None:
+            raise UserNotFoundError(str(user_id))
+        if not verify_password(current_password, user.password_hash):
+            raise ValidationError("Текущий пароль указан неверно")
+        await self.repository.update(
+            user_id,
+            password_hash=get_password_hash(new_password),
+            password_changed_at=utcnow(),
+        )
+        await log_audit(
+            self.session,
+            action="password_changed",
+            entity_type="user",
+            entity_id=str(user_id),
+            organization_id=organization_id,
+            user_id=str(user_id),
+            request_id=request_id,
+        )
+
+    @staticmethod
+    def _can_set_password(
+        *,
+        actor_role: OrgRole | str | None,
+        actor_is_superuser: bool,
+        target_role: OrgRole,
+        target_is_superuser: bool,
+    ) -> bool:
+        """Кто кому может задать пароль: супер — любому; владелец — только сотрудникам."""
+        if target_is_superuser and not actor_is_superuser:
+            return False
+        if actor_is_superuser:
+            return True
+        if actor_role == OrgRole.ORG_OWNER:
+            return target_role == OrgRole.MEMBER
+        return False
+
+    async def set_user_password(
+        self,
+        target_id: UUID,
+        *,
+        organization_id: int,
+        actor_id: UUID,
+        actor_role: OrgRole | str | None,
+        actor_is_superuser: bool,
+        new_password: str,
+        request_id: str | None = None,
+    ) -> None:
+        """Установить пароль другому пользователю организации (админ). Отзывает его сессии."""
+        if target_id == actor_id:
+            raise ValidationError("Свой пароль меняйте в разделе «Настройки»")
+        target = await self.repository.get_by_id(target_id)
+        membership = await self.repository.get_membership(target_id, organization_id)
+        if target is None or membership is None:
+            raise UserNotFoundError(str(target_id))
+        if not self._can_set_password(
+            actor_role=actor_role,
+            actor_is_superuser=actor_is_superuser,
+            target_role=membership.role,
+            target_is_superuser=target.is_superuser,
+        ):
+            raise AuthorizationError("Недостаточно прав для смены пароля этого пользователя")
+        await self.repository.update(
+            target_id,
+            password_hash=get_password_hash(new_password),
+            password_changed_at=utcnow(),
+        )
+        # Принудительно завершаем сессии пользователя — старый пароль больше не действует.
+        await self.refresh_repo.revoke_all_for_user(target_id)
+        await log_audit(
+            self.session,
+            action="password_set_by_admin",
+            entity_type="user",
+            entity_id=str(target_id),
+            organization_id=organization_id,
+            user_id=str(actor_id),
+            request_id=request_id,
+        )

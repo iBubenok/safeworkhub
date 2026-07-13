@@ -1,18 +1,20 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { UserRound, Shield, Mail, Lock, Plus } from 'lucide-react';
+import { UserRound, Shield, Mail, Lock, Plus, KeyRound } from 'lucide-react';
 
 import * as usersApi from '@/api/users';
 import { getErrorMessage } from '@/api/client';
 import { AccessDenied } from '@/components/ui/AccessDenied';
+import { SetUserPasswordDialog } from '@/components/users/SetUserPasswordDialog';
 import { usePermissions } from '@/hooks/usePermissions';
 import { roleLabel, roleLabels } from '@/utils/roleLabels';
 
 export function UsersPage() {
   const queryClient = useQueryClient();
-  const { isOwner } = usePermissions();
+  const { isOwner, user: currentUser, canChangePasswordOf } = usePermissions();
 
   const [search, setSearch] = useState('');
+  const [pwTarget, setPwTarget] = useState<{ id: string; name: string } | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [newUser, setNewUser] = useState({
     name: '',
@@ -185,28 +187,46 @@ export function UsersPage() {
                   Статус: {user.is_active ? 'активен' : 'заблокирован'}
                 </p>
               </div>
-              {isOwner &&
-                (user.is_active ? (
-                  <button
-                    className="btn-secondary"
-                    onClick={() => deactivateUser.mutate(user.id)}
-                    disabled={deactivateUser.isPending}
-                  >
-                    Деактивировать
-                  </button>
-                ) : (
-                  <button
-                    className="btn-primary"
-                    onClick={() => activateUser.mutate(user.id)}
-                    disabled={activateUser.isPending}
-                  >
-                    Активировать
-                  </button>
-                ))}
+              <div className="flex items-center gap-2">
+                {user.id !== currentUser?.id &&
+                  canChangePasswordOf({
+                    id: user.id,
+                    role: user.role,
+                    is_superuser: user.is_superuser,
+                  }) && (
+                    <button
+                      className="btn-secondary flex items-center gap-1"
+                      onClick={() => setPwTarget({ id: user.id, name: user.name })}
+                    >
+                      <KeyRound className="h-4 w-4" />
+                      Сменить пароль
+                    </button>
+                  )}
+                {isOwner &&
+                  (user.is_active ? (
+                    <button
+                      className="btn-secondary"
+                      onClick={() => deactivateUser.mutate(user.id)}
+                      disabled={deactivateUser.isPending}
+                    >
+                      Деактивировать
+                    </button>
+                  ) : (
+                    <button
+                      className="btn-primary"
+                      onClick={() => activateUser.mutate(user.id)}
+                      disabled={activateUser.isPending}
+                    >
+                      Активировать
+                    </button>
+                  ))}
+              </div>
             </div>
           ))
         )}
       </div>
+
+      <SetUserPasswordDialog target={pwTarget} onClose={() => setPwTarget(null)} />
     </div>
   );
 }

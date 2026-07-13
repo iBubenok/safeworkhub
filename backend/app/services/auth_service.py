@@ -90,6 +90,7 @@ class AuthService:
             name=data.admin_name,
             is_active=True,
             primary_organization_id=organization.id,
+            password_changed_at=utcnow(),
         )
 
         await self.user_repo.add_membership(

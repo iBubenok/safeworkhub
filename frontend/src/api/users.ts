@@ -32,6 +32,17 @@ export async function createUser(data: {
   return response.data;
 }
 
+export async function changeOwnPassword(data: {
+  current_password: string;
+  new_password: string;
+}): Promise<void> {
+  await apiClient.post('/users/me/password', data);
+}
+
+export async function setUserPassword(userId: string, newPassword: string): Promise<void> {
+  await apiClient.post(`/users/${userId}/password`, { new_password: newPassword });
+}
+
 export async function deactivateUser(userId: string): Promise<void> {
   await apiClient.delete(`/users/${userId}`);
 }

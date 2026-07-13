@@ -7,7 +7,15 @@ from fastapi import APIRouter, Depends, Query, Request, status
 
 from app.core.dependencies import CurrentContext, DbSession, require_roles
 from app.models import OrgRole
-from app.schemas.user import OrgMemberOption, UserCreate, UserResponse, UserUpdate, UserWithMemberships
+from app.schemas.user import (
+    OrgMemberOption,
+    PasswordChangeSelf,
+    PasswordSet,
+    UserCreate,
+    UserResponse,
+    UserUpdate,
+    UserWithMemberships,
+)
 from app.services.user_service import UserService
 
 router = APIRouter()
@@ -40,6 +48,56 @@ async def update_current_user(
 ) -> UserWithMemberships:
     service = UserService(session)
     return await service.update_user(ctx.user.id, ctx.organization_id, data)
+
+
+@router.post(
+    "/me/password",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Сменить свой пароль",
+    description="Смена собственного пароля с подтверждением текущего. Доступно любому пользователю.",
+)
+async def change_own_password(
+    request: Request,
+    data: PasswordChangeSelf,
+    ctx: CurrentContext,
+    session: DbSession,
+) -> None:
+    service = UserService(session)
+    await service.change_own_password(
+        ctx.user.id,
+        organization_id=ctx.organization_id,
+        current_password=data.current_password,
+        new_password=data.new_password,
+        request_id=getattr(request.state, "request_id", None),
+    )
+
+
+@router.post(
+    "/{user_id}/password",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Задать пароль пользователю",
+    description=(
+        "Установка нового пароля другому пользователю. Суперпользователь — любому в организации, "
+        "владелец — только сотрудникам."
+    ),
+)
+async def set_user_password(
+    user_id: UUID,
+    request: Request,
+    data: PasswordSet,
+    ctx: CurrentContext,
+    session: DbSession,
+) -> None:
+    service = UserService(session)
+    await service.set_user_password(
+        user_id,
+        organization_id=ctx.organization_id,
+        actor_id=ctx.user.id,
+        actor_role=ctx.role,
+        actor_is_superuser=ctx.user.is_superuser,
+        new_password=data.new_password,
+        request_id=getattr(request.state, "request_id", None),
+    )
 
 
 @router.get(

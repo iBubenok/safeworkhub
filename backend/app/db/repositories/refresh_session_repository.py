@@ -69,6 +69,14 @@ class RefreshSessionRepository(BaseRepository[RefreshSession]):
             .values(revoked_at=datetime.now(UTC))
         )
 
+    async def revoke_all_for_user(self, user_id: UUID) -> None:
+        """Отозвать все активные refresh-сессии пользователя (напр. при смене пароля админом)."""
+        await self.session.execute(
+            update(RefreshSession)
+            .where(RefreshSession.user_id == user_id, RefreshSession.revoked_at.is_(None))
+            .values(revoked_at=datetime.now(UTC))
+        )
+
     async def mark_used(self, session_id: UUID) -> None:
         """Обновить время последнего использования."""
         session = await self.get_by_id(session_id)

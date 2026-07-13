@@ -8,6 +8,7 @@ export interface User {
   is_active: boolean;
   is_superuser: boolean;
   primary_organization_id: number | null;
+  password_changed_at: string | null;
   created_at: string;
   updated_at: string;
 }
