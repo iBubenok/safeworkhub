@@ -5,23 +5,17 @@ import { Rocket, UsersRound, Clock3 } from 'lucide-react';
 
 import * as coursesApi from '@/api/courses';
 import * as usersApi from '@/api/users';
-import { getErrorMessage } from '@/api/client';
-import { ContentEditor } from '@/components/ContentEditor';
+import { getActionErrorMessage } from '@/api/errors';
+import { CreateCourseDialog } from '@/components/courses/CreateCourseDialog';
 import { usePermissions } from '@/hooks/usePermissions';
+import { toast } from '@/store/toastStore';
 import type { Course } from '@/types';
 
 export function CoursesPage() {
   const queryClient = useQueryClient();
   const { isOwner } = usePermissions();
 
-  const [newCourse, setNewCourse] = useState({
-    title: '',
-    description: '',
-    content: '',
-    duration_minutes: 0,
-  });
   const [assignmentTargets, setAssignmentTargets] = useState<Record<number, string>>({});
-  const [formError, setFormError] = useState<string | null>(null);
 
   const coursesQuery = useQuery({
     queryKey: ['courses'],
@@ -42,15 +36,6 @@ export function CoursesPage() {
     staleTime: 60_000,
   });
 
-  const createCourse = useMutation({
-    mutationFn: coursesApi.createCourse,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['courses'] });
-      setNewCourse({ title: '', description: '', content: '', duration_minutes: 0 });
-    },
-    onError: (error) => setFormError(getErrorMessage(error)),
-  });
-
   const publishCourse = useMutation({
     mutationFn: coursesApi.publishCourse,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['courses'] }),
@@ -60,7 +45,7 @@ export function CoursesPage() {
     mutationFn: ({ courseId, userId }: { courseId: number; userId: string }) =>
       coursesApi.assignCourse(courseId, [userId]),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['courses'] }),
-    onError: (error) => setFormError(getErrorMessage(error)),
+    onError: (error) => toast.error(getActionErrorMessage(error)),
   });
 
   const updateProgress = useMutation({
@@ -69,104 +54,20 @@ export function CoursesPage() {
     onSuccess: () => assignmentsQuery.refetch(),
   });
 
-  const handleCreate = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setFormError(null);
-    await createCourse.mutateAsync({
-      title: newCourse.title,
-      description: newCourse.description || null,
-      content: newCourse.content || null,
-      duration_minutes: newCourse.duration_minutes,
-    });
-  };
-
   const courses = coursesQuery.data ?? [];
   const users = useMemo(() => usersQuery.data ?? [], [usersQuery.data]);
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Обучение</h1>
-        <p className="mt-1 text-gray-600">
-          Курсы, назначения и прогресс сотрудников
-        </p>
-      </div>
-
-      {isOwner && (
-        <div className="card">
-          <h3 className="card-title mb-3 text-lg">Создать курс</h3>
-          {formError && (
-            <div className="mb-3 rounded-md bg-red-50 p-3 text-sm text-red-600">
-              {formError}
-            </div>
-          )}
-          <form className="space-y-3" onSubmit={handleCreate}>
-            <div className="grid gap-3 md:grid-cols-2">
-              <div>
-                <label className="label" htmlFor="courseTitle">
-                  Название
-                </label>
-                <input
-                  id="courseTitle"
-                  className="input"
-                  value={newCourse.title}
-                  onChange={(e) => setNewCourse((prev) => ({ ...prev, title: e.target.value }))}
-                  required
-                />
-              </div>
-              <div>
-                <label className="label" htmlFor="courseDuration">
-                  Длительность (мин)
-                </label>
-                <input
-                  id="courseDuration"
-                  className="input"
-                  type="number"
-                  min={0}
-                  value={newCourse.duration_minutes}
-                  onChange={(e) =>
-                    setNewCourse((prev) => ({
-                      ...prev,
-                      duration_minutes: Number(e.target.value),
-                    }))
-                  }
-                />
-              </div>
-            </div>
-            <div>
-              <label className="label" htmlFor="courseDescription">
-                Краткое описание
-              </label>
-              <textarea
-                id="courseDescription"
-                className="input min-h-[60px]"
-                value={newCourse.description}
-                onChange={(e) =>
-                  setNewCourse((prev) => ({ ...prev, description: e.target.value }))
-                }
-              />
-            </div>
-            <div>
-              <label className="label" htmlFor="courseContent">
-                Содержимое курса
-              </label>
-              <p className="mb-2 text-xs text-gray-500">
-                Текст, фото, видео (YouTube/Vimeo/RuTube) — та же разметка, что и в статьях.
-              </p>
-              <ContentEditor
-                id="courseContent"
-                value={newCourse.content}
-                onChange={(v) => setNewCourse((prev) => ({ ...prev, content: v }))}
-              />
-            </div>
-            <div className="flex justify-end">
-              <button className="btn-primary" type="submit" disabled={createCourse.isPending}>
-                {createCourse.isPending ? 'Создание...' : 'Создать курс'}
-              </button>
-            </div>
-          </form>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Обучение</h1>
+          <p className="mt-1 text-gray-600">
+            Курсы, назначения и прогресс сотрудников
+          </p>
         </div>
-      )}
+        {isOwner && <CreateCourseDialog />}
+      </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
         {courses.map((course: Course) => (
