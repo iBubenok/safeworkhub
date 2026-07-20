@@ -6,7 +6,20 @@ import { Rocket, Clock3, Search } from 'lucide-react';
 import * as coursesApi from '@/api/courses';
 import { CreateCourseDialog } from '@/components/courses/CreateCourseDialog';
 import { usePermissions } from '@/hooks/usePermissions';
-import type { Course } from '@/types';
+import type { Course, CourseAssignment } from '@/types';
+
+const assignmentStatusLabels: Record<CourseAssignment['status'], string> = {
+  assigned: 'Назначен',
+  in_progress: 'В процессе',
+  completed: 'Пройден',
+  overdue: 'Просрочен',
+};
+
+function progressPillClass(status: CourseAssignment['status']): string {
+  if (status === 'completed') return 'bg-green-50 text-green-700';
+  if (status === 'overdue') return 'bg-red-50 text-red-700';
+  return 'bg-gray-100 text-gray-600';
+}
 
 export function CoursesPage() {
   const queryClient = useQueryClient();
@@ -88,9 +101,14 @@ export function CoursesPage() {
                   >
                     {assignment.course_title ?? `Курс #${assignment.course_id}`}
                   </Link>
-                  <p className="text-xs text-gray-500">
-                    Статус: {assignment.status}, прогресс: {assignment.progress_percent}%
-                  </p>
+                  <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-gray-500">
+                    <span className="rounded-full bg-gray-100 px-2 py-1 uppercase tracking-wide">
+                      {assignmentStatusLabels[assignment.status] ?? assignment.status}
+                    </span>
+                    <span className={`rounded-full px-2 py-1 font-medium ${progressPillClass(assignment.status)}`}>
+                      {assignment.progress_percent}%
+                    </span>
+                  </div>
                 </div>
                 {assignment.status !== 'completed' && (
                   <button
