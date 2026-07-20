@@ -1,21 +1,17 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Rocket, UsersRound, Clock3, Search } from 'lucide-react';
+import { Rocket, Clock3, Search } from 'lucide-react';
 
 import * as coursesApi from '@/api/courses';
-import * as usersApi from '@/api/users';
-import { getActionErrorMessage } from '@/api/errors';
 import { CreateCourseDialog } from '@/components/courses/CreateCourseDialog';
 import { usePermissions } from '@/hooks/usePermissions';
-import { toast } from '@/store/toastStore';
 import type { Course } from '@/types';
 
 export function CoursesPage() {
   const queryClient = useQueryClient();
   const { isOwner } = usePermissions();
 
-  const [assignmentTargets, setAssignmentTargets] = useState<Record<number, string>>({});
   const [searchQuery, setSearchQuery] = useState('');
 
   const coursesQuery = useQuery({
@@ -26,27 +22,12 @@ export function CoursesPage() {
   const assignmentsQuery = useQuery({
     queryKey: ['my-assignments'],
     queryFn: coursesApi.myAssignments,
-    enabled: !isOwner || true,
     staleTime: 30_000,
-  });
-
-  const usersQuery = useQuery({
-    queryKey: ['users', 'for-assign'],
-    queryFn: () => usersApi.searchUsers({ limit: 50 }),
-    enabled: isOwner,
-    staleTime: 60_000,
   });
 
   const publishCourse = useMutation({
     mutationFn: coursesApi.publishCourse,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['courses'] }),
-  });
-
-  const assignCourse = useMutation({
-    mutationFn: ({ courseId, userId }: { courseId: number; userId: string }) =>
-      coursesApi.assignCourse(courseId, [userId]),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['courses'] }),
-    onError: (error) => toast.error(getActionErrorMessage(error)),
   });
 
   const updateProgress = useMutation({
@@ -56,7 +37,6 @@ export function CoursesPage() {
   });
 
   const courses = coursesQuery.data ?? [];
-  const users = useMemo(() => usersQuery.data ?? [], [usersQuery.data]);
 
   return (
     <div className="space-y-6">
@@ -142,84 +122,44 @@ export function CoursesPage() {
       ) : (
       <div className="grid gap-4 lg:grid-cols-2">
         {courses.map((course: Course) => (
-          <div key={course.id} className="card space-y-3">
+          <Link
+            key={course.id}
+            to={`/courses/${course.id}`}
+            className="card flex flex-col gap-3 transition-shadow hover:shadow-md"
+          >
             <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-sm uppercase text-gray-500">Курс #{course.id}</p>
-                <Link
-                  to={`/courses/${course.id}`}
-                  className="text-lg font-semibold text-gray-900 hover:text-primary-700 hover:underline"
-                >
-                  {course.title}
-                </Link>
-                <p className="text-sm text-gray-600">{course.description || 'Описание не задано'}</p>
-              </div>
-              <div className="rounded-full bg-gray-100 px-3 py-1 text-xs uppercase text-gray-700">
-                {course.is_published ? 'Опубликован' : 'Черновик'}
-              </div>
+              <p className="font-semibold text-gray-900 line-clamp-2">{course.title}</p>
+              {isOwner && (
+                <span className="shrink-0 rounded-full bg-gray-100 px-2.5 py-1 text-xs uppercase tracking-wide text-gray-700">
+                  {course.is_published ? 'Опубликован' : 'Черновик'}
+                </span>
+              )}
             </div>
 
-            <div className="flex flex-wrap items-center gap-3 text-sm text-gray-600">
-              <span className="flex items-center gap-2">
-                <Clock3 className="h-4 w-4 text-gray-400" />
-                {course.duration_minutes} минут
-              </span>
-              <Link to={`/courses/${course.id}`} className="text-primary-600 hover:underline">
-                Открыть курс →
-              </Link>
-            </div>
-
-            {isOwner && (
-              <div className="space-y-3">
-                {!course.is_published && (
-                  <button
-                    className="btn-secondary"
-                    onClick={() => publishCourse.mutateAsync(course.id)}
-                    disabled={publishCourse.isPending}
-                  >
-                    {publishCourse.isPending ? 'Публикация...' : 'Опубликовать'}
-                  </button>
-                )}
-
-                <div className="rounded-md bg-gray-50 p-3">
-                  <p className="text-sm font-medium text-gray-900">Назначить курс</p>
-                  <div className="mt-2 flex gap-2">
-                    <select
-                      className="input"
-                      value={assignmentTargets[course.id] ?? ''}
-                      onChange={(e) =>
-                        setAssignmentTargets((prev) => ({
-                          ...prev,
-                          [course.id]: e.target.value,
-                        }))
-                      }
-                    >
-                      <option value="">Выберите пользователя</option>
-                      {users.map((u) => (
-                        <option key={u.id} value={u.id}>
-                          {u.name} ({u.email})
-                        </option>
-                      ))}
-                    </select>
-                    <button
-                      className="btn-primary"
-                      type="button"
-                      disabled={!assignmentTargets[course.id]}
-                      onClick={() => {
-                        const userId = assignmentTargets[course.id];
-                        if (userId) {
-                          assignCourse.mutate({ courseId: course.id, userId });
-                        }
-                      }}
-                    >
-                      <UsersRound className="mr-1 h-4 w-4" />
-                      Назначить
-                    </button>
-                  </div>
-                </div>
-              </div>
+            {course.description && (
+              <p className="text-sm text-gray-500 line-clamp-2">{course.description}</p>
             )}
-          </div>
+
+            <div className="mt-auto flex items-center gap-2 text-xs text-gray-500">
+              <Clock3 className="h-3.5 w-3.5" />
+              <span>≈ {course.duration_minutes} мин</span>
+            </div>
+
+            {isOwner && !course.is_published && (
+              <button
+                type="button"
+                className="btn-secondary self-start"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  publishCourse.mutate(course.id);
+                }}
+                disabled={publishCourse.isPending}
+              >
+                {publishCourse.isPending ? 'Публикация...' : 'Опубликовать'}
+              </button>
+            )}
+          </Link>
         ))}
       </div>
       )}
