@@ -64,6 +64,8 @@ class CourseService:
             duration_minutes=data.duration_minutes,
             is_published=data.is_published,
             thumbnail_url=data.thumbnail_url,
+            training_basis=data.training_basis,
+            training_basis_url=data.training_basis_url,
         )
         await log_audit(
             self.session,

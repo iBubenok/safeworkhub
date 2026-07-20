@@ -17,7 +17,13 @@ export function CourseDetailPage() {
   const { isOwner } = usePermissions();
 
   const [editing, setEditing] = useState(false);
-  const [form, setForm] = useState({ title: '', description: '', content: '' });
+  const [form, setForm] = useState({
+    title: '',
+    description: '',
+    content: '',
+    training_basis: '',
+    training_basis_url: '',
+  });
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['course', courseId],
@@ -42,6 +48,8 @@ export function CourseDetailPage() {
         title: form.title,
         description: form.description || null,
         content: form.content || null,
+        training_basis: form.training_basis || null,
+        training_basis_url: form.training_basis_url || null,
       }),
     onSuccess: () => {
       setEditing(false);
@@ -80,7 +88,13 @@ export function CourseDetailPage() {
 
   const assignment = assignmentsQuery.data?.find((a) => a.course_id === courseId);
   const startEdit = () => {
-    setForm({ title: data.title, description: data.description ?? '', content: data.content ?? '' });
+    setForm({
+      title: data.title,
+      description: data.description ?? '',
+      content: data.content ?? '',
+      training_basis: data.training_basis ?? '',
+      training_basis_url: data.training_basis_url ?? '',
+    });
     setEditing(true);
   };
 
@@ -150,6 +164,33 @@ export function CourseDetailPage() {
                 onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))}
               />
             </div>
+            <div className="grid gap-3 md:grid-cols-2">
+              <div>
+                <label className="label" htmlFor="edit-basis">
+                  Основание обучения
+                </label>
+                <input
+                  id="edit-basis"
+                  className="input"
+                  placeholder="Например: Закон № 190-П"
+                  value={form.training_basis}
+                  onChange={(e) => setForm((p) => ({ ...p, training_basis: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label className="label" htmlFor="edit-basis-url">
+                  Ссылка на основание (необязательно)
+                </label>
+                <input
+                  id="edit-basis-url"
+                  type="url"
+                  className="input"
+                  placeholder="https://..."
+                  value={form.training_basis_url}
+                  onChange={(e) => setForm((p) => ({ ...p, training_basis_url: e.target.value }))}
+                />
+              </div>
+            </div>
             <div>
               <label className="label" htmlFor="edit-content">
                 Содержимое курса
@@ -178,6 +219,24 @@ export function CourseDetailPage() {
           <>
             <h1 className="mt-2 text-2xl font-bold text-gray-900">{data.title}</h1>
             {data.description && <p className="mt-1 text-gray-600">{data.description}</p>}
+
+            {data.training_basis && (
+              <p className="mt-2 text-sm text-gray-600">
+                <span className="font-medium text-gray-700">Основание обучения: </span>
+                {data.training_basis_url ? (
+                  <a
+                    href={data.training_basis_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary-600 underline"
+                  >
+                    {data.training_basis}
+                  </a>
+                ) : (
+                  data.training_basis
+                )}
+              </p>
+            )}
 
             <div className="mt-4 border-t pt-4">
               {data.content ? (

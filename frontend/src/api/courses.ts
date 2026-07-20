@@ -21,6 +21,8 @@ export interface CourseInput {
   description?: string | null;
   content?: string | null;
   duration_minutes?: number;
+  training_basis?: string | null;
+  training_basis_url?: string | null;
 }
 
 export async function createCourse(data: CourseInput): Promise<Course> {
@@ -29,6 +31,8 @@ export async function createCourse(data: CourseInput): Promise<Course> {
     description: data.description ?? null,
     content: data.content ?? null,
     duration_minutes: data.duration_minutes ?? 0,
+    training_basis: data.training_basis ?? null,
+    training_basis_url: data.training_basis_url ?? null,
   });
   return response.data;
 }

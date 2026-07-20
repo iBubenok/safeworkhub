@@ -461,6 +461,8 @@ export interface Course {
   duration_minutes: number;
   is_published: boolean;
   thumbnail_url: string | null;
+  training_basis: string | null;
+  training_basis_url: string | null;
   created_at: string;
   updated_at: string;
 }

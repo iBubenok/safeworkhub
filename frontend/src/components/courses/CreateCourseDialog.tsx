@@ -16,12 +16,14 @@ export function CreateCourseDialog() {
     description: '',
     content: '',
     duration_minutes: 0,
+    training_basis: '',
+    training_basis_url: '',
   });
 
   const queryClient = useQueryClient();
 
   const reset = () => {
-    setForm({ title: '', description: '', content: '', duration_minutes: 0 });
+    setForm({ title: '', description: '', content: '', duration_minutes: 0, training_basis: '', training_basis_url: '' });
     setError(null);
   };
 
@@ -32,6 +34,8 @@ export function CreateCourseDialog() {
         description: form.description || null,
         content: form.content || null,
         duration_minutes: form.duration_minutes,
+        training_basis: form.training_basis || null,
+        training_basis_url: form.training_basis_url || null,
       });
       if (publish) {
         await coursesApi.publishCourse(course.id);
@@ -133,6 +137,34 @@ export function CreateCourseDialog() {
                   value={form.description}
                   onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))}
                 />
+              </div>
+
+              <div className="grid gap-3 md:grid-cols-2">
+                <div>
+                  <label className="label" htmlFor="course-basis">
+                    Основание обучения
+                  </label>
+                  <input
+                    id="course-basis"
+                    className="input"
+                    placeholder="Например: Закон № 190-П"
+                    value={form.training_basis}
+                    onChange={(e) => setForm((p) => ({ ...p, training_basis: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <label className="label" htmlFor="course-basis-url">
+                    Ссылка на основание (необязательно)
+                  </label>
+                  <input
+                    id="course-basis-url"
+                    type="url"
+                    className="input"
+                    placeholder="https://..."
+                    value={form.training_basis_url}
+                    onChange={(e) => setForm((p) => ({ ...p, training_basis_url: e.target.value }))}
+                  />
+                </div>
               </div>
 
               <div>

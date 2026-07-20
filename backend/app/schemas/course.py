@@ -1,11 +1,25 @@
 """Схемы для LMS-курсов и назначений."""
 
 from datetime import datetime
+from urllib.parse import urlparse
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.models.course import AssignmentStatus
+
+
+def _validate_http_url(value: str | None) -> str | None:
+    """Разрешать только http/https URL — защита от XSS через схему javascript:."""
+    if value is None:
+        return None
+    value = value.strip()
+    if not value:
+        return None
+    parsed = urlparse(value)
+    if parsed.scheme.lower() not in ("http", "https") or not parsed.netloc:
+        raise ValueError("URL должен начинаться с http:// или https://")
+    return value
 
 
 class CourseCreate(BaseModel):
@@ -17,6 +31,13 @@ class CourseCreate(BaseModel):
     duration_minutes: int = Field(default=0, ge=0)
     is_published: bool = False
     thumbnail_url: str | None = None
+    training_basis: str | None = Field(default=None, max_length=500, description="Основание обучения")
+    training_basis_url: str | None = Field(default=None, max_length=2000, description="Ссылка на основание")
+
+    @field_validator("training_basis_url")
+    @classmethod
+    def _check_url(cls, value: str | None) -> str | None:
+        return _validate_http_url(value)
 
 
 class CourseUpdate(BaseModel):
@@ -28,6 +49,13 @@ class CourseUpdate(BaseModel):
     duration_minutes: int | None = Field(default=None, ge=0)
     is_published: bool | None = None
     thumbnail_url: str | None = None
+    training_basis: str | None = Field(default=None, max_length=500)
+    training_basis_url: str | None = Field(default=None, max_length=2000)
+
+    @field_validator("training_basis_url")
+    @classmethod
+    def _check_url(cls, value: str | None) -> str | None:
+        return _validate_http_url(value)
 
 
 class CourseResponse(BaseModel):
@@ -43,6 +71,8 @@ class CourseResponse(BaseModel):
     duration_minutes: int
     is_published: bool
     thumbnail_url: str | None
+    training_basis: str | None
+    training_basis_url: str | None
     created_at: datetime
     updated_at: datetime
 

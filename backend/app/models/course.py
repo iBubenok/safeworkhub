@@ -44,6 +44,10 @@ class Course(Base, IntegerPKMixin, TimestampMixin):
     duration_minutes: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     is_published: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     thumbnail_url: Mapped[str | None] = mapped_column(String(500))
+    # Основание обучения — в связи с чем проводится курс (например, «Закон № 190-П»).
+    # Необязательная ссылка превращает основание в текст-ссылку.
+    training_basis: Mapped[str | None] = mapped_column(String(500))
+    training_basis_url: Mapped[str | None] = mapped_column(String(2000))
 
     # Связи
     organization: Mapped["Organization"] = relationship(back_populates="courses")

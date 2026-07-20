@@ -77,6 +77,8 @@ async def test_course_assignment_and_progress(client: AsyncClient, unique_email:
         "content": "# Введение\n\nТекст курса, фото и видео.",
         "duration_minutes": 90,
         "is_published": False,
+        "training_basis": "Закон № 190-П",
+        "training_basis_url": "https://example.com/law-190p",
     }
     course_resp = await client.post(
         "/api/v1/courses",
@@ -96,6 +98,8 @@ async def test_course_assignment_and_progress(client: AsyncClient, unique_email:
     )
     assert got.status_code == 200, got.text
     assert got.json()["content"] == "# Введение\n\nТекст курса, фото и видео."
+    assert got.json()["training_basis"] == "Закон № 190-П"
+    assert got.json()["training_basis_url"] == "https://example.com/law-190p"
 
     publish = await client.post(
         f"/api/v1/courses/{course_id}/publish",
