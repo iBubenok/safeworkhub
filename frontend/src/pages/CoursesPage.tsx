@@ -85,6 +85,50 @@ export function CoursesPage() {
         </form>
       </div>
 
+      <div className="card">
+        <div className="flex items-center justify-between">
+          <h3 className="card-title text-lg">Мои назначения</h3>
+          <Rocket className="h-5 w-5 text-primary-600" />
+        </div>
+        {assignmentsQuery.isLoading ? (
+          <p className="mt-2 text-sm text-gray-600">Загрузка назначений...</p>
+        ) : (assignmentsQuery.data?.length ?? 0) === 0 ? (
+          <p className="mt-2 text-sm text-gray-600">Назначения не найдены</p>
+        ) : (
+          <div className="mt-3 space-y-2">
+            {assignmentsQuery.data?.map((assignment) => (
+              <div
+                key={assignment.id}
+                className="flex items-center justify-between rounded-md bg-gray-50 px-3 py-2"
+              >
+                <div>
+                  <Link
+                    to={`/courses/${assignment.course_id}`}
+                    className="text-sm font-medium text-gray-900 hover:text-primary-700 hover:underline"
+                  >
+                    {assignment.course_title ?? `Курс #${assignment.course_id}`}
+                  </Link>
+                  <p className="text-xs text-gray-500">
+                    Статус: {assignment.status}, прогресс: {assignment.progress_percent}%
+                  </p>
+                </div>
+                {assignment.status !== 'completed' && (
+                  <button
+                    className="btn-secondary"
+                    onClick={() =>
+                      updateProgress.mutate({ courseId: assignment.course_id, progress: 100 })
+                    }
+                    disabled={updateProgress.isPending}
+                  >
+                    Завершить
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       {coursesQuery.isLoading ? (
         <div className="grid gap-4 lg:grid-cols-2">
           {[...Array(4)].map((_, i) => (
@@ -179,47 +223,6 @@ export function CoursesPage() {
         ))}
       </div>
       )}
-
-      <div className="card">
-        <div className="flex items-center justify-between">
-          <h3 className="card-title text-lg">Мои назначения</h3>
-          <Rocket className="h-5 w-5 text-primary-600" />
-        </div>
-        {assignmentsQuery.isLoading ? (
-          <p className="mt-2 text-sm text-gray-600">Загрузка назначений...</p>
-        ) : (assignmentsQuery.data?.length ?? 0) === 0 ? (
-          <p className="mt-2 text-sm text-gray-600">Назначения не найдены</p>
-        ) : (
-          <div className="mt-3 space-y-2">
-            {assignmentsQuery.data?.map((assignment) => (
-              <div
-                key={assignment.id}
-                className="flex items-center justify-between rounded-md bg-gray-50 px-3 py-2"
-              >
-                <div>
-                  <p className="text-sm font-medium text-gray-900">
-                    Курс #{assignment.course_id}
-                  </p>
-                  <p className="text-xs text-gray-500">
-                    Статус: {assignment.status}, прогресс: {assignment.progress_percent}%
-                  </p>
-                </div>
-                {assignment.status !== 'completed' && (
-                  <button
-                    className="btn-secondary"
-                    onClick={() =>
-                      updateProgress.mutate({ courseId: assignment.course_id, progress: 100 })
-                    }
-                    disabled={updateProgress.isPending}
-                  >
-                    Завершить
-                  </button>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
     </div>
   );
 }

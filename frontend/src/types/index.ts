@@ -470,6 +470,7 @@ export interface Course {
 export interface CourseAssignment {
   id: string;
   course_id: number;
+  course_title: string | null;
   organization_id: number;
   user_id: string;
   status: 'assigned' | 'in_progress' | 'completed' | 'overdue';

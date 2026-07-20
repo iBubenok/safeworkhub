@@ -216,4 +216,9 @@ class CourseService:
         organization_id: int,
     ) -> list[CourseAssignmentResponse]:
         assignments = await self.assignment_repo.list_for_user(user_id, organization_id)
-        return [CourseAssignmentResponse.model_validate(a) for a in assignments]
+        responses: list[CourseAssignmentResponse] = []
+        for a in assignments:
+            resp = CourseAssignmentResponse.model_validate(a)
+            resp.course_title = a.course.title if a.course else None
+            responses.append(resp)
+        return responses

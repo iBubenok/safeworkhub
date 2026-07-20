@@ -84,6 +84,7 @@ class CourseAssignmentResponse(BaseModel):
 
     id: UUID
     course_id: int
+    course_title: str | None = None
     organization_id: int
     user_id: UUID
     status: AssignmentStatus

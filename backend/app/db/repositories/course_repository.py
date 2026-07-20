@@ -7,6 +7,7 @@ from uuid import UUID
 
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.db.repositories.base import BaseRepository
 from app.models import AssignmentStatus, Course, CourseAssignment
@@ -73,9 +74,14 @@ class CourseAssignmentRepository(BaseRepository[CourseAssignment]):
         user_id: UUID,
         organization_id: int,
     ) -> list[CourseAssignment]:
-        query = select(CourseAssignment).where(
-            CourseAssignment.user_id == user_id,
-            CourseAssignment.organization_id == organization_id,
+        query = (
+            select(CourseAssignment)
+            .where(
+                CourseAssignment.user_id == user_id,
+                CourseAssignment.organization_id == organization_id,
+            )
+            .options(selectinload(CourseAssignment.course))
+            .order_by(CourseAssignment.created_at.desc())
         )
         result = await self.session.execute(query)
         return list(result.scalars().all())
