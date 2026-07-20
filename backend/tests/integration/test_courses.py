@@ -123,3 +123,37 @@ async def test_course_assignment_and_progress(client: AsyncClient, unique_email:
     progress_data = progress.json()
     assert progress_data["status"] == "completed"
     assert progress_data["progress_percent"] == 100
+
+
+@pytest.mark.asyncio
+async def test_course_search_filters_by_title(client: AsyncClient, unique_email: str):
+    """Поиск курсов фильтрует по названию (ILIKE), а не возвращает все подряд."""
+    owner_tokens, owner_cookies = await register_and_login(client, unique_email)
+    headers = {"Authorization": f"Bearer {owner_tokens['access_token']}"}
+
+    for title in ("тест", "пробный"):
+        resp = await client.post(
+            "/api/v1/courses",
+            json={"title": title, "duration_minutes": 10, "is_published": True},
+            headers=headers,
+            cookies=owner_cookies,
+        )
+        assert resp.status_code == 201, resp.text
+        course_id = resp.json()["id"]
+        pub = await client.post(
+            f"/api/v1/courses/{course_id}/publish",
+            headers=headers,
+            cookies=owner_cookies,
+        )
+        assert pub.status_code == 200
+
+    # Без запроса — оба курса.
+    all_resp = await client.get("/api/v1/courses", headers=headers, cookies=owner_cookies)
+    assert all_resp.status_code == 200
+    assert {c["title"] for c in all_resp.json()} == {"тест", "пробный"}
+
+    # С запросом «проб» — только «пробный».
+    found = await client.get("/api/v1/courses", params={"q": "проб"}, headers=headers, cookies=owner_cookies)
+    assert found.status_code == 200
+    titles = [c["title"] for c in found.json()]
+    assert titles == ["пробный"], titles

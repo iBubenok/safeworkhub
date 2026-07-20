@@ -31,12 +31,14 @@ class CourseService:
         organization_id: int,
         *,
         published_only: bool = True,
+        search: str | None = None,
         limit: int = 20,
         offset: int = 0,
     ) -> list[Course]:
         return await self.course_repo.list_for_org(
             organization_id=organization_id,
             published_only=published_only,
+            search=search,
             limit=limit,
             offset=offset,
         )

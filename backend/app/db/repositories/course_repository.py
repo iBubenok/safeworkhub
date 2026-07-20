@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.repositories.base import BaseRepository
@@ -23,6 +23,7 @@ class CourseRepository(BaseRepository[Course]):
         organization_id: int,
         *,
         published_only: bool = True,
+        search: str | None = None,
         limit: int = 20,
         offset: int = 0,
     ) -> list[Course]:
@@ -35,6 +36,9 @@ class CourseRepository(BaseRepository[Course]):
         )
         if published_only:
             query = query.where(Course.is_published.is_(True))
+        if search:
+            pattern = f"%{search.strip()}%"
+            query = query.where(or_(Course.title.ilike(pattern), Course.description.ilike(pattern)))
         result = await self.session.execute(query)
         return list(result.scalars().all())
 

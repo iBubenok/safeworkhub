@@ -32,11 +32,12 @@ router = APIRouter()
 async def list_courses(
     ctx: CurrentContext,
     session: DbSession,
+    q: Annotated[str | None, Query(description="Поиск по названию и описанию")] = None,
     limit: Annotated[int, Query(ge=1, le=100)] = 20,
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> list[CourseResponse]:
     service = CourseService(session)
-    courses = await service.list_courses(ctx.organization_id, limit=limit, offset=offset)
+    courses = await service.list_courses(ctx.organization_id, search=q, limit=limit, offset=offset)
     return [CourseResponse.model_validate(course) for course in courses]
 
 

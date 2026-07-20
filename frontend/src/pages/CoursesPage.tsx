@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Rocket, UsersRound, Clock3 } from 'lucide-react';
+import { Rocket, UsersRound, Clock3, Search } from 'lucide-react';
 
 import * as coursesApi from '@/api/courses';
 import * as usersApi from '@/api/users';
@@ -16,10 +16,11 @@ export function CoursesPage() {
   const { isOwner } = usePermissions();
 
   const [assignmentTargets, setAssignmentTargets] = useState<Record<number, string>>({});
+  const [searchQuery, setSearchQuery] = useState('');
 
   const coursesQuery = useQuery({
-    queryKey: ['courses'],
-    queryFn: () => coursesApi.listCourses(),
+    queryKey: ['courses', searchQuery],
+    queryFn: () => coursesApi.listCourses({ search: searchQuery }),
   });
 
   const assignmentsQuery = useQuery({
@@ -69,6 +70,32 @@ export function CoursesPage() {
         {isOwner && <CreateCourseDialog />}
       </div>
 
+      <div className="card">
+        <form onSubmit={(e) => e.preventDefault()} className="flex gap-3">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Поиск по названию и описанию курса..."
+              className="input pl-10"
+            />
+          </div>
+        </form>
+      </div>
+
+      {coursesQuery.isLoading ? (
+        <div className="grid gap-4 lg:grid-cols-2">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="card h-32 animate-pulse" />
+          ))}
+        </div>
+      ) : courses.length === 0 ? (
+        <div className="card text-center">
+          <p className="text-gray-500">Курсы не найдены</p>
+        </div>
+      ) : (
       <div className="grid gap-4 lg:grid-cols-2">
         {courses.map((course: Course) => (
           <div key={course.id} className="card space-y-3">
@@ -151,6 +178,7 @@ export function CoursesPage() {
           </div>
         ))}
       </div>
+      )}
 
       <div className="card">
         <div className="flex items-center justify-between">

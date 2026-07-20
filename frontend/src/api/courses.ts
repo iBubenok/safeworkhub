@@ -2,11 +2,11 @@ import { apiClient } from './client';
 import type { Course, CourseAssignment } from '@/types';
 
 export async function listCourses(
-  limit: number = 20,
-  offset: number = 0,
+  params: { search?: string; limit?: number; offset?: number } = {},
 ): Promise<Course[]> {
+  const { search, limit = 20, offset = 0 } = params;
   const response = await apiClient.get<Course[]>('/courses', {
-    params: { limit, offset },
+    params: { q: search || undefined, limit, offset },
   });
   return response.data;
 }
