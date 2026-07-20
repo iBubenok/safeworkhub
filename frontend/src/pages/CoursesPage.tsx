@@ -90,17 +90,15 @@ export function CoursesPage() {
         ) : (
           <div className="mt-3 space-y-2">
             {assignmentsQuery.data?.map((assignment) => (
-              <div
+              <Link
                 key={assignment.id}
-                className="flex items-center justify-between rounded-md bg-gray-50 px-3 py-2"
+                to={`/courses/${assignment.course_id}`}
+                className="flex items-center justify-between rounded-md bg-gray-50 px-3 py-2 transition-colors hover:bg-gray-100"
               >
-                <div>
-                  <Link
-                    to={`/courses/${assignment.course_id}`}
-                    className="text-sm font-medium text-gray-900 hover:text-primary-700 hover:underline"
-                  >
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium text-gray-900">
                     {assignment.course_title ?? `Курс #${assignment.course_id}`}
-                  </Link>
+                  </p>
                   <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-gray-500">
                     <span className="rounded-full bg-gray-100 px-2 py-1 uppercase tracking-wide">
                       {assignmentStatusLabels[assignment.status] ?? assignment.status}
@@ -112,16 +110,19 @@ export function CoursesPage() {
                 </div>
                 {assignment.status !== 'completed' && (
                   <button
-                    className="btn-secondary"
-                    onClick={() =>
-                      updateProgress.mutate({ courseId: assignment.course_id, progress: 100 })
-                    }
+                    type="button"
+                    className="btn-secondary shrink-0"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      updateProgress.mutate({ courseId: assignment.course_id, progress: 100 });
+                    }}
                     disabled={updateProgress.isPending}
                   >
                     Завершить
                   </button>
                 )}
-              </div>
+              </Link>
             ))}
           </div>
         )}
