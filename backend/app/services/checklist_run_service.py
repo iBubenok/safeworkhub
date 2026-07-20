@@ -533,11 +533,18 @@ class ChecklistRunService:
             request_id=request_id,
             details={"result": run.result, "score": self._score(run.compliant_count, run.non_compliant_count)},
         )
+        editor = await self.user_repo.get_by_id(editor_id)
+        run_name = run.title or run.checklist_title
+        message = (
+            f"Проверка «{run_name}» завершена пользователем {editor.name}"
+            if editor
+            else f"Проверка «{run_name}» завершена"
+        )
         await self._notify(
             run,
             self._run_audience(run) - {editor_id},
             title="Проверка завершена",
-            message=f"Проверка «{run.title or run.checklist_title}» завершена",
+            message=message,
             type_="success",
         )
         loaded = await self.repository.get_with_answers(run_id)

@@ -102,6 +102,12 @@ async def test_start_notifies_only_assignees(client: AsyncClient, unique_email: 
     )
     assert done.status_code == 200, done.text
     assert "Проверка завершена" in await titles_of(client, member_tokens, member_cookies)
+    # В тексте уведомления указан завершивший (создатель, имя «Создатель»).
+    notifications = await client.get(
+        "/api/v1/notifications", headers=auth_headers(member_tokens), cookies=member_cookies
+    )
+    completed = next(n for n in notifications.json()["items"] if n["title"] == "Проверка завершена")
+    assert "Создатель" in completed["message"], completed["message"]
     assert await titles_of(client, owner_tokens, owner_cookies) == []
 
 
